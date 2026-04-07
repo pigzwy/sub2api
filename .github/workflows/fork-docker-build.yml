@@ -17,12 +17,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      # 只有代码变更才触发，文档修改不触发
-      - 'backend/**'
-      - 'frontend/**'
-      - 'Dockerfile'
-      - 'deploy/docker-entrypoint.sh'
 
 env:
   DOCKER_IMAGE: ${{ secrets.DOCKER_HUB_USERNAME }}/sub2api
