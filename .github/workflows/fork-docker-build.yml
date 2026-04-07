@@ -1,0 +1,91 @@
+# =============================================================================
+# [FORK] 二开 Docker 镜像构建 & 推送
+# =============================================================================
+# 手动触发或 push 到 main 时自动构建
+# 推送到 Docker Hub: <DOCKER_HUB_USERNAME>/sub2api:latest
+# =============================================================================
+
+name: "[FORK] Build & Push Docker Image"
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '镜像 Tag（留空则使用 latest + short commit hash）'
+        required: false
+        type: string
+  push:
+    branches:
+      - main
+    paths:
+      # 只有代码变更才触发，文档修改不触发
+      - 'backend/**'
+      - 'frontend/**'
+      - 'Dockerfile'
+      - 'deploy/docker-entrypoint.sh'
+
+env:
+  DOCKER_IMAGE: ${{ secrets.DOCKER_HUB_USERNAME }}/sub2api
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: Prepare tags
+        id: tags
+        run: |
+          COMMIT_SHORT=$(git rev-parse --short HEAD)
+          TIMESTAMP=$(date -u +%Y%m%d%H%M%S)
+
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            # 手动指定 tag
+            CUSTOM_TAG="${{ github.event.inputs.tag }}"
+            echo "tags=${{ env.DOCKER_IMAGE }}:${CUSTOM_TAG},${{ env.DOCKER_IMAGE }}:latest" >> $GITHUB_OUTPUT
+          else
+            # 自动 tag: latest + commit hash
+            echo "tags=${{ env.DOCKER_IMAGE }}:latest,${{ env.DOCKER_IMAGE }}:${COMMIT_SHORT},${{ env.DOCKER_IMAGE }}:build-${TIMESTAMP}" >> $GITHUB_OUTPUT
+          fi
+
+          echo "commit=${COMMIT_SHORT}" >> $GITHUB_OUTPUT
+
+      - name: Build and Push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          build-args: |
+            GOPROXY=https://goproxy.cn,direct
+            GOSUMDB=sum.golang.google.cn
+            COMMIT=${{ steps.tags.outputs.commit }}
+            DATE=${{ github.event.head_commit.timestamp }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        run: |
+          echo "### ✅ Docker 镜像构建成功" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**推送的镜像 Tags:**" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.tags.outputs.tags }}" | tr ',' '\n' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**部署命令:**" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.DOCKER_IMAGE }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo "docker compose up -d" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
