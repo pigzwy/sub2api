@@ -352,8 +352,7 @@ export default {
     github: 'GitHub',
     mySubscriptions: '我的订阅',
     buySubscription: '充值/订阅',
-    docs: '文档',
-    sora: 'Sora 创作'
+    docs: '文档'
   },
 
   // Auth
@@ -4361,7 +4360,6 @@ export default {
         gateway: '网关服务',
         email: '邮件设置',
         backup: '数据备份',
-        data: 'Sora 存储',
       },
       emailTabDisabledTitle: '邮箱验证未启用',
       emailTabDisabledHint: '请在「安全与认证」选项卡中启用邮箱验证后，再配置 SMTP 设置。',

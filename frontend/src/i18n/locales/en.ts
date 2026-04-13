@@ -352,8 +352,7 @@ export default {
     github: 'GitHub',
     mySubscriptions: 'My Subscriptions',
     buySubscription: 'Recharge / Subscription',
-    docs: 'Docs',
-    sora: 'Sora Studio'
+    docs: 'Docs'
   },
 
   // Auth
@@ -4196,7 +4195,6 @@ export default {
         gateway: 'Gateway',
         email: 'Email',
         backup: 'Backup',
-        data: 'Sora Storage',
       },
       emailTabDisabledTitle: 'Email Verification Not Enabled',
       emailTabDisabledHint: 'Enable email verification in the Security tab to configure SMTP settings.',
