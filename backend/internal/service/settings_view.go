@@ -143,7 +143,6 @@ type PublicSettings struct {
 	BackendModeEnabled    bool
 	OIDCOAuthEnabled      bool
 	OIDCOAuthProviderName string
-	PaymentEnabled        bool
 	Version               string
 }
 

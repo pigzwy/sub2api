@@ -104,7 +104,8 @@ export interface PublicSettings {
   doc_url: string
   home_content: string
   hide_ccs_import_button: boolean
-  payment_enabled: boolean
+  purchase_subscription_enabled: boolean
+  purchase_subscription_url: string
   table_default_page_size: number
   table_page_size_options: number[]
   custom_menu_items: CustomMenuItem[]
@@ -112,6 +113,7 @@ export interface PublicSettings {
   linuxdo_oauth_enabled: boolean
   oidc_oauth_enabled: boolean
   oidc_oauth_provider_name: string
+  sora_client_enabled: boolean
   backend_mode_enabled: boolean
   version: string
 }
@@ -1631,6 +1633,3 @@ export interface UpdateScheduledTestPlanRequest {
   max_results?: number
   auto_recover?: boolean
 }
-
-// Payment types
-export type { SubscriptionPlan, PaymentOrder, CheckoutInfoResponse } from './payment'
