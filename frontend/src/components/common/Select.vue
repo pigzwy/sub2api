@@ -179,6 +179,7 @@ const dropdownStyle = computed(() => {
     position: 'fixed',
     left: `${rect.left}px`,
     minWidth: `${rect.width}px`,
+    maxWidth: `${Math.min(rect.width + 120, window.innerWidth - rect.left - 16)}px`,
     zIndex: '100000020'
   }
 
@@ -460,7 +461,7 @@ onUnmounted(() => {
 
 <style>
 .select-dropdown-portal {
-  @apply w-max min-w-[200px];
+  @apply min-w-[200px];
   @apply bg-white dark:bg-dark-800;
   @apply rounded-xl;
   @apply border border-gray-200 dark:border-dark-700;
