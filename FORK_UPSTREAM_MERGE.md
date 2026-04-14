@@ -157,8 +157,12 @@ payment-docs
 |---|---|---|
 | #1572 `feat/payment-system-v2` | `97f14b7a` | 内置支付系统主体 |
 | #1576 `feat/payment-docs` | `54490cf6` | 支付文档 + SettingsView 里的 ZPay/EasyPay 推荐链接 |
+| #1610 `fix/alipay-wxpay-type-mapping` | `7d80b5ad` | Alipay/Wxpay 提供方映射 + 跨渠道负载均衡（f498eb8f） |
+| #1612 `fix/qrcode-density` | `75908800` | 支付二维码密度降低（改 PaymentQRDialog/PaymentStatusPanel/PaymentQRCodeView） |
 
 **以后遇到新的支付相关 PR 要追加到本表，AI 每次合并前读本表就知道要跳过哪些。**
+
+**注意**：如果黑名单 PR 改的文件在 fork 里已经被删除，合并时会出现 `modify/delete` 冲突。此时**直接 `git rm` 这些支付文件**比 `git revert -m 1 <PR>` 更干净（revert 会把文件拉回来，还得再删一次）。v0.1.112 合并时 PR #1610 和 #1612 就是这样处理的。
 
 ### 3.3 黑名单的边界：已被 upstream 移除的"旧 iframe 入口"
 
