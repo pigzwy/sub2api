@@ -99,13 +99,19 @@ type DefaultSubscriptionGroupReader interface {
 	GetByID(ctx context.Context, id int64) (*Group, error)
 }
 
+// WebSearchManagerBuilder creates a websearch.Manager from config (injected by infra layer).
+// proxyURLs maps proxy ID to resolved URL for provider-level proxy support.
+type WebSearchManagerBuilder func(cfg *WebSearchEmulationConfig, proxyURLs map[int64]string)
+
 // SettingService 系统设置服务
 type SettingService struct {
-	settingRepo           SettingRepository
-	defaultSubGroupReader DefaultSubscriptionGroupReader
-	cfg                   *config.Config
-	onUpdate              func() // Callback when settings are updated (for cache invalidation)
-	version               string // Application version
+	settingRepo             SettingRepository
+	defaultSubGroupReader   DefaultSubscriptionGroupReader
+	proxyRepo               ProxyRepository // for resolving websearch provider proxy URLs
+	cfg                     *config.Config
+	onUpdate                func() // Callback when settings are updated (for cache invalidation)
+	version                 string // Application version
+	webSearchManagerBuilder WebSearchManagerBuilder
 }
 
 // NewSettingService 创建系统设置服务实例
@@ -119,6 +125,11 @@ func NewSettingService(settingRepo SettingRepository, cfg *config.Config) *Setti
 // SetDefaultSubscriptionGroupReader injects an optional group reader for default subscription validation.
 func (s *SettingService) SetDefaultSubscriptionGroupReader(reader DefaultSubscriptionGroupReader) {
 	s.defaultSubGroupReader = reader
+}
+
+// SetProxyRepository injects a proxy repo for resolving websearch provider proxy URLs.
+func (s *SettingService) SetProxyRepository(repo ProxyRepository) {
+	s.proxyRepo = repo
 }
 
 // GetAllSettings 获取所有系统设置
@@ -170,6 +181,10 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyBackendModeEnabled,
 		SettingKeyOIDCConnectEnabled,
 		SettingKeyOIDCConnectProviderName,
+		SettingKeyBalanceLowNotifyEnabled,
+		SettingKeyBalanceLowNotifyThreshold,
+		SettingKeyBalanceLowNotifyRechargeURL,
+		SettingKeyAccountQuotaNotifyEnabled,
 	}
 
 	settings, err := s.settingRepo.GetMultiple(ctx, keys)
@@ -208,6 +223,11 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		settings[SettingKeyTablePageSizeOptions],
 	)
 
+	var balanceLowNotifyThreshold float64
+	if v, err := strconv.ParseFloat(settings[SettingKeyBalanceLowNotifyThreshold], 64); err == nil && v >= 0 {
+		balanceLowNotifyThreshold = v
+	}
+
 	return &PublicSettings{
 		RegistrationEnabled:              settings[SettingKeyRegistrationEnabled] == "true",
 		EmailVerifyEnabled:               emailVerifyEnabled,
@@ -236,6 +256,10 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		BackendModeEnabled:               settings[SettingKeyBackendModeEnabled] == "true",
 		OIDCOAuthEnabled:                 oidcEnabled,
 		OIDCOAuthProviderName:            oidcProviderName,
+		BalanceLowNotifyEnabled:          settings[SettingKeyBalanceLowNotifyEnabled] == "true",
+		AccountQuotaNotifyEnabled:        settings[SettingKeyAccountQuotaNotifyEnabled] == "true",
+		BalanceLowNotifyThreshold:        balanceLowNotifyThreshold,
+		BalanceLowNotifyRechargeURL:      settings[SettingKeyBalanceLowNotifyRechargeURL],
 	}, nil
 }
 
@@ -288,6 +312,10 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		OIDCOAuthEnabled                 bool            `json:"oidc_oauth_enabled"`
 		OIDCOAuthProviderName            string          `json:"oidc_oauth_provider_name"`
 		Version                          string          `json:"version,omitempty"`
+		BalanceLowNotifyEnabled          bool            `json:"balance_low_notify_enabled"`
+		AccountQuotaNotifyEnabled        bool            `json:"account_quota_notify_enabled"`
+		BalanceLowNotifyThreshold        float64         `json:"balance_low_notify_threshold"`
+		BalanceLowNotifyRechargeURL      string          `json:"balance_low_notify_recharge_url"`
 	}{
 		RegistrationEnabled:              settings.RegistrationEnabled,
 		EmailVerifyEnabled:               settings.EmailVerifyEnabled,
@@ -317,6 +345,10 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		OIDCOAuthEnabled:                 settings.OIDCOAuthEnabled,
 		OIDCOAuthProviderName:            settings.OIDCOAuthProviderName,
 		Version:                          s.version,
+		BalanceLowNotifyEnabled:          settings.BalanceLowNotifyEnabled,
+		AccountQuotaNotifyEnabled:        settings.AccountQuotaNotifyEnabled,
+		BalanceLowNotifyThreshold:        settings.BalanceLowNotifyThreshold,
+		BalanceLowNotifyRechargeURL:      settings.BalanceLowNotifyRechargeURL,
 	}, nil
 }
 
@@ -590,6 +622,13 @@ func (s *SettingService) UpdateSettings(ctx context.Context, settings *SystemSet
 	updates[SettingKeyEnableFingerprintUnification] = strconv.FormatBool(settings.EnableFingerprintUnification)
 	updates[SettingKeyEnableMetadataPassthrough] = strconv.FormatBool(settings.EnableMetadataPassthrough)
 	updates[SettingKeyEnableCCHSigning] = strconv.FormatBool(settings.EnableCCHSigning)
+
+	// Balance low notification
+	updates[SettingKeyBalanceLowNotifyEnabled] = strconv.FormatBool(settings.BalanceLowNotifyEnabled)
+	updates[SettingKeyBalanceLowNotifyThreshold] = strconv.FormatFloat(settings.BalanceLowNotifyThreshold, 'f', 8, 64)
+	updates[SettingKeyBalanceLowNotifyRechargeURL] = settings.BalanceLowNotifyRechargeURL
+	updates[SettingKeyAccountQuotaNotifyEnabled] = strconv.FormatBool(settings.AccountQuotaNotifyEnabled)
+	updates[SettingKeyAccountQuotaNotifyEmails] = MarshalNotifyEmails(settings.AccountQuotaNotifyEmails)
 
 	err = s.settingRepo.SetMultiple(ctx, updates)
 	if err == nil {
@@ -1212,6 +1251,30 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	}
 	result.EnableMetadataPassthrough = settings[SettingKeyEnableMetadataPassthrough] == "true"
 	result.EnableCCHSigning = settings[SettingKeyEnableCCHSigning] == "true"
+
+	// Web search emulation: quick enabled check from the JSON config
+	if raw := settings[SettingKeyWebSearchEmulationConfig]; raw != "" {
+		var wsCfg WebSearchEmulationConfig
+		if err := json.Unmarshal([]byte(raw), &wsCfg); err == nil {
+			result.WebSearchEmulationEnabled = wsCfg.Enabled && len(wsCfg.Providers) > 0
+		}
+	}
+
+	// Balance low notification
+	result.BalanceLowNotifyEnabled = settings[SettingKeyBalanceLowNotifyEnabled] == "true"
+	if v, err := strconv.ParseFloat(settings[SettingKeyBalanceLowNotifyThreshold], 64); err == nil && v >= 0 {
+		result.BalanceLowNotifyThreshold = v
+	}
+	result.BalanceLowNotifyRechargeURL = settings[SettingKeyBalanceLowNotifyRechargeURL]
+
+	// Account quota notification
+	result.AccountQuotaNotifyEnabled = settings[SettingKeyAccountQuotaNotifyEnabled] == "true"
+	if raw := strings.TrimSpace(settings[SettingKeyAccountQuotaNotifyEmails]); raw != "" {
+		result.AccountQuotaNotifyEmails = ParseNotifyEmails(raw)
+	}
+	if result.AccountQuotaNotifyEmails == nil {
+		result.AccountQuotaNotifyEmails = []NotifyEmailEntry{}
+	}
 
 	return result
 }

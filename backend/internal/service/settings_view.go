@@ -106,6 +106,18 @@ type SystemSettings struct {
 	EnableFingerprintUnification bool // 是否统一 OAuth 账号的指纹头（默认 true）
 	EnableMetadataPassthrough    bool // 是否透传客户端原始 metadata（默认 false）
 	EnableCCHSigning             bool // 是否对 billing header cch 进行签名（默认 false）
+
+	// Web Search Emulation
+	WebSearchEmulationEnabled bool // 是否启用 web search 模拟
+
+	// Balance low notification
+	BalanceLowNotifyEnabled     bool
+	BalanceLowNotifyThreshold   float64
+	BalanceLowNotifyRechargeURL string
+
+	// Account quota notification
+	AccountQuotaNotifyEnabled bool
+	AccountQuotaNotifyEmails  []NotifyEmailEntry
 }
 
 type DefaultSubscriptionSetting struct {
@@ -144,6 +156,11 @@ type PublicSettings struct {
 	OIDCOAuthEnabled      bool
 	OIDCOAuthProviderName string
 	Version               string
+
+	BalanceLowNotifyEnabled     bool
+	AccountQuotaNotifyEnabled   bool
+	BalanceLowNotifyThreshold   float64
+	BalanceLowNotifyRechargeURL string
 }
 
 // StreamTimeoutSettings 流超时处理配置（仅控制超时后的处理方式，超时判定由网关配置控制）
