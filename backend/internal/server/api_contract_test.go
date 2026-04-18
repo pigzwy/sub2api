@@ -58,6 +58,11 @@ func TestAPIContracts(t *testing.T) {
 					"allowed_groups": null,
 					"created_at": "2025-01-02T03:04:05Z",
 					"updated_at": "2025-01-02T03:04:05Z",
+					"balance_notify_enabled": false,
+					"balance_notify_threshold_type": "",
+					"balance_notify_threshold": null,
+					"balance_notify_extra_emails": null,
+					"total_recharged": 0,
 					"run_mode": "standard"
 				}
 			}`,
@@ -204,11 +209,10 @@ func TestAPIContracts(t *testing.T) {
 						"image_price_1k": null,
 						"image_price_2k": null,
 						"image_price_4k": null,
-							"claude_code_only": false,
+						"claude_code_only": false,
 						"allow_messages_dispatch": false,
 						"fallback_group_id": null,
 						"fallback_group_id_on_invalid_request": null,
-						"allow_messages_dispatch": false,
 						"require_oauth_only": false,
 						"require_privacy_set": false,
 						"created_at": "2025-01-02T03:04:05Z",
@@ -587,8 +591,14 @@ func TestAPIContracts(t *testing.T) {
 					"enable_cch_signing": false,
 					"enable_fingerprint_unification": true,
 					"enable_metadata_passthrough": false,
+					"web_search_emulation_enabled": false,
 					"custom_menu_items": [],
-					"custom_endpoints": []
+					"custom_endpoints": [],
+					"balance_low_notify_enabled": false,
+					"account_quota_notify_enabled": false,
+					"balance_low_notify_threshold": 0,
+					"balance_low_notify_recharge_url": "",
+					"account_quota_notify_emails": []
 				}
 			}`,
 		},
@@ -681,7 +691,7 @@ func newContractDeps(t *testing.T) *contractDeps {
 		RunMode: config.RunModeStandard,
 	}
 
-	userService := service.NewUserService(userRepo, nil, nil)
+	userService := service.NewUserService(userRepo, nil, nil, nil)
 	apiKeyService := service.NewAPIKeyService(apiKeyRepo, userRepo, groupRepo, userSubRepo, nil, apiKeyCache, cfg)
 
 	usageRepo := newStubUsageLogRepo()

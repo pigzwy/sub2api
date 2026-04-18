@@ -123,6 +123,16 @@ type SystemSettings struct {
 	EnableFingerprintUnification bool `json:"enable_fingerprint_unification"`
 	EnableMetadataPassthrough    bool `json:"enable_metadata_passthrough"`
 	EnableCCHSigning             bool `json:"enable_cch_signing"`
+
+	// Web Search Emulation
+	WebSearchEmulationEnabled bool `json:"web_search_emulation_enabled"`
+
+	// Balance low notification
+	BalanceLowNotifyEnabled     bool               `json:"balance_low_notify_enabled"`
+	BalanceLowNotifyThreshold   float64            `json:"balance_low_notify_threshold"`
+	BalanceLowNotifyRechargeURL string             `json:"balance_low_notify_recharge_url"`
+	AccountQuotaNotifyEnabled   bool               `json:"account_quota_notify_enabled"`
+	AccountQuotaNotifyEmails    []NotifyEmailEntry `json:"account_quota_notify_emails"`
 }
 
 type DefaultSubscriptionSetting struct {
@@ -160,6 +170,10 @@ type PublicSettings struct {
 	SoraClientEnabled                bool             `json:"sora_client_enabled"`
 	BackendModeEnabled               bool             `json:"backend_mode_enabled"`
 	Version                          string           `json:"version"`
+	BalanceLowNotifyEnabled          bool             `json:"balance_low_notify_enabled"`
+	AccountQuotaNotifyEnabled        bool             `json:"account_quota_notify_enabled"`
+	BalanceLowNotifyThreshold        float64          `json:"balance_low_notify_threshold"`
+	BalanceLowNotifyRechargeURL      string           `json:"balance_low_notify_recharge_url"`
 }
 
 // OverloadCooldownSettings 529过载冷却配置 DTO
