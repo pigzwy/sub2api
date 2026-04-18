@@ -99,6 +99,20 @@ grep -n 'githubRepo' backend/internal/service/update_service.go
 - 嵌入通道：`frontend/src/utils/embedded-url.ts` 里的 `buildEmbeddedUrl()`，给外部页面传 `user_id / token / theme / lang / ui_mode=embedded / src_host / src_url` 查询参数
 - 嵌入位置：旧版用 `PurchaseSubscriptionView.vue`；如果 upstream 已经把它删了，用 `CustomPageView.vue` (`/custom/:id`) 也能嵌入同一套参数
 
+### 3.1.1 2026-04 现行判断：为什么继续拒绝 payment v2
+
+经过一次实际排查后，当前结论更新为：
+
+- **不是接口层硬冲突**：本 Fork 的外部支付成功后，实际上是通过 `admin_api_key` 调后端的管理员接口 `/admin/redeem-codes/create-and-redeem` 完成充值；这条链路本身可以独立运行，不依赖 upstream payment v2
+- **真正的冲突在入口层和账务模型层**：
+  - upstream payment v2 会接管 `/purchase`，把当前 iframe 入口替换成 `PaymentView.vue`
+  - upstream payment v2 引入 `payment_order / payment_provider / subscription_plan` 等完整订单模型
+  - 本 Fork 现有外部支付仍然以“固定兑换码 + 立即兑换”作为到账模型，两套系统并存会形成双账本、双入口、双退款语义
+- **因此长期策略不变**：
+  - 继续拒绝 upstream 内置支付系统主体
+  - 继续保留 fork 的外部支付为唯一主充值链路
+  - upstream 在共享文件里的非支付优化仍然要接；必要时人工解冲突或手工移植，但**不能让 payment v2 接管 `/purchase`、`purchase_subscription_*` 配置和当前充值主链路**
+
 ### 3.2 黑名单 — 命中即跳过
 
 #### 3.2.1 文件 glob 模式（任一命中即认为是支付相关）
@@ -566,7 +580,9 @@ git revert -m 1 <合并 commit>
 - **会话传递**：通过 query 参数传 `user_id`、`token`、`theme`、`lang`、`ui_mode=embedded`、`src_host`、`src_url`
 - **URL 配置**：在 admin 设置里配 `purchase_subscription_enabled`、`purchase_subscription_url`
 - **菜单入口**：前端侧边栏"购买订阅"菜单项，对应路由 `/purchase`
-- **外部页回调**：外部支付完成后调后端 API 充值（具体接口视外部实现而定，**不在本仓库**）
+- **外部页认证**：通过全局 `admin_api_key`（`x-api-key` header）调用管理员接口，属于“外部系统集成”能力
+- **外部页回调**：外部支付完成后调用 `/api/v1/admin/redeem-codes/create-and-redeem`
+- **到账模型**：外部系统用外部订单号映射成固定 redeem code，再由后端立即兑换；余额/订阅变更仍然走本仓库现有 `RedeemService`
 
 上游的内置支付系统（`PaymentView.vue` + Stripe/Alipay/WxPay/EasyPay provider + `payment_order` 表）**完全是另一套东西**，跟这套 iframe 嵌入方案没有共存价值，所以一律拒绝。
 
