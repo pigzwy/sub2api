@@ -522,6 +522,67 @@ ls backend/migrations/ | tail -20
 
 **已知的迁移陷阱**：upstream `backend/migrations/098_migrate_purchase_subscription_to_custom_menu.sql` 会自动把 `purchase_subscription_url` 搬到 `custom_menu_items`。方案 A 的 revert 通常会把这个文件也 revert 掉。如果合并后它仍然存在，要评估是否要手动删掉，避免生产环境运行时执行它。
 
+#### 8.5.1 2026-04 实战坑：payment migration 被误带回，导致无支付库启动失败
+
+本 Fork 在一次升级到 `v0.1.115` 的实战中踩过下面这个坑：
+
+- 线上数据库本来**没有** upstream payment v2 的表（如 `payment_orders`）
+- 但本次代码里仍然带进了 payment 相关 migration：
+  - `111_payment_routing_and_scheduler_flags.sql`
+  - `112_add_payment_order_provider_key_snapshot.sql`
+  - `117_add_payment_order_provider_snapshot.sql`
+  - `119_enforce_payment_orders_out_trade_no_unique.sql`
+  - `120_enforce_payment_orders_out_trade_no_unique_notx.sql`
+  - `120a_align_payment_orders_out_trade_no_index_name.sql`
+- 结果启动时先报：
+  - `relation "payment_orders" does not exist`
+- 之后又因为人工往 `schema_migrations` 里补了**错误 checksum**，进一步演变成：
+  - `migration ... checksum mismatch (db=... file=...)`
+
+**根因**：
+
+1. 合并阶段没有把黑名单里的 payment migration 清理干净
+2. 应急处理时把这些 migration 手工记入了 `schema_migrations`
+3. 但使用了**错误的 checksum 计算方式**
+
+**重要**：迁移器校验的不是 shell 里 `sha256sum <file>` 的原始文件哈希，而是 Go 代码中的：
+
+```go
+checksum = sha256(strings.TrimSpace(fileContent))
+```
+
+也就是说：
+
+- 不能直接拿原始文件 `sha256sum` 结果写进 `schema_migrations`
+- 最稳妥的应急方式是：
+  - 直接用启动日志里 `file=...` 后面的值
+  - 或按迁移器逻辑对 `TrimSpace(content)` 后再算 SHA256
+
+**合并阶段的正确做法**：
+
+- 凡是命中黑名单的 `backend/migrations/*payment*.sql`、`*purchase*.sql`，在合并分支里就应删除或 revert 掉
+- 不要把“payment 业务代码删了，但 payment migration 留着”这种半残状态带上生产
+
+**线上止血顺序**：
+
+1. 先看日志，确认卡在哪个 migration 文件
+2. 如果是黑名单 payment migration：
+   - 优先回到合并分支清理代码并重建镜像
+   - 如果必须现场止血，再手工修 `schema_migrations`
+3. 手工修 `schema_migrations` 时：
+   - `checksum` 必须填日志里的 `file=...` 值，或用与迁移器一致的算法重算
+   - 不要用原始文件 `sha256sum`
+4. 每修一条后重启服务，看下一条
+
+**经验结论**：
+
+- payment migration 也属于黑名单主体，不只是 payment handler / route / view
+- `schema_migrations` 的应急补录有风险，只有在明确知道当前镜像对应 checksum 的情况下才允许做
+- 以后只要线上日志出现：
+  - `relation "payment_orders" does not exist`
+  - 或 `migration ... checksum mismatch`
+  就先检查是不是 payment migration 被误带回来了
+
 ---
 
 ## 9. 回滚预案
