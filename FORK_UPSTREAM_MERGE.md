@@ -46,7 +46,7 @@
 **长期策略核心：**
 
 1. **跟进上游的 bug 修复、安全补丁、基础架构改进**
-2. **拒绝上游的内置支付系统**（本 Fork 使用自写的外部支付页 + iframe 嵌入，见第 3 节详解）
+2. **拒绝上游内置支付系统接管主入口 / 主充值链路，但允许相关代码在不影响外挂支付时合入静置**（本 Fork 使用自写的外部支付页 + iframe 嵌入，见第 3 节详解）
 3. **对大型新 feature 保持审慎**，按需决策
 4. **尽量少改动上游代码**（已有改动见第 2 节），便于长期合并
 
@@ -94,7 +94,7 @@ grep -n 'githubRepo' backend/internal/service/update_service.go
 
 上游在 v0.1.111 引入了完整的内置支付系统（PR #1572 `feat/payment-system-v2`），支持 Stripe / Alipay / WxPay / EasyPay。
 
-**本 Fork 不要这个系统**，原因：
+**本 Fork 不接受它接管当前充值主链路**，原因：
 - 本 Fork 的支付是**外部自写支付页**，通过 iframe 嵌入到用户界面
 - 嵌入通道：`frontend/src/utils/embedded-url.ts` 里的 `buildEmbeddedUrl()`，给外部页面传 `user_id / token / theme / lang / ui_mode=embedded / src_host / src_url` 查询参数
 - 嵌入位置：旧版用 `PurchaseSubscriptionView.vue`；如果 upstream 已经把它删了，用 `CustomPageView.vue` (`/custom/:id`) 也能嵌入同一套参数
@@ -108,14 +108,17 @@ grep -n 'githubRepo' backend/internal/service/update_service.go
   - upstream payment v2 会接管 `/purchase`，把当前 iframe 入口替换成 `PaymentView.vue`
   - upstream payment v2 引入 `payment_order / payment_provider / subscription_plan` 等完整订单模型
   - 本 Fork 现有外部支付仍然以“固定兑换码 + 立即兑换”作为到账模型，两套系统并存会形成双账本、双入口、双退款语义
-- **因此长期策略不变**：
-  - 继续拒绝 upstream 内置支付系统主体
-  - 继续保留 fork 的外部支付为唯一主充值链路
-  - upstream 在共享文件里的非支付优化仍然要接；必要时人工解冲突或手工移植，但**不能让 payment v2 接管 `/purchase`、`purchase_subscription_*` 配置和当前充值主链路**
+- **因此长期策略更新为**：
+  - 继续拒绝 payment v2 接管 `/purchase`、`purchase_subscription_*`、`buildEmbeddedUrl()` iframe 入口以及当前外挂支付主充值链路
+  - 继续保留 fork 的外部支付为唯一主充值入口
+  - 若 upstream 的 payment 相关代码已经合入，但**没有替换上述入口、没有破坏外挂支付链路、没有导致程序启动失败**，默认可先保留，不做机械清理
+  - upstream 在共享文件里的非支付优化仍然要接；必要时人工解冲突或手工移植，但处理目标是**保住外挂支付入口**，不是按文件名把整套 payment 代码全删掉
 
-### 3.2 黑名单 — 命中即跳过
+### 3.2 黑名单 — 命中即重点审查，不再按文件名自动整块删除
 
-#### 3.2.1 文件 glob 模式（任一命中即认为是支付相关）
+#### 3.2.1 文件 glob 模式（任一命中即认为是支付相关高风险变更）
+
+> **注意**：下面这些模式是“高风险信号”，表示需要重点确认是否会接管外挂支付主链路；**不是**“命中就必须删除”的自动清理清单。
 
 ```
 backend/ent/payment*                                     # ent 生成的支付相关表
@@ -174,16 +177,19 @@ payment-docs
 | #1610 `fix/alipay-wxpay-type-mapping` | `7d80b5ad` | Alipay/Wxpay 提供方映射 + 跨渠道负载均衡（f498eb8f） |
 | #1612 `fix/qrcode-density` | `75908800` | 支付二维码密度降低（改 PaymentQRDialog/PaymentStatusPanel/PaymentQRCodeView） |
 
-**以后遇到新的支付相关 PR 要追加到本表，AI 每次合并前读本表就知道要跳过哪些。**
+**以后遇到新的支付相关 PR 要追加到本表，AI 每次合并前读本表就知道哪些改动需要重点拦截“接管入口”的风险。**
 
-**注意**：如果黑名单 PR 改的文件在 fork 里已经被删除，合并时会出现 `modify/delete` 冲突。此时**直接 `git rm` 这些支付文件**比 `git revert -m 1 <PR>` 更干净（revert 会把文件拉回来，还得再删一次）。v0.1.112 合并时 PR #1610 和 #1612 就是这样处理的。
+**注意**：
+- 黑名单 PR 的“拒绝”优先指向**入口接管、配置替换、主链路替换**，而不是要求把所有 payment 相关代码从仓库里删干净
+- 如果某个 payment PR 已经合进来，但当前 fork 仍保住了 `/purchase`、`purchase_subscription_*` 和外挂支付链路，则**不要为了匹配旧规则再去机械 `git rm` / revert 整套 payment 模块**
+- 只有当某个 PR 真的让外挂支付入口失效、程序启动失败，或引入了不能接受的账务语义时，才进入回滚 / 局部还原流程
 
 ### 3.3 黑名单的边界：已被 upstream 移除的"旧 iframe 入口"
 
 upstream 在 v0.1.111 已经**删除**了 `frontend/src/views/user/PurchaseSubscriptionView.vue`，并把路由 `/purchase` 改成指向新的 `PaymentView.vue`。我们的处理方式是：
 
-- 如果选**方案 A**（merge + revert 黑名单 PR）：revert 后这些会被还原，旧 iframe 入口继续可用
-- 如果选**方案 B**（cherry-pick）：不合支付 PR 就等于不删除，也继续可用
+- 如果选**方案 A**（merge 后保留上游代码、只修入口）：优先手工恢复 `/purchase -> PurchaseSubscriptionView.vue`、`purchase_subscription_*` 和 iframe 参数链路，不主动清理其余 payment 代码
+- 如果选**方案 B**（只回滚接管点）：仅回滚会替换外挂支付入口的路由 / 设置 / 页面，不追求把所有 payment 相关文件删干净
 - 如果未来某天不得不接受删除：切换到用 `custom_menu_items` + `CustomPageView.vue`（`/custom/:id`）做 iframe 嵌入，query 参数构造逻辑是一样的
 
 ---
@@ -226,7 +232,7 @@ upstream 在 v0.1.111 已经**删除**了 `frontend/src/views/user/PurchaseSubsc
 1. 用 `git show --stat <sha>` 列出它改了哪些文件
 2. 判断是否和当前黑名单 PR 有文件重叠
 3. 在分析报告里写明：**"这个 commit 动了 N 个文件，其中 M 个和支付 PR 重叠"**
-4. **默认接受**，除非 merge + revert 后构建直接失败才需要特别处理
+4. **默认接受**，除非 merge 后会替换外挂支付主链路、导致程序起不来，或用户明确要求剔除
 
 ---
 
@@ -340,11 +346,11 @@ AI 汇总前面所有结果后，按以下格式输出给用户：
 
 ## 7. 合并执行方案
 
-### 7.1 方案 A：merge + revert 黑名单 PR（推荐）
+### 7.1 方案 A：merge upstream，保留 payment 代码静置，仅守住外挂支付入口（推荐）
 
 **适用条件：**
 - Step 3 显示文本层无冲突
-- 黑名单 PR 都是明确的 merge commit（有 `-m 1` 可用）
+- 或冲突集中在入口类文件，可人工保住外挂支付链路
 
 **执行步骤：**
 
@@ -354,84 +360,82 @@ git checkout -b merge/upstream-vX.Y.Z
 
 # 2. 合并 upstream（verify 过无冲突才跑这步）
 git merge --no-ff upstream/main \
-  -m "Merge upstream vX.Y.Z (payment system excluded via revert)"
+  -m "Merge upstream vX.Y.Z (preserve external payment entry)"
 
-# 3. 按照分析报告列出的黑名单 PR，从新到旧 revert
-#    （例如 v0.1.111 的情况）
-git revert -m 1 54490cf6  # 先撤较新的 feat/payment-docs
-git revert -m 1 97f14b7a  # 再撤较早的 feat/payment-system-v2
+# 3. 只处理会影响外挂支付的热点文件
+#    重点检查：
+#    - frontend/src/router/index.ts
+#    - frontend/src/views/user/PurchaseSubscriptionView.vue
+#    - frontend/src/utils/embedded-url.ts
+#    - backend/internal/handler/dto/settings.go
+#    - frontend/src/views/admin/SettingsView.vue
+#    - backend/internal/service/update_service.go
+#
+#    目标：
+#    - /purchase 仍指向外挂支付入口
+#    - purchase_subscription_* 配置仍可用
+#    - buildEmbeddedUrl() 参数链路不被破坏
+#    - update_service.go 仍指向 pigzwy/sub2api
 
-# 4. 处理 revert 衍生问题（ent/wire 生成文件）
+# 4. 如 ent/schema 或 wire 生成源被冲突处理改动，再重跑生成
 cd backend
 go generate ./ent
 go generate ./cmd/server
 cd ..
 
-# 5. 把生成文件的改动 stage 上来补到最后一个 revert commit 里
-#    （或单独一个 "fix(gen): regenerate after payment revert" commit）
-git add backend/ent backend/cmd/server/wire_gen.go
-git commit -m "chore(gen): regenerate ent/wire after reverting payment PRs"
-
-# 6. 核对 fork 专属补丁是否还在
+# 5. 核对 fork 专属补丁是否还在
 grep -n 'githubRepo' backend/internal/service/update_service.go
 # 如果变回 Wei-Shaw，手动改回 pigzwy 并 commit
 
-# 7. 跑第 8 节的验证清单
+# 6. 跑第 8 节的验证清单
 
-# 8. 全部通过后，合回 main
+# 7. 全部通过后，合回 main
 git checkout main
 git merge --ff-only merge/upstream-vX.Y.Z
 ```
 
-**方案 A 的 revert 命令注意事项：**
+**方案 A 的注意事项：**
 
-- **必须加 `-m 1`**：因为 revert 的对象是 merge commit，`-m 1` 表示把第一个父分支（主线）作为参照面。
-- revert 顺序：**从新到旧**（先 54490cf6 后 97f14b7a）。如果倒过来，前一个 PR 依赖了后一个 PR 的文件会冲突。
-- revert 之后要重跑 `go generate`，因为 upstream 的 payment PR 改了 `ent/schema/user.go`（加了支付相关字段），revert 会把 schema 改回去，但生成文件也要跟着回退到一致状态。
+- 本方案默认**不**因为 payment 文件名命中黑名单就整块 revert / 删除
+- payment migration 默认跟随已合入代码一起保留，除非你已经明确证明某个 SQL 与当前保留代码无关且会破坏外挂支付链路
+- 判断标准始终是：外挂支付入口是否仍可用、程序能否正常启动、fork 专属补丁是否仍在
 
-### 7.2 方案 B：只 cherry-pick 关键 commit
+### 7.2 方案 B：仅回滚“接管外挂支付入口”的点位
 
 **适用条件：**
-- 方案 A 的 revert 过程出现不可调和的冲突
-- 或本次 upstream 更新量大、且大部分是支付相关，值得拿的非支付 commit 只有少数几个
+- 方案 A 合并后，upstream payment 改动已经替换了 `/purchase`、删掉了 `purchase_subscription_*`、破坏了 `buildEmbeddedUrl()` 链路
+- 或程序因局部 payment 接管点而无法启动，但没有必要回滚整套 payment 模块
 
 **执行步骤：**
 
 ```bash
-git checkout -b fix/upstream-critical-picks
+git checkout -b fix/upstream-payment-entry-restore
 
-# 按时间顺序从老到新 cherry-pick 白名单里的关键 commit
-# 例如：
-git cherry-pick ce833d91    # CSP frame-src
-git cherry-pick 6401dd7c    # 错误日志 body 上限
-git cherry-pick d8fa38d5    # 账号状态筛选
-git cherry-pick 118ff85f    # LoadFactor 同步
-git cherry-pick b6bc0423    # axios 前端
-git cherry-pick 217b7ea6    # axios 全量
-git cherry-pick cb016ad8    # Anthropic 400
-git cherry-pick 9648c432    # API client 类型
-
-# 遇冲突要么手动解，要么 --skip 跳过无关紧要的
-# 跑验证
-# 合回 main
+# 只恢复 fork 明确依赖的入口与配置：
+# - /purchase 路由
+# - PurchaseSubscriptionView.vue
+# - purchase_subscription_* DTO / 设置项
+# - embedded-url.ts 参数构造
+#
+# 不主动删除 backend/internal/payment/**、payment migration、
+# admin payment config 或其他已合入但未接管主入口的代码
 ```
 
 **方案 B 的取舍：**
-- 好处：精准可控，完全避开支付代码
+- 好处：精准可控，只修真正影响外挂支付的接管点
 - 代价：
-  - 漏掉灰色地带的大 feature（OIDC、表格后端排序等）
-  - 单个大 feature 由若干 commit 组成时要按依赖顺序全部 cherry-pick，工作量大
-  - 长期来看每次合并都用 B 方案，上游累积改动会越来越难跟
+  - 需要人工判断哪些文件只是“payment 代码存在”，哪些文件是真的“接管了主链路”
+  - 如果误删 migration / schema，容易再次出现“程序根本起不来”的问题
 
 ### 7.3 何时用 A，何时用 B
 
 | 情况 | 推荐方案 |
 |---|---|
-| 文本无冲突 + 黑名单 PR 清晰 | **A** |
-| 文本有冲突，但冲突都在非支付文件 | **A**（人工解冲突后继续） |
-| 本次 upstream 全是支付 PR，没啥好拿的 | **不合** 或 **B** |
-| Revert 后 ent/wire 生成文件一直不一致 | 从 A 退到 **B** |
-| 黑名单 PR 和白名单 commit 已经交织难分 | **B** |
+| 文本无冲突，且 merge 后仍能保住外挂支付入口 | **A** |
+| 文本有冲突，但冲突集中在路由 / 设置 / 页面入口 | **A**（人工保入口） |
+| 合并后 `/purchase` 被接管、设置项被删、iframe 链路断掉 | **B** |
+| 程序启动失败且能定位到是局部接管点造成 | **B** |
+| payment 代码已合入但未影响外挂支付 | **A**，不要额外清理 |
 
 ---
 
@@ -454,7 +458,7 @@ ls .github/workflows/fork-docker-build.yml AI-CLI-Guide.md FORK_DEV_GUIDE.md FOR
 ```bash
 cd backend
 
-# 生成代码（revert 后必须重跑）
+# 生成代码（如合并中处理了 ent/schema 或 wire 生成源，则重跑）
 go generate ./ent
 go generate ./cmd/server
 
@@ -522,28 +526,31 @@ ls backend/migrations/ | tail -20
 
 **已知的迁移陷阱**：upstream `backend/migrations/098_migrate_purchase_subscription_to_custom_menu.sql` 会自动把 `purchase_subscription_url` 搬到 `custom_menu_items`。方案 A 的 revert 通常会把这个文件也 revert 掉。如果合并后它仍然存在，要评估是否要手动删掉，避免生产环境运行时执行它。
 
-#### 8.5.1 2026-04 实战坑：payment migration 被误带回，导致无支付库启动失败
+#### 8.5.1 2026-04 实战坑：机械清理 payment migration，会导致已合入代码缺表而起不来
 
 本 Fork 在一次升级到 `v0.1.115` 的实战中踩过下面这个坑：
 
-- 线上数据库本来**没有** upstream payment v2 的表（如 `payment_orders`）
-- 但本次代码里仍然带进了 payment 相关 migration：
+- codex 在合并时把 payment 相关代码带进来了
+- 后续又按旧文档思路，把几条 payment migration 当成黑名单清掉
+- 结果程序启动时发现代码已经引用 payment 相关表，但数据库迁移没跟上，于是直接起不来
+- 最后把下面这些 SQL 补回去后，程序才能恢复启动：
   - `111_payment_routing_and_scheduler_flags.sql`
   - `112_add_payment_order_provider_key_snapshot.sql`
   - `117_add_payment_order_provider_snapshot.sql`
   - `119_enforce_payment_orders_out_trade_no_unique.sql`
   - `120_enforce_payment_orders_out_trade_no_unique_notx.sql`
   - `120a_align_payment_orders_out_trade_no_index_name.sql`
-- 结果启动时先报：
+- 启动时先报：
   - `relation "payment_orders" does not exist`
 - 之后又因为人工往 `schema_migrations` 里补了**错误 checksum**，进一步演变成：
   - `migration ... checksum mismatch (db=... file=...)`
 
 **根因**：
 
-1. 合并阶段没有把黑名单里的 payment migration 清理干净
-2. 应急处理时把这些 migration 手工记入了 `schema_migrations`
-3. 但使用了**错误的 checksum 计算方式**
+1. 合并策略和清理策略不一致：代码已保留，migration 却被删掉
+2. payment migration 被按“文件名命中黑名单”机械处理，没和实际保留的代码一起评估
+3. 应急处理时把这些 migration 手工记入了 `schema_migrations`
+4. 但使用了**错误的 checksum 计算方式**
 
 **重要**：迁移器校验的不是 shell 里 `sha256sum <file>` 的原始文件哈希，而是 Go 代码中的：
 
@@ -560,14 +567,17 @@ checksum = sha256(strings.TrimSpace(fileContent))
 
 **合并阶段的正确做法**：
 
-- 凡是命中黑名单的 `backend/migrations/*payment*.sql`、`*purchase*.sql`，在合并分支里就应删除或 revert 掉
-- 不要把“payment 业务代码删了，但 payment migration 留着”这种半残状态带上生产
+- 先判断当前是否准备保留 upstream payment 相关代码；只要代码保留了，就**不能**按文件名机械删除对应 migration
+- payment migration 必须和保留中的代码一起评估；重点看它们是否被运行时查询、服务初始化、路由或后台配置依赖
+- 不要把“payment 代码合进来了，但 payment migration 被删了”这种半残状态带上生产
+- 当前策略下，默认优先保留 migration，除非已经明确证明某条 SQL 对现有保留代码无依赖
 
 **线上止血顺序**：
 
 1. 先看日志，确认卡在哪个 migration 文件
-2. 如果是黑名单 payment migration：
-   - 优先回到合并分支清理代码并重建镜像
+2. 如果是 payment 相关缺表：
+   - 先检查是不是迁移被误删、误跳过，或代码与 schema 状态不一致
+   - 优先恢复与当前保留代码匹配的 migration / schema，再重建镜像
    - 如果必须现场止血，再手工修 `schema_migrations`
 3. 手工修 `schema_migrations` 时：
    - `checksum` 必须填日志里的 `file=...` 值，或用与迁移器一致的算法重算
@@ -576,12 +586,87 @@ checksum = sha256(strings.TrimSpace(fileContent))
 
 **经验结论**：
 
-- payment migration 也属于黑名单主体，不只是 payment handler / route / view
+- payment migration 不能再被视为“命中 payment 就删”的自动清理对象
+- 如果 payment 代码已经保留，migration 通常也要一并保留，至少先保证程序能启动
 - `schema_migrations` 的应急补录有风险，只有在明确知道当前镜像对应 checksum 的情况下才允许做
 - 以后只要线上日志出现：
   - `relation "payment_orders" does not exist`
   - 或 `migration ... checksum mismatch`
-  就先检查是不是 payment migration 被误带回来了
+  就先检查是不是 payment migration 被误删、误跳过，或代码与 migration 状态不一致
+
+#### 8.5.2 当前仓库 payment 保留清单（v0.1.115 基线）
+
+下次合并前，先按这份清单判断哪些是 **必须保住的外挂支付入口**，哪些是 **已经合入但可静置保留的上游 payment 代码**，不要再凭文件名直接删。
+
+**A. 必须保住的外挂支付入口**
+
+- 路由 `/purchase` 仍指向 `frontend/src/views/user/PurchaseSubscriptionView.vue`
+- `frontend/src/views/user/PurchaseSubscriptionView.vue`
+- `frontend/src/utils/embedded-url.ts`
+- `backend/internal/handler/dto/settings.go` 中的 `purchase_subscription_enabled` / `purchase_subscription_url`
+- `backend/internal/handler/admin/setting_handler.go` 对 `purchase_subscription_*` 的读写
+- `backend/internal/service/domain_constants.go` 中 `SettingKeyPurchaseSubscriptionEnabled` / `SettingKeyPurchaseSubscriptionURL`
+- `frontend/src/views/admin/SettingsView.vue` 中 `purchase_subscription_*` 设置项
+- `frontend/src/components/layout/AppSidebar.vue` 中“购买订阅”菜单入口
+- `frontend/src/types/index.ts`、`frontend/src/stores/app.ts`、`frontend/src/api/admin/settings.ts` 里对 `purchase_subscription_*` 的定义
+
+**处理规则：**
+
+- 这些文件如果在 merge 后被 payment v2 改到，优先恢复 fork 的外挂支付入口语义
+- 判断标准不是“文件是不是 payment 相关”，而是 `/purchase`、iframe 参数链路、admin 配置和外部页接入能力是否还在
+
+**B. 当前已合入但默认允许静置保留的上游 payment 代码**
+
+- `backend/internal/server/routes/payment.go`
+- `backend/internal/payment/**`
+- `backend/internal/service/payment_*`
+- `backend/ent/payment*`
+- `backend/ent/schema/payment_*.go`
+- `backend/ent/schema/subscription_plan.go`
+- `frontend/src/components/payment/**`
+- `frontend/src/stores/payment.ts`
+- `frontend/src/types/payment.ts`
+- `frontend/src/api/payment.ts`
+- `frontend/src/views/admin/orders/**`
+- payment 相关 migration，包括：
+  - `111_payment_routing_and_scheduler_flags.sql`
+  - `112_add_payment_order_provider_key_snapshot.sql`
+  - `117_add_payment_order_provider_snapshot.sql`
+  - `119_enforce_payment_orders_out_trade_no_unique.sql`
+  - `120_enforce_payment_orders_out_trade_no_unique_notx.sql`
+  - `120a_align_payment_orders_out_trade_no_index_name.sql`
+
+**处理规则：**
+
+- 只要这些代码没有替换外挂支付入口、没有导致程序无法启动，就默认先保留
+- 不要为了“和文档黑名单一致”去额外删这些文件
+- 特别是 migration，必须与已保留代码一起评估，不能单独清理
+
+**C. 下次合并时的高风险检查点**
+
+- `frontend/src/router/index.ts`：
+  看 `/purchase` 是否被改成 `PaymentView.vue` 或其他内置支付入口
+- `frontend/src/views/user/PurchaseSubscriptionView.vue`：
+  看 iframe 是否还在，是否仍调用 `buildEmbeddedUrl()`
+- `frontend/src/utils/embedded-url.ts`：
+  看 `user_id`、`token`、`theme`、`lang`、`ui_mode=embedded`、`src_host`、`src_url` 是否还在
+- `backend/internal/handler/dto/settings.go`、`frontend/src/views/admin/SettingsView.vue`：
+  看 `purchase_subscription_enabled` / `purchase_subscription_url` 是否被删或被别的 payment 配置替代
+- `backend/cmd/server/VERSION`：
+  每次合并 release 后同步核对版本号
+- `backend/internal/service/update_service.go`：
+  确保 `githubRepo` 仍是 `pigzwy/sub2api`
+
+**D. 当前仓库里已知的 payment 残留 / 异常点**
+
+- `frontend/src/views/user/__tests__/PaymentView.spec.ts` 仍引用 `../PaymentView.vue`
+- `frontend/src/views/user/__tests__/PaymentResultView.spec.ts` 与 `frontend/src/views/user/paymentWechatResume.ts` 仍依赖 `@/types/payment`
+- 当前工作树里没有 `frontend/src/views/user/PaymentView.vue`
+
+**处理规则：**
+
+- 这些属于“已合入上游 payment 痕迹”，不是本次必须清理项
+- 只有在下次合并或验证时，它们实际导致构建 / 测试失败，才单独处理
 
 ---
 
@@ -645,7 +730,7 @@ git revert -m 1 <合并 commit>
 - **外部页回调**：外部支付完成后调用 `/api/v1/admin/redeem-codes/create-and-redeem`
 - **到账模型**：外部系统用外部订单号映射成固定 redeem code，再由后端立即兑换；余额/订阅变更仍然走本仓库现有 `RedeemService`
 
-上游的内置支付系统（`PaymentView.vue` + Stripe/Alipay/WxPay/EasyPay provider + `payment_order` 表）**完全是另一套东西**，跟这套 iframe 嵌入方案没有共存价值，所以一律拒绝。
+上游的内置支付系统（`PaymentView.vue` + Stripe/Alipay/WxPay/EasyPay provider + `payment_order` 表）**仍然是另一套东西**。本 Fork 继续拒绝它接管主入口和主充值链路；但若相关代码已合入且未影响外挂支付、程序也能正常启动，则可先静置保留，不做机械清理。
 
 ---
 
