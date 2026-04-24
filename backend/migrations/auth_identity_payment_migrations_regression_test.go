@@ -1,11 +1,57 @@
 package migrations
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestPaymentBaseTablesExistBeforePaymentFollowupMigrations(t *testing.T) {
+	const baseMigration = "111a_restore_payment_base_tables.sql"
+
+	entries, err := FS.ReadDir(".")
+	require.NoError(t, err)
+
+	positions := map[string]int{}
+	for i, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".sql" {
+			continue
+		}
+		positions[entry.Name()] = i
+	}
+
+	require.Contains(t, positions, baseMigration)
+	require.Contains(t, positions, "112_add_payment_order_provider_key_snapshot.sql")
+	require.Contains(t, positions, "117_add_payment_order_provider_snapshot.sql")
+	require.Contains(t, positions, "120_enforce_payment_orders_out_trade_no_unique_notx.sql")
+	require.Less(t, positions[baseMigration], positions["112_add_payment_order_provider_key_snapshot.sql"])
+	require.Less(t, positions[baseMigration], positions["117_add_payment_order_provider_snapshot.sql"])
+	require.Less(t, positions[baseMigration], positions["120_enforce_payment_orders_out_trade_no_unique_notx.sql"])
+
+	content, err := FS.ReadFile(baseMigration)
+	require.NoError(t, err)
+
+	sql := string(content)
+	for _, fragment := range []string{
+		"CREATE TABLE IF NOT EXISTS payment_orders",
+		"CREATE TABLE IF NOT EXISTS payment_provider_instances",
+		"CREATE TABLE IF NOT EXISTS payment_audit_logs",
+		"CREATE TABLE IF NOT EXISTS subscription_plans",
+		"out_trade_no VARCHAR(64) NOT NULL DEFAULT ''",
+		"provider_key VARCHAR(30)",
+		"ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS out_trade_no VARCHAR(64) NOT NULL DEFAULT ''",
+		"ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS provider_key VARCHAR(30)",
+		"ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS provider_snapshot JSONB",
+		"ALTER TABLE payment_provider_instances ADD COLUMN IF NOT EXISTS payment_mode VARCHAR(20) NOT NULL DEFAULT ''",
+		"ALTER TABLE payment_provider_instances ADD COLUMN IF NOT EXISTS allow_user_refund BOOLEAN NOT NULL DEFAULT FALSE",
+		"SET payment_mode = 'redirect'",
+		"SET payment_mode = 'api'",
+	} {
+		require.Contains(t, sql, fragment)
+	}
+}
 
 func TestMigration112UsesIdempotentAddColumn(t *testing.T) {
 	content, err := FS.ReadFile("112_add_payment_order_provider_key_snapshot.sql")
