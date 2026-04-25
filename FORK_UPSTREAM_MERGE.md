@@ -657,16 +657,38 @@ checksum = sha256(strings.TrimSpace(fileContent))
 - `backend/internal/service/update_service.go`：
   确保 `githubRepo` 仍是 `pigzwy/sub2api`
 
-**D. 当前仓库里已知的 payment 残留 / 异常点**
+**D. 当前仓库里已知的 payment 保留状态**
 
-- `frontend/src/views/user/__tests__/PaymentView.spec.ts` 仍引用 `../PaymentView.vue`
-- `frontend/src/views/user/__tests__/PaymentResultView.spec.ts` 与 `frontend/src/views/user/paymentWechatResume.ts` 仍依赖 `@/types/payment`
-- 当前工作树里没有 `frontend/src/views/user/PaymentView.vue`
+- `frontend/src/views/user/PaymentView.vue` 可能存在，这是上游内置支付页；存在本身不等于接管 fork 主入口
+- `frontend/src/views/user/__tests__/PaymentView.spec.ts`、`frontend/src/views/user/__tests__/PaymentResultView.spec.ts`、`frontend/src/views/user/paymentWechatResume.ts` 可能仍依赖 `@/types/payment`
+- 合并判断以路由和菜单入口为准：`/purchase` 必须仍指向 `PurchaseSubscriptionView.vue`，不能被改成 `PaymentView.vue`
 
 **处理规则：**
 
 - 这些属于“已合入上游 payment 痕迹”，不是本次必须清理项
 - 只有在下次合并或验证时，它们实际导致构建 / 测试失败，才单独处理
+
+#### 8.5.3 2026-04-25 合并 v0.1.118 记录
+
+本次从本地 `0.1.117` 合并到 upstream `0.1.118`，采用方案 A：直接 merge upstream，保留上游非入口型改动，重点守住 fork 外挂支付入口。
+
+合并后已核对的点：
+
+- `backend/internal/service/update_service.go` 仍为 `githubRepo = "pigzwy/sub2api"`
+- fork 专属文件仍存在：`.github/workflows/fork-docker-build.yml`、`AI-CLI-Guide.md`、`FORK_DEV_GUIDE.md`、`FORK_UPSTREAM_MERGE.md`
+- `/purchase` 仍指向 `frontend/src/views/user/PurchaseSubscriptionView.vue`
+- `/custom/:id` 仍指向 `frontend/src/views/user/CustomPageView.vue`
+- `frontend/src/utils/embedded-url.ts` 仍传入 `user_id`、`token`、`theme`、`lang`、`ui_mode=embedded`、`src_host`、`src_url`
+- `purchase_subscription_enabled` / `purchase_subscription_url` 仍保留在 DTO、admin setting handler、domain constants、SettingsView、public settings 类型中
+- `backend/internal/service/payment_order_expiry_service.go` 仍保留 `payment_orders` 缺表探测，缺表时禁用过期订单后台任务
+- 本次没有引入 `098_migrate_purchase_subscription_to_custom_menu.sql`
+- 本次新增 upstream migration 为 `130_add_user_affiliates.sql`、`131_affiliate_rebate_hardening.sql`
+
+本次命中的支付相关上游 commit：
+
+- `8f28a834 fix(payment): 同时启用易支付和 Stripe 时显示 Stripe 按钮`
+
+判断：该 commit 只改 payment 组件测试、`paymentFlow.ts` 和 `PaymentView.vue`，没有接管 `/purchase` 或 `purchase_subscription_*`，按当前策略允许静置保留。
 
 ---
 
