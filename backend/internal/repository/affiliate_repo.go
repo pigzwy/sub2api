@@ -132,14 +132,8 @@ func (r *affiliateRepository) AccrueFirstRechargeQuota(ctx context.Context, invi
 
 	var applied bool
 	err := r.withTx(ctx, func(txCtx context.Context, txClient *dbent.Client) error {
-		rows, err := txClient.QueryContext(txCtx, `
-WITH inviter AS (
-	SELECT user_id
-	FROM user_affiliates
-	WHERE user_id = $2
-),
-claim AS (
-	INSERT INTO user_affiliate_first_recharge_claims (
+		res, err := txClient.ExecContext(txCtx, `
+INSERT INTO user_affiliate_first_recharge_claims (
 		invitee_user_id,
 		inviter_user_id,
 		source_ref,
@@ -147,40 +141,29 @@ claim AS (
 		created_at,
 		updated_at
 	)
-	SELECT $1, $2, $3, $4, NOW(), NOW()
-	FROM inviter
-	ON CONFLICT DO NOTHING
-	RETURNING invitee_user_id
-),
-credited AS (
-	UPDATE user_affiliates ua
-	SET aff_quota = aff_quota + $4,
-	    aff_history_quota = aff_history_quota + $4,
-	    updated_at = NOW()
-	FROM claim
-	WHERE ua.user_id = $2
-	RETURNING ua.user_id
-)
-SELECT COUNT(*) FROM credited`, inviteeUserID, inviterID, sourceRef, amount)
+VALUES ($1, $2, $3, $4, NOW(), NOW())
+ON CONFLICT DO NOTHING`, inviteeUserID, inviterID, sourceRef, amount)
 		if err != nil {
 			return err
 		}
-		defer func() { _ = rows.Close() }()
+		inserted, _ := res.RowsAffected()
+		if inserted == 0 {
+			applied = false
+			return nil
+		}
 
-		if !rows.Next() {
-			if err := rows.Err(); err != nil {
-				return err
-			}
-			applied = false
-			return nil
+		res, err = txClient.ExecContext(txCtx, `
+UPDATE user_affiliates
+SET aff_quota = aff_quota + $1,
+    aff_history_quota = aff_history_quota + $1,
+    updated_at = NOW()
+WHERE user_id = $2`, amount, inviterID)
+		if err != nil {
+			return fmt.Errorf("credit affiliate first recharge quota: %w", err)
 		}
-		var credited int
-		if err := rows.Scan(&credited); err != nil {
-			return err
-		}
+		credited, _ := res.RowsAffected()
 		if credited == 0 {
-			applied = false
-			return nil
+			return service.ErrAffiliateProfileNotFound
 		}
 
 		if _, err = txClient.ExecContext(txCtx, `

@@ -219,6 +219,7 @@ func (h *RedeemHandler) resolveCreateAndRedeemExisting(ctx context.Context, exis
 	}
 
 	if existing.UsedBy != nil && *existing.UsedBy == req.UserID {
+		h.applyCreateAndRedeemAffiliateRebate(ctx, req, existing)
 		return gin.H{"redeem_code": dto.RedeemCodeFromServiceAdmin(existing)}, nil
 	}
 

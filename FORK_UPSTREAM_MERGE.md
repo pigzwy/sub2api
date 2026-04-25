@@ -708,7 +708,7 @@ checksum = sha256(strings.TrimSpace(fileContent))
 
 - `backend/internal/handler/admin/redeem_handler.go`
   - `shouldApplyCreateAndRedeemAffiliateRebate()` 负责区分外挂充值和签到
-  - `applyCreateAndRedeemAffiliateRebate()` 只在本次 `Redeem()` 真正成功后触发
+  - `applyCreateAndRedeemAffiliateRebate()` 在本次 `Redeem()` 真正成功后触发；若同一兑换码已被同一用户使用，也允许再次进入返利恢复路径，由 claim 表保证不重复
 - `backend/internal/service/affiliate_service.go`
   - `AccrueFirstRechargeRebate()` 使用首次充值语义
 - `backend/internal/repository/affiliate_repo.go`
