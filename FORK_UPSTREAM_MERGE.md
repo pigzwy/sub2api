@@ -690,6 +690,37 @@ checksum = sha256(strings.TrimSpace(fileContent))
 
 判断：该 commit 只改 payment 组件测试、`paymentFlow.ts` 和 `PaymentView.vue`，没有接管 `/purchase` 或 `purchase_subscription_*`，按当前策略允许静置保留。
 
+#### 8.5.4 外挂支付邀请返利保护逻辑
+
+本 Fork 的外挂支付程序 `pay-sub2api` 支付成功后调用：
+
+- `POST /api/v1/admin/redeem-codes/create-and-redeem`
+
+该接口同时会被外挂支付的签到奖励使用，因此邀请返利不能简单按“余额兑换码成功”触发。合并上游时必须保留下面的判定规则：
+
+- 只允许 `type = balance`
+- 只允许 `value > 0`
+- 只允许 `notes` 前缀为 `pay-site order `
+- 必须排除 `notes` 前缀为 `pay-site checkin `
+- 只允许被邀请人的首次正数余额充值返利一次
+
+当前实现要点：
+
+- `backend/internal/handler/admin/redeem_handler.go`
+  - `shouldApplyCreateAndRedeemAffiliateRebate()` 负责区分外挂充值和签到
+  - `applyCreateAndRedeemAffiliateRebate()` 只在本次 `Redeem()` 真正成功后触发
+- `backend/internal/service/affiliate_service.go`
+  - `AccrueFirstRechargeRebate()` 使用首次充值语义
+- `backend/internal/repository/affiliate_repo.go`
+  - `AccrueFirstRechargeQuota()` 写入幂等 claim 后再累计返利
+- `backend/migrations/132_affiliate_first_recharge_claims.sql`
+  - `user_affiliate_first_recharge_claims.invitee_user_id` 为主键，保证每个被邀请人只因首次充值返利一次
+  - 迁移会把历史 `user_affiliate_ledger.action = accrue` 的被邀请人回填为已 claim，避免升级后重复补发首次返利
+- `backend/internal/service/payment_fulfillment.go`
+  - 内置支付余额充值也使用 `AccrueFirstRechargeRebate(..., "payment_order:<id>")`，和外挂支付保持“首次充值才返利”的统一语义
+
+合并上游时如果上游修改了 redeem、affiliate 或 payment fulfillment 相关代码，需要确认这条链路没有被覆盖；尤其不能让 `pay-site checkin` 触发返利，也不能让同一个 `invitee_user_id` 多次累计充值返利。
+
 ---
 
 ## 9. 回滚预案

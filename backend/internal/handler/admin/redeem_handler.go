@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 
@@ -19,15 +20,17 @@ import (
 
 // RedeemHandler handles admin redeem code management
 type RedeemHandler struct {
-	adminService  service.AdminService
-	redeemService *service.RedeemService
+	adminService     service.AdminService
+	redeemService    *service.RedeemService
+	affiliateService *service.AffiliateService
 }
 
 // NewRedeemHandler creates a new admin redeem handler
-func NewRedeemHandler(adminService service.AdminService, redeemService *service.RedeemService) *RedeemHandler {
+func NewRedeemHandler(adminService service.AdminService, redeemService *service.RedeemService, affiliateService *service.AffiliateService) *RedeemHandler {
 	return &RedeemHandler{
-		adminService:  adminService,
-		redeemService: redeemService,
+		adminService:     adminService,
+		redeemService:    redeemService,
+		affiliateService: affiliateService,
 	}
 }
 
@@ -161,7 +164,7 @@ func (h *RedeemHandler) CreateAndRedeem(c *gin.Context) {
 	executeAdminIdempotentJSON(c, "admin.redeem_codes.create_and_redeem", req, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		existing, err := h.redeemService.GetByCode(ctx, req.Code)
 		if err == nil {
-			return h.resolveCreateAndRedeemExisting(ctx, existing, req.UserID)
+			return h.resolveCreateAndRedeemExisting(ctx, existing, req)
 		}
 		if !errors.Is(err, service.ErrRedeemCodeNotFound) {
 			return nil, err
@@ -180,7 +183,7 @@ func (h *RedeemHandler) CreateAndRedeem(c *gin.Context) {
 			// Unique code race: if code now exists, use idempotent semantics by used_by.
 			existingAfterCreateErr, getErr := h.redeemService.GetByCode(ctx, req.Code)
 			if getErr == nil {
-				return h.resolveCreateAndRedeemExisting(ctx, existingAfterCreateErr, req.UserID)
+				return h.resolveCreateAndRedeemExisting(ctx, existingAfterCreateErr, req)
 			}
 			return nil, createErr
 		}
@@ -189,19 +192,21 @@ func (h *RedeemHandler) CreateAndRedeem(c *gin.Context) {
 		if redeemErr != nil {
 			return nil, redeemErr
 		}
+		h.applyCreateAndRedeemAffiliateRebate(ctx, req, redeemed)
 		return gin.H{"redeem_code": dto.RedeemCodeFromServiceAdmin(redeemed)}, nil
 	})
 }
 
-func (h *RedeemHandler) resolveCreateAndRedeemExisting(ctx context.Context, existing *service.RedeemCode, userID int64) (any, error) {
+func (h *RedeemHandler) resolveCreateAndRedeemExisting(ctx context.Context, existing *service.RedeemCode, req CreateAndRedeemCodeRequest) (any, error) {
 	if existing == nil {
 		return nil, infraerrors.Conflict("REDEEM_CODE_CONFLICT", "redeem code conflict")
 	}
 
 	// If previous run created the code but crashed before redeem, redeem it now.
 	if existing.CanUse() {
-		redeemed, err := h.redeemService.Redeem(ctx, userID, existing.Code)
+		redeemed, err := h.redeemService.Redeem(ctx, req.UserID, existing.Code)
 		if err == nil {
+			h.applyCreateAndRedeemAffiliateRebate(ctx, req, redeemed)
 			return gin.H{"redeem_code": dto.RedeemCodeFromServiceAdmin(redeemed)}, nil
 		}
 		if !errors.Is(err, service.ErrRedeemCodeUsed) {
@@ -213,11 +218,34 @@ func (h *RedeemHandler) resolveCreateAndRedeemExisting(ctx context.Context, exis
 		}
 	}
 
-	if existing.UsedBy != nil && *existing.UsedBy == userID {
+	if existing.UsedBy != nil && *existing.UsedBy == req.UserID {
 		return gin.H{"redeem_code": dto.RedeemCodeFromServiceAdmin(existing)}, nil
 	}
 
 	return nil, infraerrors.Conflict("REDEEM_CODE_CONFLICT", "redeem code already used by another user")
+}
+
+func (h *RedeemHandler) applyCreateAndRedeemAffiliateRebate(ctx context.Context, req CreateAndRedeemCodeRequest, redeemed *service.RedeemCode) {
+	if h == nil || h.affiliateService == nil || !shouldApplyCreateAndRedeemAffiliateRebate(req, redeemed) {
+		return
+	}
+
+	rebate, err := h.affiliateService.AccrueFirstRechargeRebate(ctx, req.UserID, redeemed.Value, "redeem:"+redeemed.Code)
+	if err != nil {
+		slog.Warn("create-and-redeem affiliate rebate failed", "user_id", req.UserID, "code", req.Code, "error", err)
+		return
+	}
+	if rebate > 0 {
+		slog.Info("create-and-redeem affiliate rebate applied", "user_id", req.UserID, "code", req.Code, "rebate", rebate)
+	}
+}
+
+func shouldApplyCreateAndRedeemAffiliateRebate(req CreateAndRedeemCodeRequest, redeemed *service.RedeemCode) bool {
+	if redeemed == nil || redeemed.Type != service.RedeemTypeBalance || redeemed.Value <= 0 {
+		return false
+	}
+	notes := strings.TrimSpace(req.Notes)
+	return strings.HasPrefix(notes, "pay-site order ") && !strings.HasPrefix(notes, "pay-site checkin ")
 }
 
 // Delete handles deleting a redeem code

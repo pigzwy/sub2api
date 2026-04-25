@@ -80,6 +80,7 @@ type AffiliateRepository interface {
 	GetAffiliateByCode(ctx context.Context, code string) (*AffiliateSummary, error)
 	BindInviter(ctx context.Context, userID, inviterID int64) (bool, error)
 	AccrueQuota(ctx context.Context, inviterID, inviteeUserID int64, amount float64) (bool, error)
+	AccrueFirstRechargeQuota(ctx context.Context, inviterID, inviteeUserID int64, amount float64, sourceRef string) (bool, error)
 	TransferQuotaToBalance(ctx context.Context, userID int64) (float64, float64, error)
 	ListInvitees(ctx context.Context, inviterID int64, limit int) ([]AffiliateInvitee, error)
 }
@@ -172,6 +173,14 @@ func (s *AffiliateService) BindInviterByCode(ctx context.Context, userID int64, 
 }
 
 func (s *AffiliateService) AccrueInviteRebate(ctx context.Context, inviteeUserID int64, baseRechargeAmount float64) (float64, error) {
+	return s.accrueInviteRebate(ctx, inviteeUserID, baseRechargeAmount, "")
+}
+
+func (s *AffiliateService) AccrueFirstRechargeRebate(ctx context.Context, inviteeUserID int64, baseRechargeAmount float64, sourceRef string) (float64, error) {
+	return s.accrueInviteRebate(ctx, inviteeUserID, baseRechargeAmount, strings.TrimSpace(sourceRef))
+}
+
+func (s *AffiliateService) accrueInviteRebate(ctx context.Context, inviteeUserID int64, baseRechargeAmount float64, sourceRef string) (float64, error) {
 	if s == nil || s.repo == nil {
 		return 0, nil
 	}
@@ -197,7 +206,12 @@ func (s *AffiliateService) AccrueInviteRebate(ctx context.Context, inviteeUserID
 		return 0, err
 	}
 
-	applied, err := s.repo.AccrueQuota(ctx, *inviteeSummary.InviterID, inviteeUserID, rebate)
+	var applied bool
+	if sourceRef != "" {
+		applied, err = s.repo.AccrueFirstRechargeQuota(ctx, *inviteeSummary.InviterID, inviteeUserID, rebate, sourceRef)
+	} else {
+		applied, err = s.repo.AccrueQuota(ctx, *inviteeSummary.InviterID, inviteeUserID, rebate)
+	}
 	if err != nil {
 		return 0, err
 	}

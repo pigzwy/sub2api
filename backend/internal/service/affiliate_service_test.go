@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -39,6 +40,56 @@ func (s *affiliateSettingRepoStub) GetAll(context.Context) (map[string]string, e
 }
 func (s *affiliateSettingRepoStub) Delete(context.Context, string) error { return s.err }
 
+type affiliateRepoStub struct {
+	summaries map[int64]*AffiliateSummary
+
+	firstRechargeApplied bool
+	firstRechargeAmount  float64
+	firstRechargeSource  string
+	firstRechargeInviter int64
+	firstRechargeInvitee int64
+}
+
+func (s *affiliateRepoStub) EnsureUserAffiliate(_ context.Context, userID int64) (*AffiliateSummary, error) {
+	if s.summaries == nil {
+		s.summaries = map[int64]*AffiliateSummary{}
+	}
+	if summary, ok := s.summaries[userID]; ok {
+		return summary, nil
+	}
+	summary := &AffiliateSummary{UserID: userID, AffCode: "ABCDEFGHJKLM", CreatedAt: time.Now(), UpdatedAt: time.Now()}
+	s.summaries[userID] = summary
+	return summary, nil
+}
+
+func (s *affiliateRepoStub) GetAffiliateByCode(context.Context, string) (*AffiliateSummary, error) {
+	return nil, ErrAffiliateProfileNotFound
+}
+
+func (s *affiliateRepoStub) BindInviter(context.Context, int64, int64) (bool, error) {
+	return false, nil
+}
+
+func (s *affiliateRepoStub) AccrueQuota(context.Context, int64, int64, float64) (bool, error) {
+	return false, nil
+}
+
+func (s *affiliateRepoStub) AccrueFirstRechargeQuota(_ context.Context, inviterID, inviteeUserID int64, amount float64, sourceRef string) (bool, error) {
+	s.firstRechargeAmount = amount
+	s.firstRechargeSource = sourceRef
+	s.firstRechargeInviter = inviterID
+	s.firstRechargeInvitee = inviteeUserID
+	return s.firstRechargeApplied, nil
+}
+
+func (s *affiliateRepoStub) TransferQuotaToBalance(context.Context, int64) (float64, float64, error) {
+	return 0, 0, nil
+}
+
+func (s *affiliateRepoStub) ListInvitees(context.Context, int64, int) ([]AffiliateInvitee, error) {
+	return nil, nil
+}
+
 func TestAffiliateRebateRatePercentSemantics(t *testing.T) {
 	t.Parallel()
 
@@ -49,6 +100,54 @@ func TestAffiliateRebateRatePercentSemantics(t *testing.T) {
 	svc.settingRepo = &affiliateSettingRepoStub{value: "0.2"}
 	rate = svc.loadAffiliateRebateRatePercent(context.Background())
 	require.Equal(t, 0.2, rate)
+}
+
+func TestAccrueFirstRechargeRebate_UsesFirstRechargeClaim(t *testing.T) {
+	t.Parallel()
+
+	inviterID := int64(10)
+	inviteeID := int64(20)
+	repo := &affiliateRepoStub{
+		firstRechargeApplied: true,
+		summaries: map[int64]*AffiliateSummary{
+			inviteeID: {UserID: inviteeID, InviterID: &inviterID},
+			inviterID: {UserID: inviterID},
+		},
+	}
+	svc := &AffiliateService{
+		repo:        repo,
+		settingRepo: &affiliateSettingRepoStub{value: "10"},
+	}
+
+	rebate, err := svc.AccrueFirstRechargeRebate(context.Background(), inviteeID, 80, "redeem:s2p_order")
+	require.NoError(t, err)
+	require.Equal(t, 8.0, rebate)
+	require.Equal(t, 8.0, repo.firstRechargeAmount)
+	require.Equal(t, "redeem:s2p_order", repo.firstRechargeSource)
+	require.Equal(t, inviterID, repo.firstRechargeInviter)
+	require.Equal(t, inviteeID, repo.firstRechargeInvitee)
+}
+
+func TestAccrueFirstRechargeRebate_ReturnsZeroWhenAlreadyClaimed(t *testing.T) {
+	t.Parallel()
+
+	inviterID := int64(10)
+	inviteeID := int64(20)
+	repo := &affiliateRepoStub{
+		firstRechargeApplied: false,
+		summaries: map[int64]*AffiliateSummary{
+			inviteeID: {UserID: inviteeID, InviterID: &inviterID},
+			inviterID: {UserID: inviterID},
+		},
+	}
+	svc := &AffiliateService{
+		repo:        repo,
+		settingRepo: &affiliateSettingRepoStub{value: "10"},
+	}
+
+	rebate, err := svc.AccrueFirstRechargeRebate(context.Background(), inviteeID, 80, "redeem:s2p_order")
+	require.NoError(t, err)
+	require.Equal(t, 0.0, rebate)
 }
 
 func TestMaskEmail(t *testing.T) {

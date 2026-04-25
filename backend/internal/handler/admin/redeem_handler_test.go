@@ -139,3 +139,58 @@ func TestCreateAndRedeem_BalanceIgnoresSubscriptionFields(t *testing.T) {
 	assert.NotEqual(t, http.StatusBadRequest, code,
 		"balance type should not require group_id or validity_days")
 }
+
+func TestShouldApplyCreateAndRedeemAffiliateRebate(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		req  CreateAndRedeemCodeRequest
+		code *service.RedeemCode
+		want bool
+	}{
+		{
+			name: "pay site balance recharge",
+			req:  CreateAndRedeemCodeRequest{Type: service.RedeemTypeBalance, Value: 10, Notes: "pay-site order P202604250001"},
+			code: &service.RedeemCode{Type: service.RedeemTypeBalance, Value: 10, Code: "s2p_order"},
+			want: true,
+		},
+		{
+			name: "pay site checkin reward excluded",
+			req:  CreateAndRedeemCodeRequest{Type: service.RedeemTypeBalance, Value: 1, Notes: "pay-site checkin C202604250001"},
+			code: &service.RedeemCode{Type: service.RedeemTypeBalance, Value: 1, Code: "s2c_checkin"},
+			want: false,
+		},
+		{
+			name: "subscription excluded",
+			req:  CreateAndRedeemCodeRequest{Type: service.RedeemTypeSubscription, Value: 10, Notes: "pay-site order P202604250001"},
+			code: &service.RedeemCode{Type: service.RedeemTypeSubscription, Value: 10, Code: "s2p_sub"},
+			want: false,
+		},
+		{
+			name: "negative balance excluded",
+			req:  CreateAndRedeemCodeRequest{Type: service.RedeemTypeBalance, Value: -10, Notes: "pay-site order refund"},
+			code: &service.RedeemCode{Type: service.RedeemTypeBalance, Value: -10, Code: "s2p_refund"},
+			want: false,
+		},
+		{
+			name: "manual admin balance excluded",
+			req:  CreateAndRedeemCodeRequest{Type: service.RedeemTypeBalance, Value: 10, Notes: "admin manual adjustment"},
+			code: &service.RedeemCode{Type: service.RedeemTypeBalance, Value: 10, Code: "admin_adjust"},
+			want: false,
+		},
+		{
+			name: "request balance but redeemed subscription excluded",
+			req:  CreateAndRedeemCodeRequest{Type: service.RedeemTypeBalance, Value: 10, Notes: "pay-site order P202604250001"},
+			code: &service.RedeemCode{Type: service.RedeemTypeSubscription, Value: 10, Code: "existing_sub"},
+			want: false,
+		},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, shouldApplyCreateAndRedeemAffiliateRebate(tc.req, tc.code))
+		})
+	}
+}

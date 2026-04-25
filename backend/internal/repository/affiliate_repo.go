@@ -121,6 +121,83 @@ VALUES ($1, 'accrue', $2, $3, NOW(), NOW())`, inviterID, amount, inviteeUserID);
 	return applied, nil
 }
 
+func (r *affiliateRepository) AccrueFirstRechargeQuota(ctx context.Context, inviterID, inviteeUserID int64, amount float64, sourceRef string) (bool, error) {
+	sourceRef = strings.TrimSpace(sourceRef)
+	if amount <= 0 {
+		return false, nil
+	}
+	if sourceRef == "" {
+		return false, errors.New("affiliate first recharge source ref is required")
+	}
+
+	var applied bool
+	err := r.withTx(ctx, func(txCtx context.Context, txClient *dbent.Client) error {
+		rows, err := txClient.QueryContext(txCtx, `
+WITH inviter AS (
+	SELECT user_id
+	FROM user_affiliates
+	WHERE user_id = $2
+),
+claim AS (
+	INSERT INTO user_affiliate_first_recharge_claims (
+		invitee_user_id,
+		inviter_user_id,
+		source_ref,
+		amount,
+		created_at,
+		updated_at
+	)
+	SELECT $1, $2, $3, $4, NOW(), NOW()
+	FROM inviter
+	ON CONFLICT DO NOTHING
+	RETURNING invitee_user_id
+),
+credited AS (
+	UPDATE user_affiliates ua
+	SET aff_quota = aff_quota + $4,
+	    aff_history_quota = aff_history_quota + $4,
+	    updated_at = NOW()
+	FROM claim
+	WHERE ua.user_id = $2
+	RETURNING ua.user_id
+)
+SELECT COUNT(*) FROM credited`, inviteeUserID, inviterID, sourceRef, amount)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = rows.Close() }()
+
+		if !rows.Next() {
+			if err := rows.Err(); err != nil {
+				return err
+			}
+			applied = false
+			return nil
+		}
+		var credited int
+		if err := rows.Scan(&credited); err != nil {
+			return err
+		}
+		if credited == 0 {
+			applied = false
+			return nil
+		}
+
+		if _, err = txClient.ExecContext(txCtx, `
+INSERT INTO user_affiliate_ledger (user_id, action, amount, source_user_id, created_at, updated_at)
+VALUES ($1, 'accrue', $2, $3, NOW(), NOW())`, inviterID, amount, inviteeUserID); err != nil {
+			return fmt.Errorf("insert affiliate first recharge ledger: %w", err)
+		}
+
+		applied = true
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	return applied, nil
+}
+
 func (r *affiliateRepository) TransferQuotaToBalance(ctx context.Context, userID int64) (float64, float64, error) {
 	var transferred float64
 	var newBalance float64
