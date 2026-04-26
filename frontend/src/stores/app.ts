@@ -337,6 +337,7 @@ export const useAppStore = defineStore('app', () => {
         hide_ccs_import_button: false,
         purchase_subscription_enabled: false,
         purchase_subscription_url: '',
+        payment_enabled: false,
         table_default_page_size: 20,
         table_page_size_options: [10, 20, 50, 100],
         custom_menu_items: [],
@@ -356,6 +357,7 @@ export const useAppStore = defineStore('app', () => {
         channel_monitor_enabled: true,
         channel_monitor_default_interval_seconds: 60,
         available_channels_enabled: false,
+        affiliate_enabled: true,
       }
     }
 

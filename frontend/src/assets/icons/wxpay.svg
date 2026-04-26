@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="WeChat Pay">
+  <rect width="48" height="48" rx="12" fill="#07c160"/>
+  <path fill="#fff" d="M19 14c-6 0-11 4-11 9 0 3 2 6 5 8l-1 4 5-2h2c6 0 11-4 11-9s-5-10-11-10z"/>
+  <path fill="#07c160" d="M15 21a2 2 0 1 0 0 .1zm8 0a2 2 0 1 0 0 .1z"/>
+  <path fill="#fff" d="M31 23c5 0 9 3 9 8 0 2-1 5-4 6l1 3-4-2h-2c-5 0-9-3-9-7 0-5 4-8 9-8z"/>
+  <path fill="#07c160" d="M28 30a1.5 1.5 0 1 0 0 .1zm7 0a1.5 1.5 0 1 0 0 .1z"/>
+</svg>

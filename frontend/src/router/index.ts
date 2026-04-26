@@ -258,6 +258,78 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/orders',
+    name: 'OrderList',
+    component: () => import('@/views/user/UserOrdersView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'My Orders',
+      titleKey: 'nav.myOrders',
+      requiresPayment: true
+    }
+  },
+  {
+    path: '/payment/qrcode',
+    name: 'PaymentQRCode',
+    component: () => import('@/views/user/PaymentQRCodeView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Payment',
+      titleKey: 'payment.qr.scanToPay',
+      requiresPayment: true
+    }
+  },
+  {
+    path: '/payment/result',
+    name: 'PaymentResult',
+    component: () => import('@/views/user/PaymentResultView.vue'),
+    meta: {
+      requiresAuth: false,
+      requiresAdmin: false,
+      title: 'Payment Result',
+      titleKey: 'payment.result.success',
+      requiresPayment: false
+    }
+  },
+  {
+    path: '/payment/stripe',
+    name: 'StripePayment',
+    component: () => import('@/views/user/StripePaymentView.vue'),
+    meta: {
+      requiresAuth: false,
+      requiresAdmin: false,
+      title: 'Stripe Payment',
+      titleKey: 'payment.stripePay',
+      requiresPayment: false
+    }
+  },
+  {
+    path: '/payment/stripe-popup',
+    name: 'StripePopup',
+    component: () => import('@/views/user/StripePopupView.vue'),
+    meta: {
+      requiresAuth: false,
+      requiresAdmin: false,
+      title: 'Payment',
+      requiresPayment: false
+    }
+  },
+  {
+    path: '/payment',
+    name: 'Payment',
+    component: () => import('@/views/user/PaymentView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Payment',
+      titleKey: 'nav.buySubscription',
+      descriptionKey: 'purchase.description',
+      requiresPayment: true
+    }
+  },
+  {
     path: '/custom/:id',
     name: 'CustomPage',
     component: () => import('@/views/user/CustomPageView.vue'),
@@ -624,6 +696,16 @@ router.beforeEach((to, _from, next) => {
     const isAllowed = isBackendModePublicRouteAllowed(to.path, authStore.hasPendingAuthSession)
     if (!isAllowed) {
       next('/login')
+      return
+    }
+  }
+
+  // Check payment requirement (internal payment system only).
+  // The fork's /purchase iframe route intentionally does not set requiresPayment.
+  if (to.meta.requiresPayment) {
+    const paymentEnabled = appStore.cachedPublicSettings?.payment_enabled
+    if (!paymentEnabled) {
+      next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
       return
     }
   }

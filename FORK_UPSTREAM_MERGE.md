@@ -721,6 +721,27 @@ checksum = sha256(strings.TrimSpace(fileContent))
 
 合并上游时如果上游修改了 redeem、affiliate 或 payment fulfillment 相关代码，需要确认这条链路没有被覆盖；尤其不能让 `pay-site checkin` 触发返利，也不能让同一个 `invitee_user_id` 多次累计充值返利。
 
+#### 8.5.5 2026-04-26 合并 v0.1.119 记录
+
+本次合并接收上游邀请返利系统完善，包括冻结期、有效期、单人返利上限、全局开关、指定用户专属邀请码/返利比例，以及 OAuth 注册路径邀请码绑定。
+
+合并时保留 fork 侧关键差异：
+
+- `backend/internal/service/domain_constants.go` 中 `AffiliateEnabledDefault = true`，`backend/internal/service/setting_service.go` 初始化 `affiliate_enabled = "true"`，避免现有外挂支付首充返利在未显式配置时被上游默认关闭。
+- `backend/internal/handler/admin/redeem_handler.go` 继续只让 `pay-site order ` 的正数余额兑换触发首充返利，并明确排除 `pay-site checkin `。
+- `backend/internal/service/affiliate_service.go` 继续保留 `AccrueFirstRechargeRebate()`，并复用上游冻结期、有效期、单人上限和专属比例逻辑。
+- `backend/internal/repository/affiliate_repo.go` 的 `AccrueFirstRechargeQuota()` 继续先写 `user_affiliate_first_recharge_claims` 幂等表，再累计可用/冻结返利，避免同一被邀请人重复首充返利。
+- `backend/internal/service/payment_fulfillment.go` 的内置支付成功后也走 `AccrueFirstRechargeRebate(..., "payment_order:<id>")`，保持“首次充值才返利”的统一语义。
+- `/purchase` 仍指向 `frontend/src/views/user/PurchaseSubscriptionView.vue`，不设置 `requiresPayment`，不受上游内置支付 `payment_enabled` 路由守卫影响。
+- `frontend/src/types/index.ts` 和 `frontend/src/stores/app.ts` 需要包含 `payment_enabled`，否则上游支付路由守卫会导致前端构建失败。
+- 上游支付组件依赖 `frontend/src/assets/icons/alipay.svg`、`wxpay.svg`、`stripe.svg`，本次补齐最小图标资源以保证构建通过。
+
+本次验证命令：
+
+- `go test -count=1 -tags=unit ./internal/service ./internal/handler/admin ./internal/payment/provider`
+- `pnpm build`
+- `go build -tags embed ./cmd/server`
+
 ---
 
 ## 9. 回滚预案

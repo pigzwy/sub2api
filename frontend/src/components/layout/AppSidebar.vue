@@ -601,6 +601,7 @@ const PriceTagIcon = {
 // yet. Admin-only flags (not in public settings) stay inline below.
 const flagChannelMonitor = makeSidebarFlag(FeatureFlags.channelMonitor)
 const flagAvailableChannels = makeSidebarFlag(FeatureFlags.availableChannels)
+const flagAffiliate = makeSidebarFlag(FeatureFlags.affiliate)
 const flagOpsMonitoring = () => adminSettingsStore.opsMonitoringEnabled
 
 // buildSelfNavItems 构造用户自己的导航项（用户端主菜单和管理员的"我的账户"子菜单共享这组声明）。
@@ -630,7 +631,7 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
         ]
       : []),
     { path: '/redeem', label: t('nav.redeem'), icon: GiftIcon, hideInSimpleMode: true },
-    { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true },
+    { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagAffiliate },
     { path: '/profile', label: t('nav.profile'), icon: UserIcon },
     ...customMenuItemsForUser.value.map((item): NavItem => ({
       path: `/custom/${item.id}`,

@@ -130,6 +130,7 @@ export interface AffiliateInvitee {
   email: string
   username: string
   created_at?: string
+  total_rebate: number
 }
 
 export interface UserAffiliateDetail {
@@ -138,7 +139,10 @@ export interface UserAffiliateDetail {
   inviter_id?: number | null
   aff_count: number
   aff_quota: number
+  aff_frozen_quota: number
   aff_history_quota: number
+  /** 当前用户作为邀请人时实际生效的返利比例（专属覆盖全局）。0-100。 */
+  effective_rebate_rate_percent: number
   invitees: AffiliateInvitee[]
 }
 
@@ -194,6 +198,7 @@ export interface PublicSettings {
   hide_ccs_import_button: boolean
   purchase_subscription_enabled: boolean
   purchase_subscription_url: string
+  payment_enabled: boolean
   table_default_page_size: number
   table_page_size_options: number[]
   custom_menu_items: CustomMenuItem[]
@@ -213,6 +218,7 @@ export interface PublicSettings {
   channel_monitor_enabled: boolean
   channel_monitor_default_interval_seconds: number
   available_channels_enabled: boolean
+  affiliate_enabled: boolean
 }
 
 export interface AuthResponse {
