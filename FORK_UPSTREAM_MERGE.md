@@ -763,8 +763,8 @@ checksum = sha256(strings.TrimSpace(fileContent))
 - `purchase_subscription_enabled` / `purchase_subscription_url` 仍保留在 DTO 与 Admin 设置页
 - `frontend/src/utils/embedded-url.ts` 仍传入 `user_id`、`token`、`theme`、`lang`、`ui_mode=embedded`、`src_host`、`src_url`
 - `backend/internal/service/update_service.go` 仍为 `githubRepo = "pigzwy/sub2api"`
-- 内置支付订单返利合并上游 `source_order_id` 审计字段，同时继续走 fork 的 `AccrueFirstRechargeRebateForOrder()`，保留“每个 invitee 首次正数余额充值只返利一次”的幂等语义
-- `backend/internal/repository/affiliate_repo.go` 的 `AccrueFirstRechargeQuota()` 同步写入 `source_order_id`，保证上游新增的 Admin 返利订单记录可展示，同时不破坏 fork 首充 claim 表
+- 内置支付订单返利合并上游 `source_order_id` 审计字段，并与上游保持“每个 invitee 首次正数余额充值只返利一次”的幂等语义
+- `backend/internal/repository/affiliate_repo.go` 的 `AccrueFirstRechargeQuota()` 同步写入 `source_order_id`，保证上游新增的 Admin 返利订单记录可展示，同时保持首充 claim 表的幂等语义
 - `frontend/src/stores/adminSettings.ts` 保留上游 `paymentEnabled`，仅用于内置支付管理菜单 feature flag；不影响 fork 的 `/purchase` 外挂支付入口
 
 本次验证命令：
@@ -866,3 +866,4 @@ git revert <sha>
 # 只拿一个 commit
 git cherry-pick <sha>
 ```
+
