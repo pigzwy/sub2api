@@ -742,6 +742,40 @@ checksum = sha256(strings.TrimSpace(fileContent))
 - `pnpm build`
 - `go build -tags embed ./cmd/server`
 
+
+#### 8.5.6 2026-05-04 合并 v0.1.122 记录
+
+本次从本地 `0.1.121` 合并到 upstream `0.1.122`，采用方案 A：直接 merge upstream，保留上游非入口型改动，重点守住 fork 外挂支付入口。
+
+合并前分析：
+
+- 本次合入 24 个 upstream commit，目标版本 `0.1.122`
+- 已知 payment 黑名单 PR（`97f14b7a`、`54490cf6`、`7d80b5ad`、`75908800`）均已在本地 HEAD 中，不是本次新增
+- `backend/internal/service/update_service.go` 未被 upstream 修改
+- 文本冲突集中在：
+  - `backend/internal/service/affiliate_service.go`
+  - `backend/internal/service/payment_fulfillment.go`
+  - `frontend/src/components/layout/AppSidebar.vue`
+
+合并时保留 fork 侧关键差异：
+
+- `/purchase` 仍指向 `frontend/src/views/user/PurchaseSubscriptionView.vue`，不设置 `requiresPayment`，继续作为外挂支付 iframe 入口
+- `purchase_subscription_enabled` / `purchase_subscription_url` 仍保留在 DTO 与 Admin 设置页
+- `frontend/src/utils/embedded-url.ts` 仍传入 `user_id`、`token`、`theme`、`lang`、`ui_mode=embedded`、`src_host`、`src_url`
+- `backend/internal/service/update_service.go` 仍为 `githubRepo = "pigzwy/sub2api"`
+- 内置支付订单返利合并上游 `source_order_id` 审计字段，同时继续走 fork 的 `AccrueFirstRechargeRebateForOrder()`，保留“每个 invitee 首次正数余额充值只返利一次”的幂等语义
+- `backend/internal/repository/affiliate_repo.go` 的 `AccrueFirstRechargeQuota()` 同步写入 `source_order_id`，保证上游新增的 Admin 返利订单记录可展示，同时不破坏 fork 首充 claim 表
+- `frontend/src/stores/adminSettings.ts` 保留上游 `paymentEnabled`，仅用于内置支付管理菜单 feature flag；不影响 fork 的 `/purchase` 外挂支付入口
+
+本次验证命令：
+
+- `GOSUMDB=sum.golang.org go test -count=1 -tags=unit ./internal/service ./internal/handler/admin ./internal/payment/provider`
+- `pnpm build`
+- `GOSUMDB=sum.golang.org go build -tags embed ./cmd/server`
+
+注意：首次运行 Go 测试时本机环境 `GOSUMDB=off` 导致 toolchain 校验失败；改为 `GOSUMDB=sum.golang.org` 后验证通过。
+
+
 ---
 
 ## 9. 回滚预案
