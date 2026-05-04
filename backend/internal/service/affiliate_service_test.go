@@ -77,11 +77,11 @@ func (s *affiliateRepoStub) BindInviter(context.Context, int64, int64) (bool, er
 	return false, nil
 }
 
-func (s *affiliateRepoStub) AccrueQuota(context.Context, int64, int64, float64, int) (bool, error) {
+func (s *affiliateRepoStub) AccrueQuota(context.Context, int64, int64, float64, int, *int64) (bool, error) {
 	return false, nil
 }
 
-func (s *affiliateRepoStub) AccrueFirstRechargeQuota(_ context.Context, inviterID, inviteeUserID int64, amount float64, freezeHours int, sourceRef string) (bool, error) {
+func (s *affiliateRepoStub) AccrueFirstRechargeQuota(_ context.Context, inviterID, inviteeUserID int64, amount float64, freezeHours int, sourceRef string, sourceOrderID *int64) (bool, error) {
 	s.firstRechargeAmount = amount
 	s.firstRechargeFreeze = freezeHours
 	s.firstRechargeSource = sourceRef
@@ -124,6 +124,22 @@ func (s *affiliateRepoStub) BatchSetUserRebateRate(context.Context, []int64, *fl
 
 func (s *affiliateRepoStub) ListUsersWithCustomSettings(context.Context, AffiliateAdminFilter) ([]AffiliateAdminEntry, int64, error) {
 	return nil, 0, nil
+}
+
+func (s *affiliateRepoStub) ListAffiliateInviteRecords(context.Context, AffiliateRecordFilter) ([]AffiliateInviteRecord, int64, error) {
+	return nil, 0, nil
+}
+
+func (s *affiliateRepoStub) ListAffiliateRebateRecords(context.Context, AffiliateRecordFilter) ([]AffiliateRebateRecord, int64, error) {
+	return nil, 0, nil
+}
+
+func (s *affiliateRepoStub) ListAffiliateTransferRecords(context.Context, AffiliateRecordFilter) ([]AffiliateTransferRecord, int64, error) {
+	return nil, 0, nil
+}
+
+func (s *affiliateRepoStub) GetAffiliateUserOverview(context.Context, int64) (*AffiliateUserOverview, error) {
+	return nil, nil
 }
 
 func affiliateTestSettingService(rate string) *SettingService {
