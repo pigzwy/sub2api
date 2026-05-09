@@ -53,10 +53,10 @@ jobs:
             VERSION="${CUSTOM_TAG#v}"
             echo "tags=${{ env.DOCKER_IMAGE }}:${CUSTOM_TAG},${{ env.DOCKER_IMAGE }}:latest" >> "$GITHUB_OUTPUT"
           else
-            # 自动使用当前代码里的 VERSION；合并上游 release 后会随代码一起更新。
-            VERSION=$(tr -d '\r\n' < backend/cmd/server/VERSION)
+            # 自动使用当前代码能追溯到的最新 v* tag；VERSION 文件只做兜底。
+            VERSION=$(git describe --tags --match 'v*' --abbrev=0 2>/dev/null | sed 's/^v//' || true)
             if [ -z "$VERSION" ]; then
-              VERSION=$(git describe --tags --match 'v*' --abbrev=0 2>/dev/null | sed 's/^v//' || true)
+              VERSION=$(tr -d '\r\n' < backend/cmd/server/VERSION)
             fi
             echo "tags=${{ env.DOCKER_IMAGE }}:latest,${{ env.DOCKER_IMAGE }}:${COMMIT_SHORT},${{ env.DOCKER_IMAGE }}:build-${TIMESTAMP}" >> "$GITHUB_OUTPUT"
           fi
