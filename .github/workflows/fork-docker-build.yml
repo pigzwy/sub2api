@@ -27,6 +27,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -39,20 +41,28 @@ jobs:
 
       - name: Prepare tags
         id: tags
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag || '' }}
         run: |
           COMMIT_SHORT=$(git rev-parse --short HEAD)
           TIMESTAMP=$(date -u +%Y%m%d%H%M%S)
 
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
+          if [ -n "$INPUT_TAG" ]; then
             # 手动指定 tag
-            CUSTOM_TAG="${{ github.event.inputs.tag }}"
-            echo "tags=${{ env.DOCKER_IMAGE }}:${CUSTOM_TAG},${{ env.DOCKER_IMAGE }}:latest" >> $GITHUB_OUTPUT
+            CUSTOM_TAG="$INPUT_TAG"
+            VERSION="${CUSTOM_TAG#v}"
+            echo "tags=${{ env.DOCKER_IMAGE }}:${CUSTOM_TAG},${{ env.DOCKER_IMAGE }}:latest" >> "$GITHUB_OUTPUT"
           else
-            # 自动 tag: latest + commit hash
-            echo "tags=${{ env.DOCKER_IMAGE }}:latest,${{ env.DOCKER_IMAGE }}:${COMMIT_SHORT},${{ env.DOCKER_IMAGE }}:build-${TIMESTAMP}" >> $GITHUB_OUTPUT
+            # 自动使用当前代码里的 VERSION；合并上游 release 后会随代码一起更新。
+            VERSION=$(tr -d '\r\n' < backend/cmd/server/VERSION)
+            if [ -z "$VERSION" ]; then
+              VERSION=$(git describe --tags --match 'v*' --abbrev=0 2>/dev/null | sed 's/^v//' || true)
+            fi
+            echo "tags=${{ env.DOCKER_IMAGE }}:latest,${{ env.DOCKER_IMAGE }}:${COMMIT_SHORT},${{ env.DOCKER_IMAGE }}:build-${TIMESTAMP}" >> "$GITHUB_OUTPUT"
           fi
 
-          echo "commit=${COMMIT_SHORT}" >> $GITHUB_OUTPUT
+          echo "commit=${COMMIT_SHORT}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Build and Push
         uses: docker/build-push-action@v6
@@ -64,6 +74,7 @@ jobs:
           build-args: |
             GOPROXY=https://goproxy.cn,direct
             GOSUMDB=sum.golang.google.cn
+            VERSION=${{ steps.tags.outputs.version }}
             COMMIT=${{ steps.tags.outputs.commit }}
             DATE=${{ github.event.head_commit.timestamp }}
           cache-from: type=gha
