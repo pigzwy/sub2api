@@ -144,7 +144,12 @@
                       : t(`admin.backup.status.${record.status}`) }}
                   </span>
                 </td>
-                <td class="py-3 pr-4 text-xs">{{ record.file_name }}</td>
+                <td class="py-3 pr-4 text-xs">
+                  <div>{{ record.file_name }}</div>
+                  <div v-if="record.status === 'failed' && record.error_message" class="mt-1 max-w-xs break-words text-red-600 dark:text-red-400">
+                    {{ record.error_message }}
+                  </div>
+                </td>
                 <td class="py-3 pr-4 text-xs">{{ formatSize(record.size_bytes) }}</td>
                 <td class="py-3 pr-4 text-xs">
                   {{ record.expires_at ? formatDate(record.expires_at) : t('admin.backup.neverExpire') }}

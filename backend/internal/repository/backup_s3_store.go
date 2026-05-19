@@ -1,10 +1,10 @@
 package repository
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -56,23 +56,33 @@ func NewS3BackupStoreFactory() service.BackupObjectStoreFactory {
 }
 
 func (s *S3BackupStore) Upload(ctx context.Context, key string, body io.Reader, contentType string) (int64, error) {
-	// 读取全部内容以获取大小（S3 PutObject 需要知道内容长度）
-	// 注意：阿里云 OSS 不兼容 s3manager 分片上传的签名方式，因此使用 PutObject
-	data, err := io.ReadAll(body)
+	// PutObject 需要可重复读取的 body 和明确长度；先落临时文件，避免大备份整体进内存。
+	tmp, err := os.CreateTemp("", "sub2api-backup-*.sql.gz")
 	if err != nil {
-		return 0, fmt.Errorf("read body: %w", err)
+		return 0, fmt.Errorf("create temp backup file: %w", err)
+	}
+	defer func() { _ = os.Remove(tmp.Name()) }()
+	defer func() { _ = tmp.Close() }()
+
+	sizeBytes, err := io.Copy(tmp, body)
+	if err != nil {
+		return 0, fmt.Errorf("spool backup body: %w", err)
+	}
+	if _, err := tmp.Seek(0, io.SeekStart); err != nil {
+		return 0, fmt.Errorf("rewind backup body: %w", err)
 	}
 
 	_, err = s.client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket:      &s.bucket,
-		Key:         &key,
-		Body:        bytes.NewReader(data),
-		ContentType: &contentType,
+		Bucket:        &s.bucket,
+		Key:           &key,
+		Body:          tmp,
+		ContentLength: &sizeBytes,
+		ContentType:   &contentType,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("S3 PutObject: %w", err)
 	}
-	return int64(len(data)), nil
+	return sizeBytes, nil
 }
 
 func (s *S3BackupStore) Download(ctx context.Context, key string) (io.ReadCloser, error) {

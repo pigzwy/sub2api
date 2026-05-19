@@ -636,9 +636,13 @@ func (s *BackupService) executeBackup(record *BackupRecord, objectStore BackupOb
 	ctx, cancel := context.WithTimeout(s.bgCtx, 30*time.Minute)
 	defer cancel()
 
+	logger.LegacyPrintf("service.backup", "[Backup] backup started: id=%s key=%s", record.ID, record.S3Key)
+
 	// 阶段1: pg_dump
 	record.Progress = "dumping"
-	_ = s.saveRecord(ctx, record)
+	if err := s.saveRecord(ctx, record); err != nil {
+		logger.LegacyPrintf("service.backup", "[Backup] save dumping progress failed: id=%s err=%v", record.ID, err)
+	}
 
 	dumpReader, err := s.dumper.Dump(ctx)
 	if err != nil {
@@ -646,13 +650,18 @@ func (s *BackupService) executeBackup(record *BackupRecord, objectStore BackupOb
 		record.ErrorMsg = fmt.Sprintf("pg_dump failed: %v", err)
 		record.Progress = ""
 		record.FinishedAt = time.Now().Format(time.RFC3339)
-		_ = s.saveRecord(context.Background(), record)
+		logger.LegacyPrintf("service.backup", "[Backup] backup failed during dump: id=%s err=%v", record.ID, err)
+		if saveErr := s.saveRecord(context.Background(), record); saveErr != nil {
+			logger.LegacyPrintf("service.backup", "[Backup] save dump failure record failed: id=%s err=%v", record.ID, saveErr)
+		}
 		return
 	}
 
 	// 阶段2: gzip + upload
 	record.Progress = "uploading"
-	_ = s.saveRecord(ctx, record)
+	if err := s.saveRecord(ctx, record); err != nil {
+		logger.LegacyPrintf("service.backup", "[Backup] save uploading progress failed: id=%s err=%v", record.ID, err)
+	}
 
 	pr, pw := io.Pipe()
 	gzipDone := make(chan error, 1)
@@ -693,7 +702,10 @@ func (s *BackupService) executeBackup(record *BackupRecord, objectStore BackupOb
 		record.ErrorMsg = errMsg
 		record.Progress = ""
 		record.FinishedAt = time.Now().Format(time.RFC3339)
-		_ = s.saveRecord(context.Background(), record)
+		logger.LegacyPrintf("service.backup", "[Backup] backup failed during upload: id=%s err=%s", record.ID, errMsg)
+		if saveErr := s.saveRecord(context.Background(), record); saveErr != nil {
+			logger.LegacyPrintf("service.backup", "[Backup] save upload failure record failed: id=%s err=%v", record.ID, saveErr)
+		}
 		return
 	}
 	<-gzipDone // 确保 gzip goroutine 已退出
@@ -705,6 +717,7 @@ func (s *BackupService) executeBackup(record *BackupRecord, objectStore BackupOb
 	if err := s.saveRecord(context.Background(), record); err != nil {
 		logger.LegacyPrintf("service.backup", "[Backup] 保存备份记录失败: %v", err)
 	}
+	logger.LegacyPrintf("service.backup", "[Backup] backup completed: id=%s size=%d", record.ID, record.SizeBytes)
 }
 
 // RestoreBackup 从 S3 下载备份并流式恢复到数据库
