@@ -1,8 +1,10 @@
 # =============================================================================
 # [FORK] 二开 Docker 镜像构建 & 推送
 # =============================================================================
-# 手动触发或 push 到 main 时自动构建
-# 推送到 Docker Hub: <DOCKER_HUB_USERNAME>/sub2api:latest
+# 手动触发或 push 到 main/cc/gy 时自动构建
+# main -> <DOCKER_HUB_USERNAME>/sub2api:latest
+# cc   -> <DOCKER_HUB_USERNAME>/sub2api:cc
+# gy   -> <DOCKER_HUB_USERNAME>/sub2api:gy
 # =============================================================================
 
 name: "[FORK] Build & Push Docker Image"
@@ -17,6 +19,8 @@ on:
   push:
     branches:
       - main
+      - cc
+      - gy
 
 env:
   DOCKER_IMAGE: ${{ secrets.DOCKER_HUB_USERNAME }}/sub2api
@@ -43,6 +47,7 @@ jobs:
         id: tags
         env:
           INPUT_TAG: ${{ github.event.inputs.tag || '' }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
           COMMIT_SHORT=$(git rev-parse --short HEAD)
           TIMESTAMP=$(date -u +%Y%m%d%H%M%S)
@@ -51,14 +56,33 @@ jobs:
             # 手动指定 tag
             CUSTOM_TAG="$INPUT_TAG"
             VERSION="${CUSTOM_TAG#v}"
-            echo "tags=${{ env.DOCKER_IMAGE }}:${CUSTOM_TAG},${{ env.DOCKER_IMAGE }}:latest" >> "$GITHUB_OUTPUT"
+            echo "tags=${{ env.DOCKER_IMAGE }}:${CUSTOM_TAG}" >> "$GITHUB_OUTPUT"
+            echo "primary_tag=${{ env.DOCKER_IMAGE }}:${CUSTOM_TAG}" >> "$GITHUB_OUTPUT"
           else
             # 自动使用当前代码能追溯到的最新 v* tag；VERSION 文件只做兜底。
             VERSION=$(git describe --tags --match 'v*' --abbrev=0 2>/dev/null | sed 's/^v//' || true)
             if [ -z "$VERSION" ]; then
               VERSION=$(tr -d '\r\n' < backend/cmd/server/VERSION)
             fi
-            echo "tags=${{ env.DOCKER_IMAGE }}:latest,${{ env.DOCKER_IMAGE }}:${COMMIT_SHORT},${{ env.DOCKER_IMAGE }}:build-${TIMESTAMP}" >> "$GITHUB_OUTPUT"
+
+            case "$REF_NAME" in
+              main)
+                BRANCH_TAG="latest"
+                ;;
+              cc)
+                BRANCH_TAG="cc"
+                ;;
+              gy)
+                BRANCH_TAG="gy"
+                ;;
+              *)
+                # workflow_dispatch 可能从其它分支手动运行，统一转成合法 Docker tag。
+                BRANCH_TAG=$(echo "$REF_NAME" | tr '/[:upper:]' '-[:lower:]' | sed 's/[^a-z0-9_.-]/-/g')
+                ;;
+            esac
+
+            echo "tags=${{ env.DOCKER_IMAGE }}:${BRANCH_TAG},${{ env.DOCKER_IMAGE }}:${BRANCH_TAG}-${COMMIT_SHORT},${{ env.DOCKER_IMAGE }}:${BRANCH_TAG}-build-${TIMESTAMP}" >> "$GITHUB_OUTPUT"
+            echo "primary_tag=${{ env.DOCKER_IMAGE }}:${BRANCH_TAG}" >> "$GITHUB_OUTPUT"
           fi
 
           echo "commit=${COMMIT_SHORT}" >> "$GITHUB_OUTPUT"
@@ -91,6 +115,6 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**部署命令:**" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ${{ env.DOCKER_IMAGE }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ steps.tags.outputs.primary_tag }}" >> $GITHUB_STEP_SUMMARY
           echo "docker compose up -d" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
