@@ -576,6 +576,12 @@ export interface SystemSettings {
   payment_enabled: boolean;
   risk_control_enabled: boolean;
 
+  // Request audit
+  request_audit_enabled: boolean;
+  request_audit_retention_hours: number;
+  request_audit_user_scope: number[];
+  request_audit_group_scope: number[];
+
   // Cyber session block
   cyber_session_block_enabled: boolean;
   cyber_session_block_ttl_seconds: number;
@@ -823,6 +829,12 @@ export interface UpdateSettingsRequest {
   // Payment configuration
   payment_enabled?: boolean;
   risk_control_enabled?: boolean;
+
+  // Request audit
+  request_audit_enabled?: boolean;
+  request_audit_retention_hours?: number;
+  request_audit_user_scope?: number[];
+  request_audit_group_scope?: number[];
 
   // Cyber session block
   cyber_session_block_enabled?: boolean;

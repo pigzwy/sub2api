@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
@@ -81,6 +82,8 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		return
 	}
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
+	auditSession := beginRequestAuditCapture(c, h.requestAuditLogService, h.settingService, requestAuditSubject{UserID: subject.UserID, APIKeyID: apiKey.ID, GroupID: apiKey.GroupID})
+	defer auditSession.Finish(c, requestAuditSubject{UserID: subject.UserID, APIKeyID: apiKey.ID, GroupID: apiKey.GroupID}, string(domain.PlatformAnthropic), GetInboundEndpoint(c), reqModel, reqStream, body)
 
 	setOpsRequestContext(c, reqModel, reqStream)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(reqStream, false)))
@@ -247,6 +250,9 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 			accountReleaseFunc()
 		}
 
+		if result != nil {
+			setRequestAuditRequestID(c, result.RequestID)
+		}
 		if err != nil {
 			var failoverErr *service.UpstreamFailoverError
 			if errors.As(err, &failoverErr) {

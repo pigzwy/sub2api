@@ -34,6 +34,8 @@ type OpenAIGatewayHandler struct {
 	usageRecordWorkerPool    *service.UsageRecordWorkerPool
 	errorPassthroughService  *service.ErrorPassthroughService
 	contentModerationService *service.ContentModerationService
+	requestAuditLogService   *service.RequestAuditLogService
+	settingService           *service.SettingService
 	opsService               *service.OpsService
 	concurrencyHelper        *ConcurrencyHelper
 	imageLimiter             *imageConcurrencyLimiter
@@ -113,6 +115,8 @@ func NewOpenAIGatewayHandler(
 	usageRecordWorkerPool *service.UsageRecordWorkerPool,
 	errorPassthroughService *service.ErrorPassthroughService,
 	contentModerationService *service.ContentModerationService,
+	requestAuditLogService *service.RequestAuditLogService,
+	settingService *service.SettingService,
 	opsService *service.OpsService,
 	cfg *config.Config,
 ) *OpenAIGatewayHandler {
@@ -131,6 +135,8 @@ func NewOpenAIGatewayHandler(
 		usageRecordWorkerPool:    usageRecordWorkerPool,
 		errorPassthroughService:  errorPassthroughService,
 		contentModerationService: contentModerationService,
+		requestAuditLogService:   requestAuditLogService,
+		settingService:           settingService,
 		opsService:               opsService,
 		concurrencyHelper:        NewConcurrencyHelper(concurrencyService, SSEPingFormatComment, pingInterval),
 		imageLimiter:             &imageConcurrencyLimiter{},
@@ -226,6 +232,8 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		return
 	}
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
+	auditSession := beginRequestAuditCapture(c, h.requestAuditLogService, h.settingService, requestAuditSubject{UserID: subject.UserID, APIKeyID: apiKey.ID, GroupID: apiKey.GroupID})
+	defer auditSession.Finish(c, requestAuditSubject{UserID: subject.UserID, APIKeyID: apiKey.ID, GroupID: apiKey.GroupID}, string(service.PlatformOpenAI), GetInboundEndpoint(c), reqModel, reqStream, body)
 	previousResponseID := strings.TrimSpace(gjson.GetBytes(body, "previous_response_id").String())
 	if previousResponseID != "" {
 		previousResponseIDKind := service.ClassifyOpenAIPreviousResponseIDKind(previousResponseID)
@@ -423,6 +431,9 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		service.SetOpsLatencyMs(c, service.OpsResponseLatencyMsKey, responseLatencyMs)
 		if err == nil && result != nil && result.FirstTokenMs != nil {
 			service.SetOpsLatencyMs(c, service.OpsTimeToFirstTokenMsKey, int64(*result.FirstTokenMs))
+		}
+		if result != nil {
+			setRequestAuditRequestID(c, result.RequestID)
 		}
 		if err != nil {
 			if result != nil && result.ImageCount > 0 {
@@ -698,6 +709,8 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 	reqStream := gjson.GetBytes(body, "stream").Bool()
 
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
+	auditSession := beginRequestAuditCapture(c, h.requestAuditLogService, h.settingService, requestAuditSubject{UserID: subject.UserID, APIKeyID: apiKey.ID, GroupID: apiKey.GroupID})
+	defer auditSession.Finish(c, requestAuditSubject{UserID: subject.UserID, APIKeyID: apiKey.ID, GroupID: apiKey.GroupID}, string(service.PlatformOpenAI), GetInboundEndpoint(c), reqModel, reqStream, body)
 
 	setOpsRequestContext(c, reqModel, reqStream)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(reqStream, false)))
@@ -843,6 +856,9 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		service.SetOpsLatencyMs(c, service.OpsResponseLatencyMsKey, responseLatencyMs)
 		if err == nil && result != nil && result.FirstTokenMs != nil {
 			service.SetOpsLatencyMs(c, service.OpsTimeToFirstTokenMsKey, int64(*result.FirstTokenMs))
+		}
+		if result != nil {
+			setRequestAuditRequestID(c, result.RequestID)
 		}
 		if err != nil {
 			if result != nil && result.ImageCount > 0 {

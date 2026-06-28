@@ -415,6 +415,7 @@ func setOpsSelectedAccount(c *gin.Context, accountID int64, platform ...string) 
 		return
 	}
 	c.Set(opsAccountIDKey, accountID)
+	setRequestAuditAccount(c, accountID)
 	if c.Request != nil {
 		ctx := context.WithValue(c.Request.Context(), ctxkey.AccountID, accountID)
 		if len(platform) > 0 {

@@ -230,6 +230,10 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		RiskControlEnabled:                     settings.RiskControlEnabled,
 		CyberSessionBlockEnabled:               settings.CyberSessionBlockEnabled,
 		CyberSessionBlockTTLSeconds:            settings.CyberSessionBlockTTLSeconds,
+		RequestAuditEnabled:                    settings.RequestAuditEnabled,
+		RequestAuditRetentionHours:             settings.RequestAuditRetentionHours,
+		RequestAuditUserScope:                  settings.RequestAuditUserScope,
+		RequestAuditGroupScope:                 settings.RequestAuditGroupScope,
 		AffiliateRebateRate:                    settings.AffiliateRebateRate,
 		AffiliateRebateFreezeHours:             settings.AffiliateRebateFreezeHours,
 		AffiliateRebateDurationDays:            settings.AffiliateRebateDurationDays,
@@ -669,6 +673,12 @@ type UpdateSettingsRequest struct {
 	// cyber 会话屏蔽开关 + TTL
 	CyberSessionBlockEnabled    *bool `json:"cyber_session_block_enabled"`
 	CyberSessionBlockTTLSeconds *int  `json:"cyber_session_block_ttl_seconds"`
+
+	// 请求审计
+	RequestAuditEnabled        *bool   `json:"request_audit_enabled"`
+	RequestAuditRetentionHours *int    `json:"request_audit_retention_hours"`
+	RequestAuditUserScope      []int64 `json:"request_audit_user_scope"`
+	RequestAuditGroupScope     []int64 `json:"request_audit_group_scope"`
 
 	// OpenAI fast/flex policy (optional, only updated when provided)
 	OpenAIFastPolicySettings *dto.OpenAIFastPolicySettings `json:"openai_fast_policy_settings,omitempty"`
@@ -1519,6 +1529,10 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		response.BadRequest(c, "cyber_session_block_ttl_seconds must be > 0")
 		return
 	}
+	if req.RequestAuditRetentionHours != nil && *req.RequestAuditRetentionHours < 0 {
+		response.BadRequest(c, "request_audit_retention_hours must be >= 0")
+		return
+	}
 
 	settings := &service.SystemSettings{
 		// 系统全局 platform quota 默认值（整体替换语义）
@@ -1862,6 +1876,30 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.CyberSessionBlockTTLSeconds
 		}(),
+		RequestAuditEnabled: func() bool {
+			if req.RequestAuditEnabled != nil {
+				return *req.RequestAuditEnabled
+			}
+			return previousSettings.RequestAuditEnabled
+		}(),
+		RequestAuditRetentionHours: func() int {
+			if req.RequestAuditRetentionHours != nil {
+				return *req.RequestAuditRetentionHours
+			}
+			return previousSettings.RequestAuditRetentionHours
+		}(),
+		RequestAuditUserScope: func() []int64 {
+			if req.RequestAuditUserScope != nil {
+				return req.RequestAuditUserScope
+			}
+			return previousSettings.RequestAuditUserScope
+		}(),
+		RequestAuditGroupScope: func() []int64 {
+			if req.RequestAuditGroupScope != nil {
+				return req.RequestAuditGroupScope
+			}
+			return previousSettings.RequestAuditGroupScope
+		}(),
 	}
 
 	// req.AuthSourceXxxPlatformQuotas 为 nil 表示本次请求未包含该 source 的 quota 配置（保留 previousAuthSourceDefaults 中的值）；
@@ -2194,6 +2232,10 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		RiskControlEnabled:          updatedSettings.RiskControlEnabled,
 		CyberSessionBlockEnabled:    updatedSettings.CyberSessionBlockEnabled,
 		CyberSessionBlockTTLSeconds: updatedSettings.CyberSessionBlockTTLSeconds,
+		RequestAuditEnabled:         updatedSettings.RequestAuditEnabled,
+		RequestAuditRetentionHours:  updatedSettings.RequestAuditRetentionHours,
+		RequestAuditUserScope:       updatedSettings.RequestAuditUserScope,
+		RequestAuditGroupScope:      updatedSettings.RequestAuditGroupScope,
 		AllowUserViewErrorRequests:  updatedSettings.AllowUserViewErrorRequests,
 	}
 	if fastPolicy, err := h.settingService.GetOpenAIFastPolicySettings(c.Request.Context()); err != nil {
@@ -2705,6 +2747,18 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	if before.CyberSessionBlockTTLSeconds != after.CyberSessionBlockTTLSeconds {
 		changed = append(changed, "cyber_session_block_ttl_seconds")
 	}
+	if before.RequestAuditEnabled != after.RequestAuditEnabled {
+		changed = append(changed, service.SettingKeyRequestAuditEnabled)
+	}
+	if before.RequestAuditRetentionHours != after.RequestAuditRetentionHours {
+		changed = append(changed, service.SettingKeyRequestAuditRetentionHours)
+	}
+	if !equalInt64Slice(before.RequestAuditUserScope, after.RequestAuditUserScope) {
+		changed = append(changed, service.SettingKeyRequestAuditUserScope)
+	}
+	if !equalInt64Slice(before.RequestAuditGroupScope, after.RequestAuditGroupScope) {
+		changed = append(changed, service.SettingKeyRequestAuditGroupScope)
+	}
 	// Default platform quotas（JSON map，整体比较）
 	if !equalPlatformQuotaSettings(before.DefaultPlatformQuotas, after.DefaultPlatformQuotas) {
 		changed = append(changed, service.SettingKeyDefaultPlatformQuotas)
@@ -2889,6 +2943,18 @@ func systemSettingsResponseData(settings dto.SystemSettings, authSourceDefaults 
 	data["force_email_on_third_party_signup"] = authSourceDefaults.ForceEmailOnThirdPartySignup
 
 	return data
+}
+
+func equalInt64Slice(a, b []int64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func equalStringSlice(a, b []string) bool {

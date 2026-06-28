@@ -107,6 +107,9 @@
         <button class="tab" :class="{ 'tab-active': activeTab === 'errors' }" @click="switchToErrorsTab">
           {{ t('usage.tabs.errors') }}
         </button>
+        <button v-if="requestAuditEnabled" class="tab" :class="{ 'tab-active': activeTab === 'audit' }" @click="switchToAuditTab">
+          {{ t('usage.tabs.audit') }}
+        </button>
       </div>
       <div v-show="activeTab === 'usage'">
         <UsageTable
@@ -129,6 +132,9 @@
           @update:page="onErrPage"
           @update:pageSize="onErrPageSize" />
         <OpsErrorDetailModal v-model:show="showErrorModal" :error-id="selectedErrorId" :error-type="'request'" />
+      </div>
+      <div v-if="requestAuditEnabled" v-show="activeTab === 'audit'">
+        <RequestAuditPanel ref="requestAuditPanelRef" :start-date="startDate" :end-date="endDate" :filters="filters" />
       </div>
     </div>
   </AppLayout>
@@ -162,6 +168,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'; import Pagination fro
 import UsageStatsCards from '@/components/admin/usage/UsageStatsCards.vue'; import UsageFilters from '@/components/admin/usage/UsageFilters.vue'
 import UsageTable from '@/components/admin/usage/UsageTable.vue'; import UsageExportProgress from '@/components/admin/usage/UsageExportProgress.vue'
 import UsageCleanupDialog from '@/components/admin/usage/UsageCleanupDialog.vue'
+import RequestAuditPanel from '@/components/admin/usage/RequestAuditPanel.vue'
 import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryModal.vue'
 import OpsErrorLogTable from '@/views/admin/ops/components/OpsErrorLogTable.vue'
 import OpsErrorDetailModal from '@/views/admin/ops/components/OpsErrorDetailModal.vue'
@@ -203,6 +210,8 @@ const cleanupDialogVisible = ref(false)
 // Balance history modal state
 const showBalanceHistoryModal = ref(false)
 const balanceHistoryUser = ref<AdminUser | null>(null)
+const requestAuditEnabled = ref(false)
+const requestAuditPanelRef = ref<InstanceType<typeof RequestAuditPanel> | null>(null)
 
 const breakdownFilters = computed(() => {
   const f: Record<string, any> = {}
@@ -461,6 +470,9 @@ const applyFilters = () => {
   } else {
     errRows.value = []
   }
+  if (requestAuditEnabled.value) {
+    requestAuditPanelRef.value?.refreshData()
+  }
 }
 const refreshData = () => {
   invalidateModelStatsCache()
@@ -469,6 +481,7 @@ const refreshData = () => {
   loadModelStats(modelDistributionSource.value, true)
   loadChartData()
   if (activeTab.value === 'errors') loadAdminErrors()
+  if (requestAuditEnabled.value) requestAuditPanelRef.value?.refreshData()
 }
 const resetFilters = () => {
   const range = getLast24HoursRangeDates()
@@ -624,7 +637,7 @@ const loadSavedColumns = () => {
 }
 
 // Error tab state
-const activeTab = ref<'usage' | 'errors'>('usage')
+const activeTab = ref<'usage' | 'errors' | 'audit'>('usage')
 const errRows = ref<OpsErrorLog[]>([])
 const errLoading = ref(false)
 const errPage = ref(1)
@@ -666,6 +679,18 @@ const onErrPage = (p: number) => { errPage.value = p; loadAdminErrors() }
 const onErrPageSize = (s: number) => { errPageSize.value = s; errPage.value = 1; loadAdminErrors() }
 const openError = (id: number) => { selectedErrorId.value = id; showErrorModal.value = true }
 const switchToErrorsTab = () => { activeTab.value = 'errors'; if (errRows.value.length === 0) loadAdminErrors() }
+const switchToAuditTab = () => { activeTab.value = 'audit'; requestAuditPanelRef.value?.refreshData() }
+
+const loadRequestAuditEnabled = async () => {
+  try {
+    const settings = await adminAPI.settings.getSettings()
+    requestAuditEnabled.value = settings.request_audit_enabled === true
+    if (!requestAuditEnabled.value && activeTab.value === 'audit') activeTab.value = 'usage'
+  } catch {
+    requestAuditEnabled.value = false
+    if (activeTab.value === 'audit') activeTab.value = 'usage'
+  }
+}
 
 const showColumnDropdown = ref(false)
 const columnDropdownRef = ref<HTMLElement | null>(null)
@@ -685,6 +710,7 @@ onMounted(() => {
     void loadChartData()
   }, 120)
   loadSavedColumns()
+  loadRequestAuditEnabled()
   document.addEventListener('click', handleColumnClickOutside)
 })
 onUnmounted(() => { abortController?.abort(); exportAbortController?.abort(); document.removeEventListener('click', handleColumnClickOutside) })

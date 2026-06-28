@@ -81,6 +81,8 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 	}
 
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
+	auditSession := beginRequestAuditCapture(c, h.requestAuditLogService, h.settingService, requestAuditSubject{UserID: subject.UserID, APIKeyID: apiKey.ID, GroupID: apiKey.GroupID})
+	defer auditSession.Finish(c, requestAuditSubject{UserID: subject.UserID, APIKeyID: apiKey.ID, GroupID: apiKey.GroupID}, string(service.PlatformOpenAI), GetInboundEndpoint(c), reqModel, reqStream, body)
 
 	setOpsRequestContext(c, reqModel, reqStream)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(reqStream, false)))
@@ -218,6 +220,9 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 		service.SetOpsLatencyMs(c, service.OpsResponseLatencyMsKey, responseLatencyMs)
 		if err == nil && result != nil && result.FirstTokenMs != nil {
 			service.SetOpsLatencyMs(c, service.OpsTimeToFirstTokenMsKey, int64(*result.FirstTokenMs))
+		}
+		if result != nil {
+			setRequestAuditRequestID(c, result.RequestID)
 		}
 		if err != nil {
 			if result != nil && result.ImageCount > 0 {

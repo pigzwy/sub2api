@@ -172,6 +172,22 @@ const cyberSessionBlockRuntimeCacheTTL = 60 * time.Second
 const cyberSessionBlockRuntimeErrorTTL = 5 * time.Second
 const cyberSessionBlockRuntimeDBTimeout = 5 * time.Second
 
+type RequestAuditRuntime struct {
+	Enabled        bool
+	RetentionHours int
+	UserScope      []int64
+	GroupScope     []int64
+}
+
+type cachedRequestAuditRuntime struct {
+	value     RequestAuditRuntime
+	expiresAt int64 // unix nano
+}
+
+const requestAuditRuntimeCacheTTL = 60 * time.Second
+const requestAuditRuntimeErrorTTL = 5 * time.Second
+const requestAuditRuntimeDBTimeout = 5 * time.Second
+
 const openAIQuotaAutoPauseSettingsCacheTTL = 60 * time.Second
 const openAIQuotaAutoPauseSettingsErrorTTL = 5 * time.Second
 const openAIQuotaAutoPauseSettingsDBTimeout = 5 * time.Second
@@ -205,6 +221,9 @@ type SettingService struct {
 
 	cyberSessionBlockRuntimeCache atomic.Value // *cachedCyberSessionBlockRuntime
 	cyberSessionBlockRuntimeSF    singleflight.Group
+
+	requestAuditRuntimeCache atomic.Value // *cachedRequestAuditRuntime
+	requestAuditRuntimeSF    singleflight.Group
 
 	// openAIQuotaAutoPauseSettingsCache holds the most recently observed quota auto-pause
 	// settings. GetOpenAIQuotaAutoPauseSettings reads this atomic.Value on the request hot
@@ -764,6 +783,59 @@ func (s *SettingService) GetCyberSessionBlockRuntime(ctx context.Context) (bool,
 		return entry.enabled, entry.ttl
 	}
 	return false, time.Hour
+}
+
+// GetRequestAuditRuntime 返回网关热路径使用的请求审计配置；读取失败时默认关闭，避免意外记录敏感内容。
+func (s *SettingService) GetRequestAuditRuntime(ctx context.Context) RequestAuditRuntime {
+	if s == nil || s.settingRepo == nil {
+		return RequestAuditRuntime{}
+	}
+	if cached, ok := s.requestAuditRuntimeCache.Load().(*cachedRequestAuditRuntime); ok && cached != nil {
+		if time.Now().UnixNano() < cached.expiresAt {
+			return cached.value
+		}
+	}
+	result, _, _ := s.requestAuditRuntimeSF.Do("request_audit_runtime", func() (any, error) {
+		if cached, ok := s.requestAuditRuntimeCache.Load().(*cachedRequestAuditRuntime); ok && cached != nil {
+			if time.Now().UnixNano() < cached.expiresAt {
+				return cached, nil
+			}
+		}
+		dbCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), requestAuditRuntimeDBTimeout)
+		defer cancel()
+
+		vals, err := s.settingRepo.GetMultiple(dbCtx, []string{
+			SettingKeyRequestAuditEnabled,
+			SettingKeyRequestAuditRetentionHours,
+			SettingKeyRequestAuditUserScope,
+			SettingKeyRequestAuditGroupScope,
+		})
+		if err != nil {
+			slog.Warn("failed to get request audit runtime settings, defaulting to disabled", "error", err)
+			entry := &cachedRequestAuditRuntime{
+				value:     RequestAuditRuntime{},
+				expiresAt: time.Now().Add(requestAuditRuntimeErrorTTL).UnixNano(),
+			}
+			s.requestAuditRuntimeCache.Store(entry)
+			return entry, nil
+		}
+
+		entry := &cachedRequestAuditRuntime{
+			value: RequestAuditRuntime{
+				Enabled:        vals[SettingKeyRequestAuditEnabled] == "true",
+				RetentionHours: parsePositiveIntSetting(vals[SettingKeyRequestAuditRetentionHours]),
+				UserScope:      normalizePositiveInt64List(parseInt64JSONArraySetting(vals[SettingKeyRequestAuditUserScope])),
+				GroupScope:     normalizePositiveInt64List(parseInt64JSONArraySetting(vals[SettingKeyRequestAuditGroupScope])),
+			},
+			expiresAt: time.Now().Add(requestAuditRuntimeCacheTTL).UnixNano(),
+		}
+		s.requestAuditRuntimeCache.Store(entry)
+		return entry, nil
+	})
+	if entry, ok := result.(*cachedRequestAuditRuntime); ok && entry != nil {
+		return entry.value
+	}
+	return RequestAuditRuntime{}
 }
 
 // GetPublicSettings 获取公开设置（无需登录）
@@ -2185,6 +2257,14 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 		updates[SettingKeyCyberSessionBlockTTLSeconds] = strconv.Itoa(settings.CyberSessionBlockTTLSeconds)
 	}
 
+	// 请求审计（默认关闭；范围为空表示全部用户/分组）
+	settings.RequestAuditUserScope = normalizePositiveInt64List(settings.RequestAuditUserScope)
+	settings.RequestAuditGroupScope = normalizePositiveInt64List(settings.RequestAuditGroupScope)
+	updates[SettingKeyRequestAuditEnabled] = strconv.FormatBool(settings.RequestAuditEnabled)
+	updates[SettingKeyRequestAuditRetentionHours] = strconv.Itoa(maxRequestAuditInt(settings.RequestAuditRetentionHours, 0))
+	updates[SettingKeyRequestAuditUserScope] = mustJSONInt64Array(settings.RequestAuditUserScope)
+	updates[SettingKeyRequestAuditGroupScope] = mustJSONInt64Array(settings.RequestAuditGroupScope)
+
 	// Claude Code version check
 	updates[SettingKeyMinClaudeCodeVersion] = settings.MinClaudeCodeVersion
 	updates[SettingKeyMaxClaudeCodeVersion] = settings.MaxClaudeCodeVersion
@@ -2381,6 +2461,16 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 			expiresAt: 0,
 		})
 	}
+	s.requestAuditRuntimeSF.Forget("request_audit_runtime")
+	s.requestAuditRuntimeCache.Store(&cachedRequestAuditRuntime{
+		value: RequestAuditRuntime{
+			Enabled:        settings.RequestAuditEnabled,
+			RetentionHours: maxRequestAuditInt(settings.RequestAuditRetentionHours, 0),
+			UserScope:      normalizePositiveInt64List(settings.RequestAuditUserScope),
+			GroupScope:     normalizePositiveInt64List(settings.RequestAuditGroupScope),
+		},
+		expiresAt: time.Now().Add(requestAuditRuntimeCacheTTL).UnixNano(),
+	})
 	if s.cfg != nil {
 		s.cfg.SetTrustForwardedIPForAPIKeyACL(settings.APIKeyACLTrustForwardedIP)
 	}
@@ -3157,6 +3247,12 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyCyberSessionBlockEnabled:    "false",
 		SettingKeyCyberSessionBlockTTLSeconds: "3600",
 
+		// 请求审计（默认关闭；保留时长 0 = 不自动清理）
+		SettingKeyRequestAuditEnabled:        "false",
+		SettingKeyRequestAuditRetentionHours: "0",
+		SettingKeyRequestAuditUserScope:      "[]",
+		SettingKeyRequestAuditGroupScope:     "[]",
+
 		// Claude Code version check (default: empty = disabled)
 		SettingKeyMinClaudeCodeVersion: "",
 		SettingKeyMaxClaudeCodeVersion: "",
@@ -3681,6 +3777,12 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	} else {
 		result.CyberSessionBlockTTLSeconds = 3600
 	}
+
+	// 请求审计（默认关闭；范围为空表示全部用户/分组）
+	result.RequestAuditEnabled = settings[SettingKeyRequestAuditEnabled] == "true"
+	result.RequestAuditRetentionHours = parsePositiveIntSetting(settings[SettingKeyRequestAuditRetentionHours])
+	result.RequestAuditUserScope = normalizePositiveInt64List(parseInt64JSONArraySetting(settings[SettingKeyRequestAuditUserScope]))
+	result.RequestAuditGroupScope = normalizePositiveInt64List(parseInt64JSONArraySetting(settings[SettingKeyRequestAuditGroupScope]))
 
 	// Claude Code version check
 	result.MinClaudeCodeVersion = settings[SettingKeyMinClaudeCodeVersion]
@@ -5260,4 +5362,53 @@ func mergePlatformQuotaDefaults(dst, src *DefaultPlatformQuotaSetting) {
 	if src.MonthlyLimitUSD != nil {
 		dst.MonthlyLimitUSD = src.MonthlyLimitUSD
 	}
+}
+
+func parseInt64JSONArraySetting(raw string) []int64 {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return []int64{}
+	}
+	var vals []int64
+	_ = json.Unmarshal([]byte(raw), &vals)
+	return vals
+}
+
+func mustJSONInt64Array(vals []int64) string {
+	b, _ := json.Marshal(vals)
+	return string(b)
+}
+
+func normalizePositiveInt64List(vals []int64) []int64 {
+	if len(vals) == 0 {
+		return []int64{}
+	}
+	seen := make(map[int64]struct{}, len(vals))
+	normalized := make([]int64, 0, len(vals))
+	for _, val := range vals {
+		if val <= 0 {
+			continue
+		}
+		if _, ok := seen[val]; ok {
+			continue
+		}
+		seen[val] = struct{}{}
+		normalized = append(normalized, val)
+	}
+	return normalized
+}
+
+func parsePositiveIntSetting(raw string) int {
+	v, _ := strconv.Atoi(strings.TrimSpace(raw))
+	if v < 0 {
+		return 0
+	}
+	return v
+}
+
+func maxRequestAuditInt(v int, min int) int {
+	if v < min {
+		return min
+	}
+	return v
 }

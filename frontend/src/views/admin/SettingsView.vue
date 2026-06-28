@@ -5793,6 +5793,115 @@
           </div>
         </div>
 
+        <div class="card">
+          <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              {{ localText('请求审计', 'Request Audit') }}
+            </h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {{ localText('记录网关请求体和响应体，便于排查异常请求。默认关闭，开启前请确认数据合规要求。', 'Record gateway request and response bodies for troubleshooting. Disabled by default; verify compliance requirements before enabling.') }}
+            </p>
+          </div>
+          <div class="space-y-5 p-6">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ localText('启用请求审计', 'Enable Request Audit') }}
+                </label>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ localText('关闭后不记录请求/响应内容，用量页也不展示请求审计标签。', 'When disabled, request/response bodies are not recorded and the audit tab is hidden on the usage page.') }}
+                </p>
+              </div>
+              <Toggle v-model="form.request_audit_enabled" />
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2">
+              <div>
+                <label class="input-label">{{ localText('保留时长', 'Retention') }}</label>
+                <Select
+                  v-model="form.request_audit_retention_hours"
+                  :options="requestAuditRetentionOptions"
+                />
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ localText('超过保留时长的审计日志会在写入新日志时清理；关闭自动清理时仍可手动清理。', 'Logs older than the retention period are cleaned when new logs are written. Manual cleanup remains available when auto cleanup is off.') }}
+                </p>
+              </div>
+
+              <div>
+                <label class="input-label">{{ localText('分组范围', 'Group Scope') }}</label>
+                <Select
+                  v-model="requestAuditGroupPicker"
+                  :options="requestAuditGroupOptions"
+                  searchable
+                  clearable
+                  :placeholder="localText('选择分组', 'Select group')"
+                  @change="addRequestAuditGroupScope"
+                />
+                <div v-if="selectedRequestAuditGroups.length > 0" class="mt-2 flex flex-wrap gap-2">
+                  <span
+                    v-for="group in selectedRequestAuditGroups"
+                    :key="group.id"
+                    class="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-700 dark:bg-dark-700 dark:text-gray-200"
+                  >
+                    {{ group.name }}
+                    <button type="button" class="text-gray-400 hover:text-red-500" @click="removeRequestAuditGroupScope(group.id)">
+                      <Icon name="x" size="xs" />
+                    </button>
+                  </span>
+                </div>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ localText('不选分组表示不限分组；同时设置用户范围时取交集。', 'Leave empty for all groups. If user scope is also set, both scopes must match.') }}
+                </p>
+              </div>
+            </div>
+
+            <div ref="requestAuditUserSearchRef" class="relative">
+              <label class="input-label">{{ localText('用户范围', 'User Scope') }}</label>
+              <input
+                v-model="requestAuditUserKeyword"
+                type="text"
+                class="input pr-8"
+                :placeholder="localText('按邮箱搜索并添加用户', 'Search users by email')"
+                @input="debounceRequestAuditUserSearch"
+                @focus="showRequestAuditUserDropdown = true"
+              />
+              <div
+                v-if="showRequestAuditUserDropdown && (requestAuditUserResults.length > 0 || requestAuditUserKeyword)"
+                class="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg border bg-white shadow-lg dark:border-dark-700 dark:bg-dark-800"
+              >
+                <button
+                  v-for="user in requestAuditUserResults"
+                  :key="user.id"
+                  type="button"
+                  class="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-dark-700"
+                  @click="addRequestAuditUserScope(user)"
+                >
+                  <span>{{ user.email }}<span v-if="user.deleted" class="ml-1 text-xs text-gray-400">{{ localText('（已删除）', ' (deleted)') }}</span></span>
+                  <span class="ml-2 text-xs text-gray-400">#{{ user.id }}</span>
+                </button>
+                <div v-if="requestAuditUserResults.length === 0" class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
+                  {{ localText('未找到用户', 'No users found') }}
+                </div>
+              </div>
+              <div v-if="selectedRequestAuditUsers.length > 0" class="mt-2 flex flex-wrap gap-2">
+                <span
+                  v-for="user in selectedRequestAuditUsers"
+                  :key="user.id"
+                  class="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-700 dark:bg-dark-700 dark:text-gray-200"
+                >
+                  {{ user.email }}
+                  <button type="button" class="text-gray-400 hover:text-red-500" @click="removeRequestAuditUserScope(user.id)">
+                    <Icon name="x" size="xs" />
+                  </button>
+                </span>
+              </div>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {{ localText('不选用户表示不限用户。请只对必要用户或分组开启，避免长期保存敏感内容。', 'Leave empty for all users. Enable only for required users or groups to avoid storing sensitive content long-term.') }}
+              </p>
+            </div>
+          </div>
+        </div>
+
         <!-- Affiliate (邀请返利) feature card -->
         <div class="card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
@@ -7186,7 +7295,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from "vue";
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { adminAPI } from "@/api";
 import {
@@ -7234,6 +7343,7 @@ import BackupSettings from "@/views/admin/BackupView.vue";
 import EmailTemplateEditor from "@/views/admin/settings/EmailTemplateEditor.vue";
 import { useClipboard } from "@/composables/useClipboard";
 import { affiliatesAPI, type AffiliateAdminEntry, type SimpleUser as AffiliateSimpleUser } from "@/api/admin/affiliates";
+import type { SimpleUser as UsageSimpleUser } from "@/api/admin/usage";
 import { extractApiErrorMessage, extractI18nErrorMessage } from "@/utils/apiError";
 import { useAppStore } from "@/stores";
 import { useAdminSettingsStore } from "@/stores/adminSettings";
@@ -7916,6 +8026,10 @@ const form = reactive<SettingsForm>({
   hide_ccs_import_button: false,
   payment_enabled: false,
   risk_control_enabled: false,
+  request_audit_enabled: false,
+  request_audit_retention_hours: 0,
+  request_audit_user_scope: [],
+  request_audit_group_scope: [],
   cyber_session_block_enabled: false,
   cyber_session_block_ttl_seconds: 3600,
   payment_min_amount: 1,
@@ -8345,6 +8459,133 @@ const defaultSubscriptionGroupOptions = computed<
     rate: group.rate_multiplier,
   })),
 );
+
+const requestAuditRetentionOptions = computed(() => [
+  { value: 0, label: localText('关闭自动清理', 'No auto cleanup') },
+  { value: 1, label: localText('1 小时', '1 hour') },
+  { value: 6, label: localText('6 小时', '6 hours') },
+  { value: 24, label: localText('24 小时', '24 hours') },
+  { value: 24 * 7, label: localText('7 天', '7 days') },
+  { value: 24 * 30, label: localText('30 天', '30 days') },
+]);
+
+const requestAuditGroups = ref<AdminGroup[]>([]);
+const requestAuditGroupPicker = ref<number | null>(null);
+const requestAuditUserSearchRef = ref<HTMLElement | null>(null);
+const requestAuditUserKeyword = ref('');
+const requestAuditUserResults = ref<UsageSimpleUser[]>([]);
+const requestAuditSelectedUsers = ref<UsageSimpleUser[]>([]);
+const showRequestAuditUserDropdown = ref(false);
+let requestAuditUserSearchTimer: ReturnType<typeof setTimeout> | null = null;
+
+function normalizeNumberArray(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  return Array.from(
+    new Set(
+      value
+        .map((item) => Number(item))
+        .filter((item) => Number.isInteger(item) && item > 0),
+    ),
+  );
+}
+
+const requestAuditGroupOptions = computed(() =>
+  requestAuditGroups.value
+    .filter((group) => !form.request_audit_group_scope.includes(group.id))
+    .map((group) => ({ value: group.id, label: group.name })),
+);
+
+const selectedRequestAuditGroups = computed(() => {
+  const selected = new Set(form.request_audit_group_scope);
+  return requestAuditGroups.value.filter((group) => selected.has(group.id));
+});
+
+const selectedRequestAuditUsers = computed(() => {
+  const byID = new Map(requestAuditSelectedUsers.value.map((user) => [user.id, user]));
+  return form.request_audit_user_scope.map((id) => byID.get(id) || { id, email: `#${id}`, deleted: false });
+});
+
+function addRequestAuditGroupScope(value: string | number | boolean | null) {
+  const id = Number(value);
+  if (Number.isInteger(id) && id > 0 && !form.request_audit_group_scope.includes(id)) {
+    form.request_audit_group_scope.push(id);
+  }
+  requestAuditGroupPicker.value = null;
+}
+
+function removeRequestAuditGroupScope(id: number) {
+  form.request_audit_group_scope = form.request_audit_group_scope.filter((item) => item !== id);
+}
+
+function debounceRequestAuditUserSearch() {
+  if (requestAuditUserSearchTimer) clearTimeout(requestAuditUserSearchTimer);
+  requestAuditUserSearchTimer = setTimeout(async () => {
+    const keyword = requestAuditUserKeyword.value.trim();
+    if (!keyword) {
+      requestAuditUserResults.value = [];
+      return;
+    }
+    try {
+      const selected = new Set(form.request_audit_user_scope);
+      const results = await adminAPI.usage.searchUsers(keyword);
+      requestAuditUserResults.value = results
+        .filter((user) => !selected.has(user.id))
+        .sort((a, b) => Number(a.deleted) - Number(b.deleted));
+    } catch {
+      requestAuditUserResults.value = [];
+    }
+  }, 300);
+}
+
+function addRequestAuditUserScope(user: UsageSimpleUser) {
+  if (!form.request_audit_user_scope.includes(user.id)) {
+    form.request_audit_user_scope.push(user.id);
+  }
+  if (!requestAuditSelectedUsers.value.some((item) => item.id === user.id)) {
+    requestAuditSelectedUsers.value.push(user);
+  }
+  requestAuditUserKeyword.value = '';
+  requestAuditUserResults.value = [];
+  showRequestAuditUserDropdown.value = false;
+}
+
+function removeRequestAuditUserScope(id: number) {
+  form.request_audit_user_scope = form.request_audit_user_scope.filter((item) => item !== id);
+  requestAuditSelectedUsers.value = requestAuditSelectedUsers.value.filter((user) => user.id !== id);
+}
+
+async function hydrateRequestAuditSelectedUsers() {
+  const ids = normalizeNumberArray(form.request_audit_user_scope);
+  form.request_audit_user_scope = ids;
+  const existing = new Map(requestAuditSelectedUsers.value.map((user) => [user.id, user]));
+  const missing = ids.filter((id) => !existing.has(id));
+  if (missing.length === 0) return;
+  const loaded = await Promise.all(
+    missing.map(async (id) => {
+      try {
+        const user = await adminAPI.users.getById(id, true);
+        return { id: user.id, email: user.email || `#${id}`, deleted: Boolean(user.deleted_at) } as UsageSimpleUser;
+      } catch {
+        return { id, email: `#${id}`, deleted: false } as UsageSimpleUser;
+      }
+    }),
+  );
+  requestAuditSelectedUsers.value = [...requestAuditSelectedUsers.value, ...loaded];
+}
+
+async function loadRequestAuditGroups() {
+  try {
+    requestAuditGroups.value = await adminAPI.groups.getAll();
+  } catch {
+    requestAuditGroups.value = [];
+  }
+}
+
+function handleRequestAuditDocumentClick(event: MouseEvent) {
+  const target = event.target as Node | null;
+  if (!target || requestAuditUserSearchRef.value?.contains(target)) return;
+  showRequestAuditUserDropdown.value = false;
+}
 
 const registrationEmailSuffixWhitelistSeparatorKeys = new Set([
   " ",
@@ -8814,6 +9055,10 @@ async function loadSettings() {
         : defaultLoginAgreementDocuments();
     Object.assign(authSourceDefaults, buildAuthSourceDefaultsState(settings));
     form.default_platform_quotas = normalizePlatformQuotasMap(settings.default_platform_quotas);
+    form.request_audit_retention_hours = Number(settings.request_audit_retention_hours) || 0;
+    form.request_audit_user_scope = normalizeNumberArray(settings.request_audit_user_scope);
+    form.request_audit_group_scope = normalizeNumberArray(settings.request_audit_group_scope);
+    await hydrateRequestAuditSelectedUsers();
     form.backend_mode_enabled = settings.backend_mode_enabled;
     form.default_subscriptions = normalizeDefaultSubscriptionSettings(
       settings.default_subscriptions,
@@ -9316,6 +9561,10 @@ async function saveSettings() {
       // Payment configuration
       payment_enabled: form.payment_enabled,
       risk_control_enabled: form.risk_control_enabled,
+      request_audit_enabled: form.request_audit_enabled,
+      request_audit_retention_hours: Number(form.request_audit_retention_hours) || 0,
+      request_audit_user_scope: normalizeNumberArray(form.request_audit_user_scope),
+      request_audit_group_scope: normalizeNumberArray(form.request_audit_group_scope),
       cyber_session_block_enabled: form.cyber_session_block_enabled,
       cyber_session_block_ttl_seconds:
         Number(form.cyber_session_block_ttl_seconds) || 3600,
@@ -9408,6 +9657,9 @@ async function saveSettings() {
     }
     Object.assign(authSourceDefaults, buildAuthSourceDefaultsState(updated));
     form.default_platform_quotas = normalizePlatformQuotasMap(updated.default_platform_quotas);
+    form.request_audit_user_scope = normalizeNumberArray(updated.request_audit_user_scope);
+    form.request_audit_group_scope = normalizeNumberArray(updated.request_audit_group_scope);
+    await hydrateRequestAuditSelectedUsers();
     registrationEmailSuffixWhitelistTags.value =
       normalizeRegistrationEmailSuffixDomains(
         updated.registration_email_suffix_whitelist,
@@ -10290,6 +10542,8 @@ async function handleDeleteProvider() {
 onMounted(() => {
   loadSettings();
   loadSubscriptionGroups();
+  loadRequestAuditGroups();
+  document.addEventListener("click", handleRequestAuditDocumentClick);
   loadAdminApiKey();
   loadOverloadCooldownSettings();
   loadRateLimit429CooldownSettings();
@@ -10297,6 +10551,11 @@ onMounted(() => {
   loadRectifierSettings();
   loadBetaPolicySettings();
   loadProviders();
+});
+
+onUnmounted(() => {
+  document.removeEventListener("click", handleRequestAuditDocumentClick);
+  if (requestAuditUserSearchTimer) clearTimeout(requestAuditUserSearchTimer);
 });
 
 // =========================

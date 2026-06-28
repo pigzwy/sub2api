@@ -258,6 +258,12 @@ type SystemSettings struct {
 	CyberSessionBlockEnabled    bool `json:"cyber_session_block_enabled"`
 	CyberSessionBlockTTLSeconds int  `json:"cyber_session_block_ttl_seconds"`
 
+	// 请求审计
+	RequestAuditEnabled        bool    `json:"request_audit_enabled"`
+	RequestAuditRetentionHours int     `json:"request_audit_retention_hours"`
+	RequestAuditUserScope      []int64 `json:"request_audit_user_scope"`
+	RequestAuditGroupScope     []int64 `json:"request_audit_group_scope"`
+
 	// Affiliate (邀请返利) feature switch
 	AffiliateEnabled bool `json:"affiliate_enabled"`
 

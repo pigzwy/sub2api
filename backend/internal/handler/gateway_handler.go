@@ -49,6 +49,7 @@ type GatewayHandler struct {
 	usageRecordWorkerPool     *service.UsageRecordWorkerPool
 	errorPassthroughService   *service.ErrorPassthroughService
 	contentModerationService  *service.ContentModerationService
+	requestAuditLogService    *service.RequestAuditLogService
 	concurrencyHelper         *ConcurrencyHelper
 	userMsgQueueHelper        *UserMsgQueueHelper
 	maxAccountSwitches        int
@@ -70,6 +71,7 @@ func NewGatewayHandler(
 	usageRecordWorkerPool *service.UsageRecordWorkerPool,
 	errorPassthroughService *service.ErrorPassthroughService,
 	contentModerationService *service.ContentModerationService,
+	requestAuditLogService *service.RequestAuditLogService,
 	userMsgQueueService *service.UserMessageQueueService,
 	cfg *config.Config,
 	settingService *service.SettingService,
@@ -104,6 +106,7 @@ func NewGatewayHandler(
 		usageRecordWorkerPool:     usageRecordWorkerPool,
 		errorPassthroughService:   errorPassthroughService,
 		contentModerationService:  contentModerationService,
+		requestAuditLogService:    requestAuditLogService,
 		concurrencyHelper:         NewConcurrencyHelper(concurrencyService, SSEPingFormatClaude, pingInterval),
 		userMsgQueueHelper:        umqHelper,
 		maxAccountSwitches:        maxAccountSwitches,
@@ -164,6 +167,8 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 	reqModel := parsedReq.Model
 	reqStream := parsedReq.Stream
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
+	auditSession := beginRequestAuditCapture(c, h.requestAuditLogService, h.settingService, requestAuditSubject{UserID: subject.UserID, APIKeyID: apiKey.ID, GroupID: apiKey.GroupID})
+	defer auditSession.Finish(c, requestAuditSubject{UserID: subject.UserID, APIKeyID: apiKey.ID, GroupID: apiKey.GroupID}, string(domain.PlatformAnthropic), GetInboundEndpoint(c), reqModel, reqStream, body)
 
 	// 解析渠道级模型映射
 	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
@@ -439,6 +444,9 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			}
 			if accountReleaseFunc != nil {
 				accountReleaseFunc()
+			}
+			if result != nil {
+				setRequestAuditRequestID(c, result.RequestID)
 			}
 			if err != nil {
 				var failoverErr *service.UpstreamFailoverError
@@ -805,6 +813,9 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 
 			if accountReleaseFunc != nil {
 				accountReleaseFunc()
+			}
+			if result != nil {
+				setRequestAuditRequestID(c, result.RequestID)
 			}
 			if err != nil {
 				// Beta policy block: return 400 immediately, no failover

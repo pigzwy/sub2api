@@ -147,6 +147,10 @@ type SystemSettings struct {
 	RiskControlEnabled           bool
 	CyberSessionBlockEnabled     bool
 	CyberSessionBlockTTLSeconds  int
+	RequestAuditEnabled          bool
+	RequestAuditRetentionHours   int
+	RequestAuditUserScope        []int64
+	RequestAuditGroupScope       []int64
 	AffiliateEnabled             bool
 	AffiliateRebateRate          float64
 	AffiliateRebateFreezeHours   int
