@@ -156,6 +156,8 @@ func (s *requestAuditSession) Finish(c *gin.Context, subject requestAuditSubject
 		DurationMs:     &durationMs,
 		RequestBody:    requestBody,
 		ResponseBody:   s.writer.Captured(),
+		IsMocked:       requestAuditIsMocked(c),
+		MockRuleID:     requestAuditMockRuleID(c),
 		ErrorMessage:   errMsg,
 	})
 }
@@ -207,6 +209,48 @@ func setRequestAuditRequestID(c *gin.Context, requestID string) {
 	if c != nil && strings.TrimSpace(requestID) != "" {
 		c.Set("request_audit_request_id", strings.TrimSpace(requestID))
 	}
+}
+
+func setRequestAuditMocked(c *gin.Context, ruleID *int64) {
+	if c == nil {
+		return
+	}
+	c.Set("request_audit_is_mocked", true)
+	if ruleID != nil && *ruleID > 0 {
+		c.Set("request_audit_mock_rule_id", *ruleID)
+	}
+}
+
+func requestAuditIsMocked(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	if v, ok := c.Get("request_audit_is_mocked"); ok {
+		if b, ok := v.(bool); ok {
+			return b
+		}
+	}
+	return false
+}
+
+func requestAuditMockRuleID(c *gin.Context) *int64 {
+	if c == nil {
+		return nil
+	}
+	if v, ok := c.Get("request_audit_mock_rule_id"); ok {
+		switch id := v.(type) {
+		case int64:
+			if id > 0 {
+				return &id
+			}
+		case int:
+			if id > 0 {
+				val := int64(id)
+				return &val
+			}
+		}
+	}
+	return nil
 }
 
 func recordRequestAuditBestEffort(parent context.Context, svc *service.RequestAuditLogService, input service.RequestAuditLogCreateInput) {

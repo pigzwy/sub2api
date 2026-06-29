@@ -1931,6 +1931,7 @@ func detectInterceptType(body []byte, model string, maxTokens int, isClaudeCodeC
 
 // sendMockInterceptStream 发送流式 mock 响应（用于请求拦截）
 func sendMockInterceptStream(c *gin.Context, model string, interceptType InterceptType) {
+	setRequestAuditMocked(c, nil)
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
@@ -2001,6 +2002,7 @@ func generateRealisticMsgID() string {
 
 // sendMockInterceptResponse 发送非流式 mock 响应（用于请求拦截）
 func sendMockInterceptResponse(c *gin.Context, model string, interceptType InterceptType) {
+	setRequestAuditMocked(c, nil)
 	var msgID, text, stopReason string
 	var outputTokens int
 

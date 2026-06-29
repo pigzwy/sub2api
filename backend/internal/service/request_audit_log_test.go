@@ -1,6 +1,12 @@
 package service
 
-import "testing"
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
+)
 
 func TestShouldCaptureRequestAuditScopeSemantics(t *testing.T) {
 	groupID := int64(20)
@@ -73,5 +79,55 @@ func TestShouldCaptureRequestAuditScopeSemantics(t *testing.T) {
 				t.Fatalf("ShouldCaptureRequestAudit() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+type requestAuditMemoryRepo struct {
+	created *RequestAuditLog
+}
+
+func (r *requestAuditMemoryRepo) Create(_ context.Context, log *RequestAuditLog) error {
+	clone := *log
+	r.created = &clone
+	return nil
+}
+
+func (r *requestAuditMemoryRepo) List(_ context.Context, _ pagination.PaginationParams, _ RequestAuditLogFilter) ([]RequestAuditLog, *pagination.PaginationResult, error) {
+	return nil, nil, nil
+}
+
+func (r *requestAuditMemoryRepo) GetByID(_ context.Context, _ int64) (*RequestAuditLog, error) {
+	return nil, ErrUsageLogNotFound
+}
+
+func (r *requestAuditMemoryRepo) Cleanup(_ context.Context, _ time.Time) (int64, error) {
+	return 0, nil
+}
+
+func TestRequestAuditLogServiceCreatePersistsMockFields(t *testing.T) {
+	repo := &requestAuditMemoryRepo{}
+	svc := NewRequestAuditLogService(repo)
+	ruleID := int64(42)
+
+	err := svc.Create(context.Background(), RequestAuditLogCreateInput{
+		UserID:      1,
+		APIKeyID:    2,
+		Platform:    "openai",
+		RequestBody: []byte(`{"messages":[]}`),
+		IsMocked:    true,
+		MockRuleID:  &ruleID,
+	})
+
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if repo.created == nil {
+		t.Fatal("expected audit log to be created")
+	}
+	if !repo.created.IsMocked {
+		t.Fatal("expected IsMocked to be true")
+	}
+	if repo.created.MockRuleID == nil || *repo.created.MockRuleID != ruleID {
+		t.Fatalf("MockRuleID = %v, want %d", repo.created.MockRuleID, ruleID)
 	}
 }

@@ -911,7 +911,17 @@ func TestAPIContracts(t *testing.T) {
 					"wechat_connect_redirect_url": "",
 					"wechat_connect_frontend_redirect_url": "/auth/wechat/callback",
 					"wechat_connect_scopes": "snsapi_login",
-					"allow_user_view_error_requests": false
+					"allow_user_view_error_requests": false,
+					"request_audit_enabled": false,
+					"request_audit_retention_hours": 0,
+					"request_audit_user_scope": [],
+					"request_audit_group_scope": [],
+					"request_intercept_enabled": false,
+					"request_intercept_keywords": "",
+					"request_intercept_response": "",
+					"request_intercept_rules": null,
+					"request_intercept_group_id": 0,
+					"request_intercept_group_scope": []
 				}
 			}`,
 		},
@@ -1193,7 +1203,17 @@ func TestAPIContracts(t *testing.T) {
 					"auth_source_default_dingtalk_grant_on_signup": false,
 					"auth_source_default_dingtalk_grant_on_first_bind": false,
 					"force_email_on_third_party_signup": false,
-					"allow_user_view_error_requests": false
+					"allow_user_view_error_requests": false,
+					"request_audit_enabled": false,
+					"request_audit_retention_hours": 0,
+					"request_audit_user_scope": [],
+					"request_audit_group_scope": [],
+					"request_intercept_enabled": false,
+					"request_intercept_keywords": "",
+					"request_intercept_response": "",
+					"request_intercept_rules": null,
+					"request_intercept_group_id": 0,
+					"request_intercept_group_scope": []
 				}
 			}`,
 		},
