@@ -102,6 +102,9 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		h.chatCompletionsErrorResponse(c, contentModerationStatus(decision), contentModerationErrorCode(decision), decision.Message)
 		return
 	}
+	if handleOpenAIChatRequestIntercept(c, h.settingService, apiKey.GroupID, reqModel, reqStream, body) {
+		return
+	}
 
 	// Error passthrough binding
 	if h.errorPassthroughService != nil {

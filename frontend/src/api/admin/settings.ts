@@ -16,6 +16,11 @@ export interface DefaultSubscriptionSetting {
   validity_days: number;
 }
 
+export interface RequestInterceptRule {
+  match_content: string;
+  response_content: string;
+}
+
 // ── 平台限额类型 ──────────────────────────────────────────────────
 export type PlatformType = "anthropic" | "openai" | "gemini" | "antigravity" | "grok"
 export type QuotaWindowType = "daily" | "weekly" | "monthly"
@@ -576,11 +581,17 @@ export interface SystemSettings {
   payment_enabled: boolean;
   risk_control_enabled: boolean;
 
-  // Request audit
+  // Request audit / intercept
   request_audit_enabled: boolean;
   request_audit_retention_hours: number;
   request_audit_user_scope: number[];
   request_audit_group_scope: number[];
+  request_intercept_enabled: boolean;
+  request_intercept_keywords: string;
+  request_intercept_response: string;
+  request_intercept_rules: RequestInterceptRule[];
+  request_intercept_group_id: number;
+  request_intercept_group_scope: number[];
 
   // Cyber session block
   cyber_session_block_enabled: boolean;
@@ -830,11 +841,17 @@ export interface UpdateSettingsRequest {
   payment_enabled?: boolean;
   risk_control_enabled?: boolean;
 
-  // Request audit
+  // Request audit / intercept
   request_audit_enabled?: boolean;
   request_audit_retention_hours?: number;
   request_audit_user_scope?: number[];
   request_audit_group_scope?: number[];
+  request_intercept_enabled?: boolean;
+  request_intercept_keywords?: string;
+  request_intercept_response?: string;
+  request_intercept_rules?: RequestInterceptRule[];
+  request_intercept_group_id?: number;
+  request_intercept_group_scope?: number[];
 
   // Cyber session block
   cyber_session_block_enabled?: boolean;

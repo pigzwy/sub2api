@@ -201,6 +201,115 @@
         </div>
         <!-- /Tab: Security — Admin API Key -->
 
+        <!-- Tab: Request Intercept -->
+        <div v-show="activeTab === 'intercept'" class="space-y-6">
+          <div class="card">
+            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ localText('请求内容拦截', 'Request Intercept') }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ localText('命中规则后直接返回本地响应，不再请求上游模型。默认关闭，且只对选中的分组生效。', 'Return a local response when a rule matches, without calling upstream models. Disabled by default and only applies to selected groups.') }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div class="flex items-center justify-between gap-4">
+                <div>
+                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ localText('启用请求拦截', 'Enable Request Intercept') }}
+                  </label>
+                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ localText('对 Chat Completions、Messages 和 Responses 入口生效。', 'Applies to Chat Completions, Messages, and Responses endpoints.') }}
+                  </p>
+                </div>
+                <Toggle v-model="form.request_intercept_enabled" />
+              </div>
+
+              <div>
+                <label class="input-label">{{ localText('拦截分组', 'Intercept Groups') }}</label>
+                <Select
+                  v-model="requestInterceptGroupPicker"
+                  :options="requestInterceptGroupOptions"
+                  searchable
+                  clearable
+                  :placeholder="localText('选择要拦截的分组', 'Select groups to intercept')"
+                  @change="addRequestInterceptGroupScope"
+                />
+                <div v-if="selectedRequestInterceptGroups.length > 0" class="mt-2 flex flex-wrap gap-2">
+                  <span
+                    v-for="group in selectedRequestInterceptGroups"
+                    :key="group.id"
+                    class="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-700 dark:bg-dark-700 dark:text-gray-200"
+                  >
+                    {{ group.name }}
+                    <button type="button" class="text-gray-400 hover:text-red-500" @click="removeRequestInterceptGroupScope(group.id)">
+                      <Icon name="x" size="xs" />
+                    </button>
+                  </span>
+                </div>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ localText('只拦截所选分组的 API Key 请求；未选择分组时不会拦截任何请求，可选择多个分组。', 'Only API key requests from selected groups are intercepted. No group selected means no requests are intercepted. Multiple groups are supported.') }}
+                </p>
+              </div>
+
+              <div class="space-y-3">
+                <div class="flex items-center justify-between gap-3">
+                  <div>
+                    <label class="input-label">{{ localText('完整匹配规则', 'Exact Match Rules') }}</label>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      {{ localText('请求内容完全等于左侧文本时，直接返回右侧响应。内置算术题识别由后端自动处理，不需要写规则。', 'When request content exactly equals the match text, the configured response is returned. Built-in arithmetic checks are handled automatically by the backend.') }}
+                    </p>
+                  </div>
+                  <button type="button" class="btn btn-secondary btn-sm" @click="addRequestInterceptRule">
+                    {{ localText('添加规则', 'Add Rule') }}
+                  </button>
+                </div>
+
+                <div
+                  v-if="form.request_intercept_rules.length === 0"
+                  class="rounded-lg border border-dashed border-gray-200 p-4 text-sm text-gray-500 dark:border-dark-700 dark:text-gray-400"
+                >
+                  {{ localText('暂无完整匹配规则。示例：左侧填 hi，右侧填你好；只有请求内容完全是 hi 时才会命中。', 'No exact match rules yet. Example: match hi and respond hello; only requests whose content is exactly hi will match.') }}
+                </div>
+
+                <div
+                  v-for="(rule, index) in form.request_intercept_rules"
+                  :key="index"
+                  class="grid gap-3 rounded-lg border border-gray-200 p-3 dark:border-dark-700 md:grid-cols-[1fr_1fr_auto]"
+                >
+                  <div>
+                    <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{{ localText('匹配完整内容', 'Match Content') }}</label>
+                    <input
+                      v-model="rule.match_content"
+                      type="text"
+                      class="input"
+                      placeholder="hi"
+                    />
+                  </div>
+                  <div>
+                    <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{{ localText('响应内容', 'Response Content') }}</label>
+                    <input
+                      v-model="rule.response_content"
+                      type="text"
+                      class="input"
+                      :placeholder="localText('你好', 'hello')"
+                    />
+                  </div>
+                  <div class="flex items-end">
+                    <button
+                      type="button"
+                      class="btn btn-secondary btn-sm text-red-600 hover:text-red-700 dark:text-red-400"
+                      @click="removeRequestInterceptRule(index)"
+                    >
+                      {{ localText('删除', 'Delete') }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Tab: Gateway -->
         <div v-show="activeTab === 'gateway'" class="space-y-6">
           <!-- Overload Cooldown (529) Settings -->
@@ -7316,6 +7425,7 @@ import type {
   DefaultSubscriptionSetting,
   DefaultPlatformQuotasMap,
   OpenAIFastPolicyRule,
+  RequestInterceptRule,
   WeChatConnectMode,
   WebSearchEmulationConfig,
   WebSearchProviderConfig,
@@ -7387,6 +7497,7 @@ type SettingsTab =
   | "agreement"
   | "features"
   | "security"
+  | "intercept"
   | "users"
   | "gateway"
   | "payment"
@@ -7398,6 +7509,7 @@ const settingsTabs = [
   { key: "agreement" as SettingsTab, icon: "document" as const },
   { key: "features" as SettingsTab, icon: "bolt" as const },
   { key: "security" as SettingsTab, icon: "shield" as const },
+  { key: "intercept" as SettingsTab, icon: "ban" as const },
   { key: "users" as SettingsTab, icon: "user" as const },
   { key: "gateway" as SettingsTab, icon: "server" as const },
   { key: "payment" as SettingsTab, icon: "creditCard" as const },
@@ -8030,6 +8142,12 @@ const form = reactive<SettingsForm>({
   request_audit_retention_hours: 0,
   request_audit_user_scope: [],
   request_audit_group_scope: [],
+  request_intercept_enabled: false,
+  request_intercept_keywords: "",
+  request_intercept_response: "",
+  request_intercept_rules: [],
+  request_intercept_group_id: 0,
+  request_intercept_group_scope: [],
   cyber_session_block_enabled: false,
   cyber_session_block_ttl_seconds: 3600,
   payment_min_amount: 1,
@@ -8471,6 +8589,7 @@ const requestAuditRetentionOptions = computed(() => [
 
 const requestAuditGroups = ref<AdminGroup[]>([]);
 const requestAuditGroupPicker = ref<number | null>(null);
+const requestInterceptGroupPicker = ref<number | null>(null);
 const requestAuditUserSearchRef = ref<HTMLElement | null>(null);
 const requestAuditUserKeyword = ref('');
 const requestAuditUserResults = ref<UsageSimpleUser[]>([]);
@@ -8489,14 +8608,30 @@ function normalizeNumberArray(value: unknown): number[] {
   );
 }
 
+function normalizePositiveNumber(value: unknown): number {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : 0;
+}
+
 const requestAuditGroupOptions = computed(() =>
   requestAuditGroups.value
     .filter((group) => !form.request_audit_group_scope.includes(group.id))
     .map((group) => ({ value: group.id, label: group.name })),
 );
 
+const requestInterceptGroupOptions = computed(() =>
+  requestAuditGroups.value
+    .filter((group) => !form.request_intercept_group_scope.includes(group.id))
+    .map((group) => ({ value: group.id, label: group.name })),
+);
+
 const selectedRequestAuditGroups = computed(() => {
   const selected = new Set(form.request_audit_group_scope);
+  return requestAuditGroups.value.filter((group) => selected.has(group.id));
+});
+
+const selectedRequestInterceptGroups = computed(() => {
+  const selected = new Set(form.request_intercept_group_scope);
   return requestAuditGroups.value.filter((group) => selected.has(group.id));
 });
 
@@ -8515,6 +8650,18 @@ function addRequestAuditGroupScope(value: string | number | boolean | null) {
 
 function removeRequestAuditGroupScope(id: number) {
   form.request_audit_group_scope = form.request_audit_group_scope.filter((item) => item !== id);
+}
+
+function addRequestInterceptGroupScope(value: string | number | boolean | null) {
+  const id = Number(value);
+  if (Number.isInteger(id) && id > 0 && !form.request_intercept_group_scope.includes(id)) {
+    form.request_intercept_group_scope.push(id);
+  }
+  requestInterceptGroupPicker.value = null;
+}
+
+function removeRequestInterceptGroupScope(id: number) {
+  form.request_intercept_group_scope = form.request_intercept_group_scope.filter((item) => item !== id);
 }
 
 function debounceRequestAuditUserSearch() {
@@ -8865,6 +9012,29 @@ function removeEndpoint(index: number) {
   form.custom_endpoints.splice(index, 1);
 }
 
+function normalizeRequestInterceptRules(
+  rules: RequestInterceptRule[] | null | undefined,
+): RequestInterceptRule[] {
+  if (!Array.isArray(rules)) return [];
+  return rules
+    .map((rule) => ({
+      match_content: String(rule.match_content || "").trim(),
+      response_content: String(rule.response_content || ""),
+    }))
+    .filter((rule) => rule.match_content.length > 0);
+}
+
+function addRequestInterceptRule() {
+  form.request_intercept_rules.push({
+    match_content: "",
+    response_content: "",
+  });
+}
+
+function removeRequestInterceptRule(index: number) {
+  form.request_intercept_rules.splice(index, 1);
+}
+
 function addLoginAgreementDocument() {
   form.login_agreement_documents.push({
     id: `custom-${Date.now().toString(36)}`,
@@ -9058,6 +9228,13 @@ async function loadSettings() {
     form.request_audit_retention_hours = Number(settings.request_audit_retention_hours) || 0;
     form.request_audit_user_scope = normalizeNumberArray(settings.request_audit_user_scope);
     form.request_audit_group_scope = normalizeNumberArray(settings.request_audit_group_scope);
+    form.request_intercept_rules = normalizeRequestInterceptRules(settings.request_intercept_rules);
+    form.request_intercept_group_scope = normalizeNumberArray(settings.request_intercept_group_scope);
+    if (form.request_intercept_group_scope.length === 0) {
+      const legacyGroupID = normalizePositiveNumber(settings.request_intercept_group_id);
+      form.request_intercept_group_scope = legacyGroupID > 0 ? [legacyGroupID] : [];
+    }
+    form.request_intercept_group_id = form.request_intercept_group_scope[0] || 0;
     await hydrateRequestAuditSelectedUsers();
     form.backend_mode_enabled = settings.backend_mode_enabled;
     form.default_subscriptions = normalizeDefaultSubscriptionSettings(
@@ -9565,6 +9742,12 @@ async function saveSettings() {
       request_audit_retention_hours: Number(form.request_audit_retention_hours) || 0,
       request_audit_user_scope: normalizeNumberArray(form.request_audit_user_scope),
       request_audit_group_scope: normalizeNumberArray(form.request_audit_group_scope),
+      request_intercept_enabled: form.request_intercept_enabled,
+      request_intercept_keywords: "",
+      request_intercept_response: "",
+      request_intercept_rules: normalizeRequestInterceptRules(form.request_intercept_rules),
+      request_intercept_group_id: normalizeNumberArray(form.request_intercept_group_scope)[0] || 0,
+      request_intercept_group_scope: normalizeNumberArray(form.request_intercept_group_scope),
       cyber_session_block_enabled: form.cyber_session_block_enabled,
       cyber_session_block_ttl_seconds:
         Number(form.cyber_session_block_ttl_seconds) || 3600,
@@ -9659,6 +9842,13 @@ async function saveSettings() {
     form.default_platform_quotas = normalizePlatformQuotasMap(updated.default_platform_quotas);
     form.request_audit_user_scope = normalizeNumberArray(updated.request_audit_user_scope);
     form.request_audit_group_scope = normalizeNumberArray(updated.request_audit_group_scope);
+    form.request_intercept_rules = normalizeRequestInterceptRules(updated.request_intercept_rules);
+    form.request_intercept_group_scope = normalizeNumberArray(updated.request_intercept_group_scope);
+    if (form.request_intercept_group_scope.length === 0) {
+      const legacyGroupID = normalizePositiveNumber(updated.request_intercept_group_id);
+      form.request_intercept_group_scope = legacyGroupID > 0 ? [legacyGroupID] : [];
+    }
+    form.request_intercept_group_id = form.request_intercept_group_scope[0] || 0;
     await hydrateRequestAuditSelectedUsers();
     registrationEmailSuffixWhitelistTags.value =
       normalizeRegistrationEmailSuffixDomains(

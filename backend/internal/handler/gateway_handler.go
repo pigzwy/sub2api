@@ -205,6 +205,9 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 		h.errorResponse(c, contentModerationStatus(decision), contentModerationErrorCode(decision), decision.Message)
 		return
 	}
+	if handleAnthropicRequestIntercept(c, h.settingService, apiKey.GroupID, reqModel, reqStream, body) {
+		return
+	}
 
 	// Track if we've started streaming (for error handling)
 	streamStarted := false

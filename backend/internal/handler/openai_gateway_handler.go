@@ -263,6 +263,9 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		h.errorResponse(c, contentModerationStatus(decision), contentModerationErrorCode(decision), decision.Message)
 		return
 	}
+	if handleOpenAIResponsesRequestIntercept(c, h.settingService, apiKey.GroupID, reqModel, reqStream, body) {
+		return
+	}
 
 	imageIntent := service.IsImageGenerationIntent("/v1/responses", reqModel, body)
 	if imageIntent && !service.GroupAllowsImageGeneration(apiKey.Group) {
@@ -717,6 +720,9 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 
 	if decision := h.checkContentModeration(c, reqLog, apiKey, subject, service.ContentModerationProtocolAnthropicMessages, reqModel, body); decision != nil && decision.Blocked {
 		h.anthropicErrorResponse(c, contentModerationStatus(decision), contentModerationErrorCode(decision), decision.Message)
+		return
+	}
+	if handleAnthropicRequestIntercept(c, h.settingService, apiKey.GroupID, reqModel, reqStream, body) {
 		return
 	}
 

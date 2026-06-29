@@ -5490,6 +5490,7 @@ export default {
         agreement: 'Agreement',
         features: 'Feature Switches',
         security: 'Security',
+        intercept: 'Request Intercept',
         users: 'Users',
         gateway: 'Gateway',
         email: 'Email',

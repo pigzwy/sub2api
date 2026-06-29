@@ -111,6 +111,9 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 		h.responsesErrorResponse(c, contentModerationStatus(decision), contentModerationErrorCode(decision), decision.Message)
 		return
 	}
+	if handleOpenAIResponsesRequestIntercept(c, h.settingService, apiKey.GroupID, reqModel, reqStream, body) {
+		return
+	}
 
 	// Error passthrough binding
 	if h.errorPassthroughService != nil {
