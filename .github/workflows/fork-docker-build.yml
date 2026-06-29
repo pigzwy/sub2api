@@ -1,10 +1,11 @@
 # =============================================================================
 # [FORK] 二开 Docker 镜像构建 & 推送
 # =============================================================================
-# 手动触发或 push 到 main/cc/gy 时自动构建
+# 手动触发或 push 到 main/cc/gy/request-audit 时自动构建
 # main -> <DOCKER_HUB_USERNAME>/sub2api:latest
 # cc   -> <DOCKER_HUB_USERNAME>/sub2api:cc
 # gy   -> <DOCKER_HUB_USERNAME>/sub2api:gy
+# request-audit -> <DOCKER_HUB_USERNAME>/sub2api:request-audit
 # =============================================================================
 
 name: "[FORK] Build & Push Docker Image"
@@ -21,6 +22,7 @@ on:
       - main
       - cc
       - gy
+      - request-audit
 
 env:
   DOCKER_IMAGE: ${{ secrets.DOCKER_HUB_USERNAME }}/sub2api
@@ -74,6 +76,9 @@ jobs:
                 ;;
               gy)
                 BRANCH_TAG="gy"
+                ;;
+              request-audit)
+                BRANCH_TAG="request-audit"
                 ;;
               *)
                 # workflow_dispatch 可能从其它分支手动运行，统一转成合法 Docker tag。
