@@ -5650,7 +5650,6 @@ export default {
         agreement: '登录条款',
         features: '功能开关',
         security: '安全与认证',
-        intercept: '请求拦截',
         users: '用户默认值',
         gateway: '网关服务',
         email: '邮件设置',
