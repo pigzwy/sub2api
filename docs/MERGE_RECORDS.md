@@ -1,5 +1,94 @@
 # 合并记录
 
+## 2026-06-29：request-audit 分支增加请求审计与请求拦截二开
+
+### 背景
+
+`request-audit` 分支用于承载请求审计和请求内容拦截这类改动较大的二开能力。该分支与 `main`、`cc`、`gy` 分支保持独立镜像标签，便于线上按功能分支部署和回滚。
+
+请求审计用于排查异常请求。请求拦截用于在命中特定内容后直接返回本地模拟响应，避免继续请求上游模型。
+
+### 功能入口
+
+- 管理端 `系统设置 -> 功能开关 -> 请求审计`：开启请求和响应内容记录，配置保留时长、用户范围和分组范围。
+- 管理端 `系统设置 -> 功能开关 -> 请求内容拦截`：开启本地拦截，配置生效分组和完整匹配规则。
+- 管理端 `用量统计 -> 请求审计`：在请求审计开启后显示审计标签页，可查看请求体、响应体、状态码、耗时、账号、用户和 API Key。
+
+请求内容拦截已经放在“功能开关”页面内，不再作为新的一级菜单展示。
+
+### 调整
+
+- 新增 `request_audit_logs` 表，记录网关请求的请求体、响应体、平台、模型、Endpoint、状态码、耗时、用户、API Key、账号、分组和 `request_id`。
+- 请求体和响应体最多保存 64 KiB，避免单条日志无限增大。
+- 请求审计默认关闭。范围为空表示不限用户或分组；同时配置用户范围和分组范围时取交集。
+- 新增请求审计管理接口：`GET /api/v1/admin/request-audit-logs`、`GET /api/v1/admin/request-audit-logs/:id`、`POST /api/v1/admin/request-audit-logs/cleanup`。
+- 新增请求内容拦截配置，支持多个分组和多条完整匹配规则。
+- 请求内容拦截覆盖 OpenAI Chat Completions、Anthropic Messages 和 OpenAI Responses 入口，支持普通响应和流式响应。
+- 命中请求拦截后，后端返回本地模拟响应，不再请求上游模型；如果请求审计同时开启，审计记录会标记 `is_mocked = true`。
+- 请求拦截内置算术题和 Python `print(... + str(...))` 输出识别，完整匹配规则仍按配置文本精确匹配。
+- GitHub Actions 增加 `request-audit` 分支镜像构建，分支推送后生成 `<DOCKER_HUB_USERNAME>/sub2api:request-audit`、`<DOCKER_HUB_USERNAME>/sub2api:request-audit-<commit>` 和 `<DOCKER_HUB_USERNAME>/sub2api:request-audit-build-<timestamp>`。
+
+### 配置字段
+
+| 字段 | 说明 |
+|------|------|
+| `request_audit_enabled` | 是否启用请求审计。默认 `false`。 |
+| `request_audit_retention_hours` | 审计日志保留时长，单位小时。`0` 表示不自动清理。 |
+| `request_audit_user_scope` | 请求审计用户范围，JSON 数组。空数组表示不限用户。 |
+| `request_audit_group_scope` | 请求审计分组范围，JSON 数组。空数组表示不限分组。 |
+| `request_intercept_enabled` | 是否启用请求内容拦截。默认 `false`。 |
+| `request_intercept_rules` | 完整匹配规则，JSON 数组。每条规则包含 `match_content` 和 `response_content`。 |
+| `request_intercept_keywords` | 旧版关键词字段，仅保留兼容；当前前端保存为空。 |
+| `request_intercept_response` | 旧版固定响应字段，仅保留兼容；当前前端保存为空。 |
+| `request_intercept_group_scope` | 请求拦截生效分组范围，JSON 数组。空数组表示不拦截任何请求。 |
+| `request_intercept_group_id` | 旧版单分组字段，仅用于兼容历史配置。 |
+
+### 部署方式
+
+`request-audit` 分支使用独立镜像标签。Docker Hub 用户名由 GitHub Secret `DOCKER_HUB_USERNAME` 决定；当前部署使用 `llpig` 时，镜像为 `llpig/sub2api:request-audit`。
+
+`docker-compose.yml`：
+
+```yaml
+sub2api:
+  image: llpig/sub2api:request-audit
+  container_name: sub2api
+  restart: unless-stopped
+  mem_limit: 5g
+```
+
+更新线上容器时，先确认 compose 文件中的镜像标签已经切到 `request-audit`，再拉取并重建容器：
+
+```bash
+docker compose pull sub2api
+docker compose up -d sub2api
+```
+
+### 数据影响
+
+该二开会新增 `request_audit_logs` 表和若干 `settings` 配置项，不会修改用户、分组、账号、API Key、余额或用量日志中的既有业务数据。
+
+开启请求审计后，系统会保存请求体和响应体片段。请求内容可能包含敏感信息，生产环境应只对必要用户或分组开启，并配置保留时长或定期手动清理。
+
+### 已知范围
+
+- 请求拦截只覆盖 OpenAI Chat Completions、Anthropic Messages 和 OpenAI Responses 相关 HTTP 入口。
+- 请求拦截不覆盖 Gemini、Images、WebSocket 或其它非上述协议入口。
+- 未选择拦截分组时，即使总开关开启，也不会拦截任何请求。
+- 请求审计关闭时，不会记录请求体和响应体，也不会在用量统计中显示请求审计标签页。
+
+### 建议验证
+
+上线前建议至少验证以下路径：
+
+```bash
+go test ./internal/handler -run 'TestEvaluateRequestInterceptMarksAuditMocked|Test.*Intercept|Test.*Audit' -count=1
+go test ./internal/service ./internal/handler ./internal/server/routes
+go test ./...
+CI=true COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm@9.15.9 --dir frontend run build
+git diff --check
+```
+
 ## 2026-05-10：订阅套餐额度窗口改为滚动周期
 
 ### 背景
