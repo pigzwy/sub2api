@@ -282,27 +282,3 @@ func resolveRequestAuditCaptureDecision(ctx context.Context, settingService *ser
 	}
 	return decision
 }
-
-func reqModelForAudit(c *gin.Context) string {
-	if c == nil {
-		return ""
-	}
-	if v, ok := c.Get("request_audit_model"); ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return ""
-}
-
-func streamForAudit(c *gin.Context) bool {
-	if c == nil {
-		return false
-	}
-	if v, ok := c.Get("request_audit_stream"); ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
-	}
-	return false
-}
