@@ -21,7 +21,7 @@
     </button>
 
     <Transition name="date-picker-dropdown">
-      <div v-if="isOpen" class="date-picker-dropdown">
+      <div v-if="isOpen" :class="dropdownClasses">
         <!-- Quick presets -->
         <div class="date-picker-presets">
           <button
@@ -89,6 +89,7 @@ interface DatePreset {
 interface Props {
   startDate: string
   endDate: string
+  align?: 'left' | 'right'
 }
 
 interface Emits {
@@ -97,7 +98,9 @@ interface Emits {
   (e: 'change', range: { startDate: string; endDate: string; preset: string | null }): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  align: 'left'
+})
 const emit = defineEmits<Emits>()
 
 const { t, locale } = useI18n()
@@ -217,6 +220,11 @@ const presets: DatePreset[] = [
     }
   }
 ]
+
+const dropdownClasses = computed(() => [
+  'date-picker-dropdown',
+  props.align === 'right' ? 'date-picker-dropdown-right' : 'date-picker-dropdown-left'
+])
 
 const displayValue = computed(() => {
   if (activePreset.value) {
@@ -350,13 +358,21 @@ onUnmounted(() => {
 }
 
 .date-picker-dropdown {
-  @apply absolute left-0 z-[100] mt-2;
+  @apply absolute z-[100] mt-2;
   @apply bg-white dark:bg-dark-800;
   @apply rounded-xl;
   @apply border border-gray-200 dark:border-dark-700;
   @apply shadow-lg shadow-black/10 dark:shadow-black/30;
   @apply overflow-hidden;
   @apply min-w-[320px];
+}
+
+.date-picker-dropdown-left {
+  @apply left-0;
+}
+
+.date-picker-dropdown-right {
+  @apply right-0;
 }
 
 .date-picker-presets {

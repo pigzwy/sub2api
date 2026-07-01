@@ -42,6 +42,7 @@
           <DateRangePicker
             v-model:start-date="startDate"
             v-model:end-date="endDate"
+            align="right"
             @change="loadStats"
           />
           <button type="button" @click="loadStats" :disabled="loading" class="btn btn-secondary" :title="t('common.refresh')">
