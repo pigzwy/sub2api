@@ -21,7 +21,7 @@
 - `GET /api/v1/admin/accounts/:id/stats` 增加可选 `start_date` 和 `end_date` 查询参数，格式为 `YYYY-MM-DD`。
 - 账号统计接口传入自定义日期时，复用已有 `GetAccountUsageStats(accountID, startTime, endTime)` 统计能力，按用量日志 `created_at` 过滤。
 - 前端复用现有 `DateRangePicker` 组件，不新增第三方依赖。
-- 前端默认范围保持近 30 天，减少对原有使用习惯的影响。
+- 前端默认范围为当天，进入页面或打开弹窗时优先展示当日支付金额和当日账号使用数据。
 
 ### 数据影响
 

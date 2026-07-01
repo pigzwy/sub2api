@@ -85,10 +85,8 @@ const formatLocalDate = (date: Date): string => {
 }
 
 const defaultDateRange = (() => {
-  const end = new Date()
-  const start = new Date()
-  start.setDate(start.getDate() - 29)
-  return { start: formatLocalDate(start), end: formatLocalDate(end) }
+  const today = formatLocalDate(new Date())
+  return { start: today, end: today }
 })()
 
 const startDate = ref(defaultDateRange.start)
