@@ -229,15 +229,25 @@ export async function applyOAuthCredentials(
   return data
 }
 
+export interface AccountStatsParams {
+  days?: number
+  start_date?: string
+  end_date?: string
+}
+
 /**
  * Get account usage statistics
  * @param id - Account ID
- * @param days - Number of days (default: 30)
+ * @param params - Number of days or explicit date range
  * @returns Account usage statistics with history, summary, and models
  */
-export async function getStats(id: number, days: number = 30): Promise<AccountUsageStatsResponse> {
+export async function getStats(
+  id: number,
+  params: number | AccountStatsParams = 30
+): Promise<AccountUsageStatsResponse> {
+  const queryParams = typeof params === 'number' ? { days: params } : params
   const { data } = await apiClient.get<AccountUsageStatsResponse>(`/admin/accounts/${id}/stats`, {
-    params: { days }
+    params: queryParams
   })
   return data
 }

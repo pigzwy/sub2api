@@ -20,7 +20,7 @@
           <div>
             <div class="font-semibold text-gray-900 dark:text-gray-100">{{ account.name }}</div>
             <div class="text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.accounts.last30DaysUsage') }}
+              {{ statsRangeLabel }}
             </div>
           </div>
         </div>
@@ -34,6 +34,20 @@
         >
           {{ account.status }}
         </span>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-end gap-2">
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.timeRange') }}:</span>
+          <DateRangePicker
+            v-model:start-date="startDate"
+            v-model:end-date="endDate"
+            @change="loadStats"
+          />
+          <button type="button" @click="loadStats" :disabled="loading" class="btn btn-secondary" :title="t('common.refresh')">
+            <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
+          </button>
+        </div>
       </div>
 
       <!-- Loading State -->
@@ -464,6 +478,7 @@ import {
 import { Line } from 'vue-chartjs'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'
 import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -492,8 +507,28 @@ const emit = defineEmits<{
   (e: 'close'): void
 }>()
 
+const formatLocalDate = (date: Date): string => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const defaultDateRange = (() => {
+  const end = new Date()
+  const start = new Date()
+  start.setDate(start.getDate() - 29)
+  return { start: formatLocalDate(start), end: formatLocalDate(end) }
+})()
+
+const startDate = ref(defaultDateRange.start)
+const endDate = ref(defaultDateRange.end)
 const loading = ref(false)
 const stats = ref<AccountUsageStatsResponse | null>(null)
+
+const statsRangeLabel = computed(() => {
+  return `${startDate.value} - ${endDate.value}`
+})
 
 // Dark mode detection
 const isDarkMode = computed(() => {
@@ -659,7 +694,7 @@ const loadStats = async () => {
 
   loading.value = true
   try {
-    stats.value = await adminAPI.accounts.getStats(props.account.id, 30)
+    stats.value = await adminAPI.accounts.getStats(props.account.id, { start_date: startDate.value, end_date: endDate.value })
   } catch (error) {
     console.error('Failed to load account stats:', error)
     stats.value = null

@@ -53,6 +53,47 @@ func (s *PaymentService) GetDashboardStats(ctx context.Context, days int) (*Dash
 	return st, nil
 }
 
+func (s *PaymentService) GetDashboardStatsByRange(ctx context.Context, start, end time.Time) (*DashboardStats, error) {
+	if !end.After(start) {
+		end = start.AddDate(0, 0, 1)
+	}
+	days := int(math.Ceil(end.Sub(start).Hours() / 24))
+	if days <= 0 {
+		days = 1
+	}
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
+	paidStatuses := []string{OrderStatusCompleted, OrderStatusPaid, OrderStatusRecharging}
+
+	orders, err := s.entClient.PaymentOrder.Query().
+		Where(
+			paymentorder.StatusIn(paidStatuses...),
+			paymentorder.PaidAtGTE(start),
+			paymentorder.PaidAtLT(end),
+		).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	st := &DashboardStats{}
+	computeBasicStats(st, orders, todayStart)
+
+	st.PendingOrders, err = s.entClient.PaymentOrder.Query().
+		Where(paymentorder.StatusEQ(OrderStatusPending)).
+		Count(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	st.DailySeries = buildDailySeries(orders, start.AddDate(0, 0, -1), days)
+	st.PaymentMethods = buildMethodDistribution(orders)
+	st.TopUsers = buildTopUsers(orders)
+
+	return st, nil
+}
+
 func computeBasicStats(st *DashboardStats, orders []*dbent.PaymentOrder, todayStart time.Time) {
 	var totalAmount, todayAmount float64
 	var todayCount int

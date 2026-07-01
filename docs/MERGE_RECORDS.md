@@ -1,5 +1,53 @@
 # 合并记录
 
+## 2026-07-01：二开增加订单和账号统计时间范围筛选
+
+### 背景
+
+管理端订单支付概览和账号使用统计原来主要按固定近 30 天范围查看数据。运营排查对账、活动周期复盘或单个账号异常用量分析时，需要按任意开始日期和结束日期重新统计金额和使用数据。
+
+本次调整保持最小改动，只扩展已有统计接口的查询参数和管理端筛选控件，不新增数据表，不改变已有订单、账号、用户、余额或用量日志数据。
+
+### 功能入口
+
+- 管理端 `订单管理 -> 支付概览`：新增时间范围选择器，可选择今日、昨日、近 7 天、近 14 天、近 30 天、本月、上月或手动选择开始日期和结束日期。
+- 管理端 `账号管理 -> 账号操作 -> 使用统计`：新增时间范围选择器，可按所选范围查看该账号的费用、请求数、Token、模型分布、Endpoint 分布和趋势图。
+
+### 调整
+
+- `GET /api/v1/admin/payment/dashboard` 增加可选 `start_date` 和 `end_date` 查询参数，格式为 `YYYY-MM-DD`。
+- 支付概览接口传入 `start_date` 或 `end_date` 时，按 `paid_at >= start_date` 且 `paid_at < end_date + 1 天` 统计已支付、充值中和已完成订单。
+- 支付概览保留原 `days` 参数兼容旧调用；未传自定义日期时仍按原逻辑统计固定天数。
+- `GET /api/v1/admin/accounts/:id/stats` 增加可选 `start_date` 和 `end_date` 查询参数，格式为 `YYYY-MM-DD`。
+- 账号统计接口传入自定义日期时，复用已有 `GetAccountUsageStats(accountID, startTime, endTime)` 统计能力，按用量日志 `created_at` 过滤。
+- 前端复用现有 `DateRangePicker` 组件，不新增第三方依赖。
+- 前端默认范围保持近 30 天，减少对原有使用习惯的影响。
+
+### 数据影响
+
+本次改动只增加只读统计筛选能力，不执行迁移，不新增表，不修改已有业务数据。统计结果会随选择的时间范围变化，但底层订单、账号、用户、API Key、余额和用量日志保持不变。
+
+支付概览的待支付订单数仍统计当前全部待支付订单，不受时间范围限制。该指标表示当前待处理状态，而不是历史区间金额统计。
+
+### 影响范围
+
+- 影响管理端 `admin/orders/dashboard` 页面展示和对应支付概览接口。
+- 影响管理端账号使用统计弹窗和对应账号统计接口。
+- 不影响用户端用量统计、订单列表筛选、支付回调、余额充值、请求审计和请求内容拦截。
+- 不影响 `main`、`cc`、`gy` 分支，除非后续主动合并本二开改动。
+
+### 验证
+
+已执行以下验证：
+
+```bash
+git diff --check
+cd backend && go test ./internal/handler/admin ./internal/service -run 'Test.*(Payment|Account|Stats)' -count=1
+CI=true COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm@9.15.9 --dir frontend run build
+```
+
+前端构建存在项目既有的 Vite chunk 和动态/静态混合导入 warning，但构建已成功完成。
+
 ## 2026-06-29：request-audit 分支增加请求审计与请求拦截二开
 
 ### 背景
