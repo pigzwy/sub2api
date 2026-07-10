@@ -1164,7 +1164,6 @@ func normalizeTablePreferences(defaultPageSize int, options []int) (int, []int) 
 	return defaultPageSize, normalizedOptions
 }
 
-
 func parsePositiveIntSetting(raw string) int {
 	v, err := strconv.Atoi(strings.TrimSpace(raw))
 	if err != nil || v < 0 {
