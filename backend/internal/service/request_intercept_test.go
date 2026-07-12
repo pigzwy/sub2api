@@ -180,6 +180,30 @@ func TestEvaluateRequestInterceptBuiltInMathRule(t *testing.T) {
 	require.Equal(t, "34", result.Content)
 }
 
+func TestRequestInterceptSettingsPersistAndReload(t *testing.T) {
+	ctx := context.Background()
+	repo := &requestInterceptSettingRepoStub{values: map[string]string{}}
+	svc := NewSettingService(repo, nil)
+	wantRules := []RequestInterceptRule{{MatchContent: "ping", ResponseContent: "pong"}}
+
+	require.NoError(t, svc.UpdateSettings(ctx, &SystemSettings{
+		RequestInterceptEnabled:    true,
+		RequestInterceptKeywords:   " legacy ",
+		RequestInterceptResponse:   "legacy response",
+		RequestInterceptRules:      wantRules,
+		RequestInterceptGroupScope: []int64{23, 23, -1, 42},
+	}))
+
+	got, err := svc.GetAllSettings(ctx)
+	require.NoError(t, err)
+	require.True(t, got.RequestInterceptEnabled)
+	require.Equal(t, "legacy", got.RequestInterceptKeywords)
+	require.Equal(t, "legacy response", got.RequestInterceptResponse)
+	require.Equal(t, wantRules, got.RequestInterceptRules)
+	require.Equal(t, int64(23), got.RequestInterceptGroupID)
+	require.Equal(t, []int64{23, 42}, got.RequestInterceptGroupScope)
+}
+
 func TestEvaluateRequestInterceptUsesSavedRulesImmediately(t *testing.T) {
 	ctx := context.Background()
 	repo := &requestInterceptSettingRepoStub{values: map[string]string{}}

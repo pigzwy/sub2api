@@ -193,6 +193,12 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyRequestAuditRetentionHours:  "0",
 		SettingKeyRequestAuditUserScope:       "[]",
 		SettingKeyRequestAuditGroupScope:      "[]",
+		SettingKeyRequestInterceptEnabled:     "false",
+		SettingKeyRequestInterceptKeywords:    "",
+		SettingKeyRequestInterceptResponse:    "",
+		SettingKeyRequestInterceptRules:       "[]",
+		SettingKeyRequestInterceptGroupID:     "0",
+		SettingKeyRequestInterceptGroupScope:  "[]",
 
 		// Claude Code version check (default: empty = disabled)
 		SettingKeyMinClaudeCodeVersion: "",
@@ -735,6 +741,15 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.RequestAuditRetentionHours = parsePositiveIntSetting(settings[SettingKeyRequestAuditRetentionHours])
 	result.RequestAuditUserScope = normalizePositiveInt64List(parseInt64JSONArraySetting(settings[SettingKeyRequestAuditUserScope]))
 	result.RequestAuditGroupScope = normalizePositiveInt64List(parseInt64JSONArraySetting(settings[SettingKeyRequestAuditGroupScope]))
+	result.RequestInterceptEnabled = settings[SettingKeyRequestInterceptEnabled] == "true"
+	result.RequestInterceptKeywords = settings[SettingKeyRequestInterceptKeywords]
+	result.RequestInterceptResponse = settings[SettingKeyRequestInterceptResponse]
+	result.RequestInterceptRules = ParseRequestInterceptRules(settings[SettingKeyRequestInterceptRules])
+	result.RequestInterceptGroupID = parseNonNegativeInt64Setting(settings[SettingKeyRequestInterceptGroupID])
+	result.RequestInterceptGroupScope = normalizePositiveInt64List(parseInt64JSONArraySetting(settings[SettingKeyRequestInterceptGroupScope]))
+	if len(result.RequestInterceptGroupScope) == 0 && result.RequestInterceptGroupID > 0 {
+		result.RequestInterceptGroupScope = []int64{result.RequestInterceptGroupID}
+	}
 
 	// Claude Code version check
 	result.MinClaudeCodeVersion = settings[SettingKeyMinClaudeCodeVersion]
@@ -1166,6 +1181,14 @@ func normalizeTablePreferences(defaultPageSize int, options []int) (int, []int) 
 
 func parsePositiveIntSetting(raw string) int {
 	v, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || v < 0 {
+		return 0
+	}
+	return v
+}
+
+func parseNonNegativeInt64Setting(raw string) int64 {
+	v, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
 	if err != nil || v < 0 {
 		return 0
 	}

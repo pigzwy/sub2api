@@ -22,17 +22,17 @@ func (r *windowMaintenanceUserSubRepoStub) ActivateWindows(_ context.Context, _ 
 	return nil
 }
 
-func (r *windowMaintenanceUserSubRepoStub) ResetDailyUsage(_ context.Context, _ int64, start time.Time) error {
+func (r *windowMaintenanceUserSubRepoStub) ResetDailyUsage(_ context.Context, _ int64, _ *time.Time, start time.Time) error {
 	r.resetDailyAt = &start
 	return nil
 }
 
-func (r *windowMaintenanceUserSubRepoStub) ResetWeeklyUsage(_ context.Context, _ int64, start time.Time) error {
+func (r *windowMaintenanceUserSubRepoStub) ResetWeeklyUsage(_ context.Context, _ int64, _ *time.Time, start time.Time) error {
 	r.resetWeeklyAt = &start
 	return nil
 }
 
-func (r *windowMaintenanceUserSubRepoStub) ResetMonthlyUsage(_ context.Context, _ int64, start time.Time) error {
+func (r *windowMaintenanceUserSubRepoStub) ResetMonthlyUsage(_ context.Context, _ int64, _ *time.Time, start time.Time) error {
 	r.resetMonthlyAt = &start
 	return nil
 }

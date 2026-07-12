@@ -310,10 +310,16 @@ type UpdateSettingsRequest struct {
 	CyberSessionBlockTTLSeconds *int  `json:"cyber_session_block_ttl_seconds"`
 
 	// 请求审计 / 拦截
-	RequestAuditEnabled        *bool   `json:"request_audit_enabled"`
-	RequestAuditRetentionHours *int    `json:"request_audit_retention_hours"`
-	RequestAuditUserScope      []int64 `json:"request_audit_user_scope"`
-	RequestAuditGroupScope     []int64 `json:"request_audit_group_scope"`
+	RequestAuditEnabled        *bool                          `json:"request_audit_enabled"`
+	RequestAuditRetentionHours *int                           `json:"request_audit_retention_hours"`
+	RequestAuditUserScope      []int64                        `json:"request_audit_user_scope"`
+	RequestAuditGroupScope     []int64                        `json:"request_audit_group_scope"`
+	RequestInterceptEnabled    *bool                          `json:"request_intercept_enabled"`
+	RequestInterceptKeywords   *string                        `json:"request_intercept_keywords"`
+	RequestInterceptResponse   *string                        `json:"request_intercept_response"`
+	RequestInterceptRules      []service.RequestInterceptRule `json:"request_intercept_rules"`
+	RequestInterceptGroupID    *int64                         `json:"request_intercept_group_id"`
+	RequestInterceptGroupScope []int64                        `json:"request_intercept_group_scope"`
 
 	// OpenAI fast/flex policy (optional, only updated when provided)
 	OpenAIFastPolicySettings *dto.OpenAIFastPolicySettings `json:"openai_fast_policy_settings,omitempty"`
@@ -1563,6 +1569,52 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.RequestAuditGroupScope
 		}(),
+		RequestInterceptEnabled: func() bool {
+			if req.RequestInterceptEnabled != nil {
+				return *req.RequestInterceptEnabled
+			}
+			return previousSettings.RequestInterceptEnabled
+		}(),
+		RequestInterceptKeywords: func() string {
+			if req.RequestInterceptKeywords != nil {
+				return *req.RequestInterceptKeywords
+			}
+			return previousSettings.RequestInterceptKeywords
+		}(),
+		RequestInterceptResponse: func() string {
+			if req.RequestInterceptResponse != nil {
+				return *req.RequestInterceptResponse
+			}
+			return previousSettings.RequestInterceptResponse
+		}(),
+		RequestInterceptRules: func() []service.RequestInterceptRule {
+			if req.RequestInterceptRules != nil {
+				return service.NormalizeRequestInterceptRules(req.RequestInterceptRules)
+			}
+			return previousSettings.RequestInterceptRules
+		}(),
+		RequestInterceptGroupID: func() int64 {
+			if req.RequestInterceptGroupID != nil {
+				if *req.RequestInterceptGroupID > 0 {
+					return *req.RequestInterceptGroupID
+				}
+				return 0
+			}
+			return previousSettings.RequestInterceptGroupID
+		}(),
+		RequestInterceptGroupScope: func() []int64 {
+			if req.RequestInterceptGroupScope != nil {
+				return normalizeInt64IDList(req.RequestInterceptGroupScope)
+			}
+			if req.RequestInterceptGroupID != nil {
+				id := *req.RequestInterceptGroupID
+				if id > 0 {
+					return []int64{id}
+				}
+				return []int64{}
+			}
+			return previousSettings.RequestInterceptGroupScope
+		}(),
 	}
 
 	// req.AuthSourceXxxPlatformQuotas 为 nil 表示本次请求未包含该 source 的 quota 配置（保留 previousAuthSourceDefaults 中的值）；
@@ -1924,6 +1976,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		RequestAuditRetentionHours:  updatedSettings.RequestAuditRetentionHours,
 		RequestAuditUserScope:       updatedSettings.RequestAuditUserScope,
 		RequestAuditGroupScope:      updatedSettings.RequestAuditGroupScope,
+		RequestInterceptEnabled:     updatedSettings.RequestInterceptEnabled,
+		RequestInterceptKeywords:    updatedSettings.RequestInterceptKeywords,
+		RequestInterceptResponse:    updatedSettings.RequestInterceptResponse,
+		RequestInterceptRules:       updatedSettings.RequestInterceptRules,
+		RequestInterceptGroupID:     updatedSettings.RequestInterceptGroupID,
+		RequestInterceptGroupScope:  updatedSettings.RequestInterceptGroupScope,
 		AllowUserViewErrorRequests:  updatedSettings.AllowUserViewErrorRequests,
 	}
 	if fastPolicy, err := h.settingService.GetOpenAIFastPolicySettings(c.Request.Context()); err != nil {

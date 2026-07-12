@@ -351,6 +351,25 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyRequestAuditRetentionHours] = strconv.Itoa(maxInt(settings.RequestAuditRetentionHours, 0))
 	updates[SettingKeyRequestAuditUserScope] = mustJSONInt64Array(settings.RequestAuditUserScope)
 	updates[SettingKeyRequestAuditGroupScope] = mustJSONInt64Array(settings.RequestAuditGroupScope)
+	updates[SettingKeyRequestInterceptEnabled] = strconv.FormatBool(settings.RequestInterceptEnabled)
+	updates[SettingKeyRequestInterceptKeywords] = strings.TrimSpace(settings.RequestInterceptKeywords)
+	updates[SettingKeyRequestInterceptResponse] = settings.RequestInterceptResponse
+	settings.RequestInterceptGroupScope = normalizePositiveInt64List(settings.RequestInterceptGroupScope)
+	requestInterceptGroupID := int64(0)
+	if len(settings.RequestInterceptGroupScope) > 0 {
+		requestInterceptGroupID = settings.RequestInterceptGroupScope[0]
+	} else if settings.RequestInterceptGroupID > 0 {
+		requestInterceptGroupID = settings.RequestInterceptGroupID
+		settings.RequestInterceptGroupScope = []int64{requestInterceptGroupID}
+	}
+	settings.RequestInterceptGroupID = requestInterceptGroupID
+	updates[SettingKeyRequestInterceptGroupID] = strconv.FormatInt(requestInterceptGroupID, 10)
+	updates[SettingKeyRequestInterceptGroupScope] = mustJSONInt64Array(settings.RequestInterceptGroupScope)
+	requestInterceptRulesJSON, err := json.Marshal(NormalizeRequestInterceptRules(settings.RequestInterceptRules))
+	if err != nil {
+		return nil, fmt.Errorf("marshal request intercept rules: %w", err)
+	}
+	updates[SettingKeyRequestInterceptRules] = string(requestInterceptRulesJSON)
 
 	// Claude Code version check
 	updates[SettingKeyMinClaudeCodeVersion] = settings.MinClaudeCodeVersion

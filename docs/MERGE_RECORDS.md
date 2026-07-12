@@ -125,6 +125,17 @@ docker compose up -d sub2api
 - 未选择拦截分组时，即使总开关开启，也不会拦截任何请求。
 - 请求审计关闭时，不会记录请求体和响应体，也不会在用量统计中显示请求审计标签页。
 
+### 上游合并维护
+
+上游拆分设置模块后，请求拦截配置必须在以下链路中同时保留，不能只保留网关拦截实现：
+
+- `backend/internal/handler/admin/setting_handler.go`：管理端设置读取响应。
+- `backend/internal/handler/admin/setting_handler_update.go`：更新请求、设置组装和更新响应。
+- `backend/internal/service/setting_parse.go`：默认值和数据库读取解析。
+- `backend/internal/service/setting_update.go`：数据库写入。
+
+回归测试 `TestSettingHandler_UpdateSettings_RoundTripsRequestInterceptSettings` 覆盖非空规则和多分组的保存、持久化与回读；合并上游设置模块重构时必须保留该测试。
+
 ### 建议验证
 
 上线前建议至少验证以下路径：

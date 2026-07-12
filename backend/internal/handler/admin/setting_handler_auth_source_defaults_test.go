@@ -206,6 +206,59 @@ func TestSettingHandler_UpdateSettings_PreservesOmittedAuthSourceDefaults(t *tes
 	require.Equal(t, true, data["force_email_on_third_party_signup"])
 }
 
+func TestSettingHandler_UpdateSettings_RoundTripsRequestInterceptSettings(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := &settingHandlerRepoStub{
+		values: map[string]string{
+			service.SettingKeyRegistrationEnabled: "true",
+			service.SettingKeyPromoCodeEnabled:    "true",
+		},
+	}
+	svc := service.NewSettingService(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
+	handler := NewSettingHandler(svc, nil, nil, nil, nil, nil, nil)
+
+	body := map[string]any{
+		"request_intercept_enabled": true,
+		"request_intercept_rules": []map[string]string{
+			{"match_content": "ping", "response_content": "pong"},
+		},
+		"request_intercept_group_scope": []int64{42, 23, 42},
+	}
+	rawBody, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPut, "/api/v1/admin/settings", bytes.NewReader(rawBody))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.UpdateSettings(c)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "true", repo.values[service.SettingKeyRequestInterceptEnabled])
+	require.JSONEq(t, `[{"match_content":"ping","response_content":"pong"}]`, repo.values[service.SettingKeyRequestInterceptRules])
+	require.JSONEq(t, `[23,42]`, repo.values[service.SettingKeyRequestInterceptGroupScope])
+	require.Equal(t, "23", repo.values[service.SettingKeyRequestInterceptGroupID])
+
+	getRec := httptest.NewRecorder()
+	getCtx, _ := gin.CreateTestContext(getRec)
+	getCtx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/settings", nil)
+	handler.GetSettings(getCtx)
+
+	require.Equal(t, http.StatusOK, getRec.Code)
+	var resp response.Response
+	require.NoError(t, json.Unmarshal(getRec.Body.Bytes(), &resp))
+	data, ok := resp.Data.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, true, data["request_intercept_enabled"])
+	require.Equal(t, float64(23), data["request_intercept_group_id"])
+	require.Equal(t, []any{float64(23), float64(42)}, data["request_intercept_group_scope"])
+	rules, ok := data["request_intercept_rules"].([]any)
+	require.True(t, ok)
+	require.Len(t, rules, 1)
+	require.Equal(t, map[string]any{"match_content": "ping", "response_content": "pong"}, rules[0])
+}
+
 func TestSettingHandler_UpdateSettings_PersistsPaymentVisibleMethodsAndAdvancedScheduler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	repo := &settingHandlerRepoStub{
