@@ -421,6 +421,16 @@ func loginAgreementDocumentsToService(items []dto.LoginAgreementDocument) []serv
 }
 
 func systemSettingsResponseData(settings dto.SystemSettings, authSourceDefaults *service.AuthSourceDefaultSettings) map[string]any {
+	if settings.RequestAuditUserScope == nil {
+		settings.RequestAuditUserScope = []int64{}
+	}
+	if settings.RequestAuditGroupScope == nil {
+		settings.RequestAuditGroupScope = []int64{}
+	}
+	if settings.RequestInterceptGroupScope == nil {
+		settings.RequestInterceptGroupScope = []int64{}
+	}
+
 	data := make(map[string]any)
 	raw, err := json.Marshal(settings)
 	if err == nil {
