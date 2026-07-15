@@ -20,6 +20,8 @@ import (
 // Forward forwards request to OpenAI API
 func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte) (*OpenAIForwardResult, error) {
 	startTime := time.Now()
+	// 固定渠道映射后的请求级 canonical body；账号 normalize/strip 不得改写跨 failover hint。
+	canonicalImageIntentBody := body
 
 	restrictionResult := s.detectCodexClientRestriction(c, account, body)
 	apiKeyID := getAPIKeyIDFromContext(c)
@@ -41,6 +43,19 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	}
 	if normalized {
 		body = normalizedBody
+	}
+	if account.IsOpenAIOAuth() && isOpenAIResponsesLiteHeader(c.GetHeader(responsesLiteHeader)) {
+		liteBody, changed, liteErr := normalizeOpenAIResponsesLiteToolsPayload(body)
+		if liteErr != nil {
+			setOpsUpstreamError(c, http.StatusBadRequest, liteErr.Error(), "")
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{
+				"type": "invalid_request_error", "message": liteErr.Error(), "param": "tools",
+			}})
+			return nil, liteErr
+		}
+		if changed {
+			body = liteBody
+		}
 	}
 	wsDecision := s.getOpenAIWSProtocolResolver().Resolve(account)
 	// 仅允许 WS 入站请求走 WS 上游，避免出现 HTTP -> WS 协议混用。
@@ -107,6 +122,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		return nil, errors.New("openai ws v1 is temporarily unsupported; use ws v2")
 	}
 	if passthroughEnabled {
+		attemptImageIntentInvalidated := false
 		if isCodexCLI && codexImageGenerationExplicitToolPolicy == codexImageGenerationExplicitToolPolicyStrip {
 			strippedBody, changed, stripErr := stripOpenAIImageGenerationToolsFromRawPayload(body)
 			if stripErr != nil {
@@ -115,6 +131,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			if changed {
 				body = strippedBody
 				originalBody = strippedBody
+				attemptImageIntentInvalidated = true
 				logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Stripped /responses image_generation tool for Codex client by account policy")
 			}
 		}
@@ -123,7 +140,18 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		reasoningEffort := extractOpenAIReasoningEffortFromBody(body, mappedModel)
 		// 国产模型默认 effort 补充：也要用 mappedModel 判定是否是 passback-required 上游。
 		reasoningEffort = ApplyThinkingEnabledFallback(reasoningEffort, body, mappedModel)
-		return s.forwardOpenAIPassthrough(ctx, c, account, originalBody, reqModel, reasoningEffort, reqStream, startTime)
+		return s.forwardOpenAIPassthrough(
+			ctx,
+			c,
+			account,
+			originalBody,
+			canonicalImageIntentBody,
+			reqModel,
+			attemptImageIntentInvalidated,
+			reasoningEffort,
+			reqStream,
+			startTime,
+		)
 	}
 
 	bodyModified := false
@@ -188,6 +216,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		codexImageGenerationExplicitToolPolicy != codexImageGenerationExplicitToolPolicyStrip &&
 		s.isCodexImageGenerationBridgeEnabled(ctx, account, apiKey)
 	var imageIntent bool
+	canonicalImageIntent := resolveOpenAIImageIntentHint(c, reqModel, canonicalImageIntentBody, IsImageGenerationIntent)
 	if isCodexCLI && codexImageGenerationExplicitToolPolicy == codexImageGenerationExplicitToolPolicyStrip {
 		decoded, decodeErr := ensureReqBody()
 		if decodeErr != nil {
@@ -199,7 +228,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		}
 		imageIntent = IsImageGenerationIntentMap(openAIResponsesEndpoint, reqModel, decoded)
 	} else {
-		imageIntent = IsImageGenerationIntent(openAIResponsesEndpoint, reqModel, body)
+		imageIntent = canonicalImageIntent
 	}
 	if imageIntent && !imageGenerationAllowed {
 		MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalFeatureGate)
@@ -701,14 +730,37 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		return nil, wsErr
 	}
 
+	reasoningEffort := extractOpenAIReasoningEffortFromBody(body, upstreamModel, billingModel, originalModel)
+	// 国产模型默认 effort 补充：此处 reqModel 已被 mapping 重写为 billingModel。
+	reasoningEffort = ApplyThinkingEnabledFallback(reasoningEffort, body, reqModel)
+	reasoningEffortValue := ""
+	if reasoningEffort != nil {
+		reasoningEffortValue = *reasoningEffort
+	}
+	firstOutputTimeout := time.Duration(0)
+	if reqStream && account.Platform == PlatformOpenAI {
+		firstOutputTimeout = s.openAIFirstOutputTimeout(reasoningEffortValue)
+	}
+
 	httpInvalidEncryptedContentRetryTried := false
 	agentTaskRecoveryTried := false
 	for {
 		// Build upstream request
 		upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
+		var headerGuard *openAIFirstOutputHeaderGuard
+		if firstOutputTimeout > 0 {
+			upstreamCtx, headerGuard = newOpenAIFirstOutputHeaderGuard(
+				upstreamCtx, releaseUpstreamCtx, startTime.Add(firstOutputTimeout),
+			)
+		}
 		upstreamReq, err := s.buildUpstreamRequest(upstreamCtx, c, account, body, token, reqStream, promptCacheKey, isCodexCLI)
-		releaseUpstreamCtx()
+		if headerGuard == nil {
+			releaseUpstreamCtx()
+		}
 		if err != nil {
+			if headerGuard != nil {
+				headerGuard.close()
+			}
 			return nil, err
 		}
 
@@ -722,11 +774,30 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		upstreamStart := time.Now()
 		resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
+		if headerGuard != nil && headerGuard.stopHeaderWait() {
+			if resp != nil && resp.Body != nil {
+				_ = resp.Body.Close()
+			}
+			headerGuard.close()
+			return nil, s.newOpenAIFirstOutputTimeoutError(
+				ctx, c, account, startTime, originalModel, reasoningEffortValue,
+				firstOutputTimeout, "response_headers", nil,
+			)
+		}
 		if err != nil {
+			if resp != nil && resp.Body != nil {
+				_ = resp.Body.Close()
+			}
+			if headerGuard != nil {
+				headerGuard.close()
+			}
 			// Transport-level failure (proxy/DNS/TCP/TLS — no HTTP response). Convert to
 			// a failover so the handler switches to a healthy account, and temporarily
 			// unschedule the account on durable faults (e.g. rejected proxy credentials).
 			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
+		}
+		if headerGuard != nil {
+			resp.Body = &openAIRequestContextReadCloser{ReadCloser: resp.Body, cleanup: headerGuard.close}
 		}
 
 		// Handle error response
@@ -795,10 +866,6 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		}
 		defer func() { _ = resp.Body.Close() }()
 
-		reasoningEffort := extractOpenAIReasoningEffortFromBody(body, upstreamModel, billingModel, originalModel)
-		// 国产模型默认 effort 补充：此处 reqModel 已被 mapping 重写为 billingModel（见
-		// line 2510-2515 的 GetMappedModel + reqModel 赋值），可直接作为 mappedModel。
-		reasoningEffort = ApplyThinkingEnabledFallback(reasoningEffort, body, reqModel)
 		serviceTier := extractOpenAIServiceTierFromBody(body)
 		// 上游接受后只保留计费需要的标量，避免响应处理期间继续保活完整 input/tools map。
 		reqBody = nil
@@ -810,7 +877,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		imageCount := 0
 		var imageOutputSizes []string
 		if reqStream {
-			streamResult, err := s.handleStreamingResponse(ctx, resp, c, account, startTime, originalModel, upstreamModel)
+			streamResult, err := s.handleStreamingResponseWithReasoning(ctx, resp, c, account, startTime, originalModel, upstreamModel, reasoningEffortValue)
 			if err != nil {
 				return nil, err
 			}

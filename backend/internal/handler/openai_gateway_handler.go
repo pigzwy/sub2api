@@ -42,6 +42,8 @@ type OpenAIGatewayHandler struct {
 	cfg                      *config.Config
 }
 
+const maxOpenAIFirstOutputTimeoutSwitches = 1
+
 func resolveOpenAIMessagesDispatchMappedModel(apiKey *service.APIKey, requestedModel string) string {
 	if apiKey == nil || apiKey.Group == nil {
 		return ""
@@ -56,6 +58,14 @@ func openAIModelMappedBody(body []byte, mapped bool, mappedModel string, replace
 		return body
 	}
 	return replace(body, mappedModel)
+}
+
+func seedOpenAIForwardImageIntentHint(c *gin.Context, channelMapped bool, imageIntent bool) {
+	if channelMapped {
+		// 渠道映射改变了规范请求，保持 unknown，由 Forward 按映射后的 model/body 初始化。
+		return
+	}
+	service.SetOpenAIImageIntentHint(c, imageIntent)
 }
 
 func newOpenAIModelMappedBodyCache(body []byte, replace openAIModelBodyReplaceFunc) func(bool, string) []byte {
@@ -293,6 +303,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	// 解析渠道级模型映射
 	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
 	forwardBody := openAIModelMappedBody(body, channelMapping.Mapped, channelMapping.MappedModel, h.gatewayService.ReplaceModelInBody)
+	seedOpenAIForwardImageIntentHint(c, channelMapping.Mapped, imageIntent)
 
 	// 提前校验 function_call_output 是否具备可关联上下文，避免上游 400。
 	if !h.validateFunctionCallOutputRequest(c, body, reqLog) {
@@ -340,13 +351,17 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 
 	maxAccountSwitches := h.maxAccountSwitches
 	switchCount := 0
+	firstOutputTimeoutSwitchCount := 0
 	failedAccountIDs := make(map[int64]struct{})
 	sameAccountRetryCount := make(map[int64]int)
 	var lastFailoverErr *service.UpstreamFailoverError
 	var oauth429FailoverState service.OpenAIOAuth429FailoverState
 
 	for {
-		if failoverClientGone(c) {
+		// Streaming Forward intentionally detaches the upstream request so usage can
+		// be drained after a disconnect. Re-check the client context before every
+		// account attempt so a canceled request never starts a failover replay.
+		if !openAIRequestAllowsFailoverReplay(c) {
 			return
 		}
 		// Select account supporting the requested model
@@ -472,14 +487,21 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 						)
 						return
 					}
-					if service.OpenAICompactKeepaliveAdjustedWrittenSize(c) != writerSizeBeforeForward {
+					if !openAIForwardMayFailover(c, writerSizeBeforeForward, failoverErr) {
 						h.handleFailoverExhausted(c, failoverErr, true)
 						return
+					}
+					if failoverErr.SafeToFailoverAfterWrite && c.Writer.Written() {
+						streamStarted = true
 					}
 					if failoverErr.ShouldReportAccountScheduleFailure() {
 						h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, false, nil)
 					}
 					if !failoverErr.ShouldRetryNextAccount() {
+						h.handleFailoverExhausted(c, failoverErr, streamStarted)
+						return
+					}
+					if openAIFirstOutputFailoverExhausted(failoverErr, &firstOutputTimeoutSwitchCount) {
 						h.handleFailoverExhausted(c, failoverErr, streamStarted)
 						return
 					}
@@ -1403,7 +1425,8 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		c.Request = c.Request.WithContext(ctx)
 	}
 
-	readCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	firstMessageTimeout := service.ResolveOpenAIWSClientFirstMessageTimeout(h.cfg)
+	readCtx, cancel := context.WithTimeout(ctx, firstMessageTimeout)
 	msgType, firstMessage, err := wsConn.Read(readCtx)
 	cancel()
 	if err != nil {
@@ -1418,7 +1441,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 			zap.String("client_ip", clientIP),
 			zap.String("close_status", closeStatus),
 			zap.String("close_reason", closeReason),
-			zap.Duration("read_timeout", 30*time.Second),
+			zap.Duration("read_timeout", firstMessageTimeout),
 		)
 		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, "missing first response.create message")
 		return
@@ -2222,13 +2245,23 @@ func (h *OpenAIGatewayHandler) ensureForwardErrorResponse(c *gin.Context, stream
 		return false
 	}
 	// 先停 compact 心跳再读 Writer 状态，避免与心跳 goroutine 竞争。
-	if service.StopOpenAICompactSSEKeepaliveCommitted(c) {
+	compactKeepaliveCommitted := service.StopOpenAICompactSSEKeepaliveCommitted(c)
+	if compactKeepaliveCommitted {
 		streamStarted = true
 	}
-	if service.IsResponseCommitted(c) {
+	imageKeepalivePresent := service.OpenAIImagesJSONKeepalivePresent(c)
+	service.StopOpenAIImagesJSONKeepaliveCommitted(c)
+	imageKeepalivePaddingOnly := false
+	imageKeepaliveResponseWritten := false
+	if imageKeepalivePresent {
+		adjustedSize := service.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c)
+		imageKeepalivePaddingOnly = adjustedSize < 0
+		imageKeepaliveResponseWritten = adjustedSize >= 0
+	}
+	if service.IsResponseCommitted(c) || (!compactKeepaliveCommitted && imageKeepaliveResponseWritten) {
 		return false
 	}
-	if c.Writer.Written() {
+	if c.Writer.Written() && !imageKeepalivePaddingOnly {
 		streamStarted = true
 	}
 	h.handleStreamingAwareError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed", streamStarted)
@@ -2284,6 +2317,34 @@ func openAIForwardErrorAlreadyCommunicated(c *gin.Context, writerSizeBeforeForwa
 			return true
 		}
 	}
+	return false
+}
+
+func openAIForwardMayFailover(c *gin.Context, writerSizeBeforeForward int, failoverErr *service.UpstreamFailoverError) bool {
+	if c == nil || c.Writer == nil {
+		return false
+	}
+	if service.OpenAICompactKeepaliveAdjustedWrittenSize(c) == writerSizeBeforeForward {
+		return true
+	}
+	return failoverErr != nil && failoverErr.SafeToFailoverAfterWrite
+}
+
+func openAIRequestAllowsFailoverReplay(c *gin.Context) bool {
+	if c == nil || c.Request == nil {
+		return false
+	}
+	return !failoverClientGone(c)
+}
+
+func openAIFirstOutputFailoverExhausted(failoverErr *service.UpstreamFailoverError, switchCount *int) bool {
+	if failoverErr == nil || !failoverErr.SafeToFailoverAfterWrite || switchCount == nil {
+		return false
+	}
+	if *switchCount >= maxOpenAIFirstOutputTimeoutSwitches {
+		return true
+	}
+	*switchCount = *switchCount + 1
 	return false
 }
 
