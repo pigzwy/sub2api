@@ -81,6 +81,10 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		h.chatCompletionsErrorResponse(c, http.StatusBadRequest, "invalid_request_error", invalidStreamFieldTypeMessage)
 		return
 	}
+	if service.IsGPTImageGenerationModel(reqModel) {
+		h.chatCompletionsErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "This model is not supported on the Chat Completions endpoint")
+		return
+	}
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
 	auditSession := beginRequestAuditCapture(c, h.requestAuditLogService, h.settingService, requestAuditSubject{UserID: subject.UserID, APIKeyID: apiKey.ID, GroupID: apiKey.GroupID})
 	defer auditSession.Finish(c, requestAuditSubject{UserID: subject.UserID, APIKeyID: apiKey.ID, GroupID: apiKey.GroupID}, string(domain.PlatformAnthropic), GetInboundEndpoint(c), reqModel, reqStream, body)
