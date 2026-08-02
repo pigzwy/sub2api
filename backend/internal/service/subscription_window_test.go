@@ -52,24 +52,25 @@ func TestCheckAndActivateWindow_UsesCurrentTime(t *testing.T) {
 	require.False(t, repo.activatedAt.After(after), "窗口应使用当前激活时间")
 }
 
-func TestCheckAndResetWindows_UsesCurrentTimeForExpiredDailyWindow(t *testing.T) {
+func TestCheckAndResetWindows_AdvancesExpiredDailyWindowFromSubscriptionAnchor(t *testing.T) {
 	repo := &windowMaintenanceUserSubRepoStub{}
 	svc := NewSubscriptionService(groupRepoNoop{}, repo, nil, nil, nil)
-	oldWindow := time.Now().Add(-25 * time.Hour)
+	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
+	oldWindow := now.Add(-25 * time.Hour)
+	svc.now = func() time.Time { return now }
 	sub := &UserSubscription{
 		ID:               1,
+		StartsAt:         oldWindow,
+		ExpiresAt:        now.Add(7 * 24 * time.Hour),
 		DailyWindowStart: &oldWindow,
 		DailyUsageUSD:    10,
 	}
 
-	before := time.Now()
 	err := svc.CheckAndResetWindows(context.Background(), sub)
-	after := time.Now()
 
 	require.NoError(t, err)
 	require.NotNil(t, repo.resetDailyAt)
-	require.False(t, repo.resetDailyAt.Before(before), "重置窗口不应回退到当天零点")
-	require.False(t, repo.resetDailyAt.After(after), "重置窗口应使用当前重置时间")
+	require.Equal(t, oldWindow.Add(24*time.Hour), *repo.resetDailyAt)
 	require.Equal(t, float64(0), sub.DailyUsageUSD)
 	require.Equal(t, repo.resetDailyAt, sub.DailyWindowStart)
 }
