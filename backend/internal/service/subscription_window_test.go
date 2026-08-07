@@ -5,20 +5,23 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/stretchr/testify/require"
 )
 
 type windowMaintenanceUserSubRepoStub struct {
 	userSubRepoNoop
 
-	activatedAt    *time.Time
-	resetDailyAt   *time.Time
-	resetWeeklyAt  *time.Time
-	resetMonthlyAt *time.Time
+	activatedDailyAt    *time.Time
+	activatedPeriodicAt *time.Time
+	resetDailyAt        *time.Time
+	resetWeeklyAt       *time.Time
+	resetMonthlyAt      *time.Time
 }
 
-func (r *windowMaintenanceUserSubRepoStub) ActivateWindows(_ context.Context, _ int64, start time.Time) error {
-	r.activatedAt = &start
+func (r *windowMaintenanceUserSubRepoStub) ActivateWindows(_ context.Context, _ int64, dailyStart, periodicStart time.Time) error {
+	r.activatedDailyAt = &dailyStart
+	r.activatedPeriodicAt = &periodicStart
 	return nil
 }
 
@@ -40,19 +43,20 @@ func (r *windowMaintenanceUserSubRepoStub) ResetMonthlyUsage(_ context.Context, 
 func TestCheckAndActivateWindow_UsesCurrentTime(t *testing.T) {
 	repo := &windowMaintenanceUserSubRepoStub{}
 	svc := NewSubscriptionService(groupRepoNoop{}, repo, nil, nil, nil)
+	now := time.Date(2026, 8, 7, 14, 30, 0, 0, time.UTC)
+	svc.now = func() time.Time { return now }
 	sub := &UserSubscription{ID: 1}
 
-	before := time.Now()
 	err := svc.CheckAndActivateWindow(context.Background(), sub)
-	after := time.Now()
 
 	require.NoError(t, err)
-	require.NotNil(t, repo.activatedAt)
-	require.False(t, repo.activatedAt.Before(before), "窗口不应回退到当天零点")
-	require.False(t, repo.activatedAt.After(after), "窗口应使用当前激活时间")
+	require.NotNil(t, repo.activatedDailyAt)
+	require.NotNil(t, repo.activatedPeriodicAt)
+	require.Equal(t, timezone.StartOfDay(now), *repo.activatedDailyAt)
+	require.Equal(t, now, *repo.activatedPeriodicAt)
 }
 
-func TestCheckAndResetWindows_AdvancesExpiredDailyWindowFromSubscriptionAnchor(t *testing.T) {
+func TestCheckAndResetWindows_ResetsExpiredDailyWindowAtMidnight(t *testing.T) {
 	repo := &windowMaintenanceUserSubRepoStub{}
 	svc := NewSubscriptionService(groupRepoNoop{}, repo, nil, nil, nil)
 	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
@@ -70,7 +74,7 @@ func TestCheckAndResetWindows_AdvancesExpiredDailyWindowFromSubscriptionAnchor(t
 
 	require.NoError(t, err)
 	require.NotNil(t, repo.resetDailyAt)
-	require.Equal(t, oldWindow.Add(24*time.Hour), *repo.resetDailyAt)
+	require.Equal(t, timezone.StartOfDay(now), *repo.resetDailyAt)
 	require.Equal(t, float64(0), sub.DailyUsageUSD)
 	require.Equal(t, repo.resetDailyAt, sub.DailyWindowStart)
 }
