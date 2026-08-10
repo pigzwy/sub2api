@@ -774,7 +774,6 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 			s.hasResolvableTokenPricing(ctx, responseModel, apiKey) {
 			responseCost := s.calculateRecordUsageCost(ctx, result, apiKey, responseModel, multiplier, imageMultiplier, opts)
 			if responseCost != nil && responseCost.TotalCost <= cost.TotalCost+1e-12 {
-				billingModel = responseModel
 				cost = responseCost
 			}
 		}

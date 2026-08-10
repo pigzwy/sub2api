@@ -172,7 +172,7 @@ func TestOpenAIGatewayServiceRecordUsage_ResponseModelBillsCheaperResponseModel(
 	userRepo := &openAIRecordUsageUserRepoStub{}
 	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, &openAIRecordUsageSubRepoStub{}, nil)
 	tokens := UsageTokens{InputTokens: 20, OutputTokens: 10}
-	cheaper, pricier, cheaperCost, _ := orderedResponseBillingModels(t, svc.billingService, tokens, "gpt-5.1", "gpt-5.5")
+	cheaper, pricier, cheaperCost, _ := orderedResponseBillingModels(t, svc.billingService, tokens, "gpt-5.4", "gpt-5.4-mini")
 
 	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
 		Result: &OpenAIForwardResult{
@@ -212,7 +212,7 @@ func TestOpenAIGatewayServiceRecordUsage_ResponseModelRejectsPricierResponseMode
 	userRepo := &openAIRecordUsageUserRepoStub{}
 	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, &openAIRecordUsageSubRepoStub{}, nil)
 	tokens := UsageTokens{InputTokens: 20, OutputTokens: 10}
-	cheaper, pricier, cheaperCost, _ := orderedResponseBillingModels(t, svc.billingService, tokens, "gpt-5.1", "gpt-5.5")
+	cheaper, pricier, cheaperCost, _ := orderedResponseBillingModels(t, svc.billingService, tokens, "gpt-5.4", "gpt-5.4-mini")
 
 	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
 		Result: &OpenAIForwardResult{
@@ -276,7 +276,7 @@ func TestOpenAIGatewayServiceRecordUsage_ResponseModelSafeFallbacks(t *testing.T
 			userRepo := &openAIRecordUsageUserRepoStub{}
 			svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, &openAIRecordUsageSubRepoStub{}, nil)
 			tokens := UsageTokens{InputTokens: 20, OutputTokens: 10}
-			cheaper, pricier, _, pricierCost := orderedResponseBillingModels(t, svc.billingService, tokens, "gpt-5.1", "gpt-5.5")
+			cheaper, pricier, _, pricierCost := orderedResponseBillingModels(t, svc.billingService, tokens, "gpt-5.4", "gpt-5.4-mini")
 
 			err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
 				Result: &OpenAIForwardResult{
