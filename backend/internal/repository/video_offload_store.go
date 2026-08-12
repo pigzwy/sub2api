@@ -14,8 +14,11 @@ import (
 )
 
 const (
-	videoOffloadLockKeyPrefix   = "grok_video_offload:lock:"
-	videoOffloadRecordKeyPrefix = "grok_video_offload:record:"
+	videoOffloadLockKeyPrefix = "grok_video_offload:lock:"
+	// v2 records belong to the independent video_storage target. Legacy records
+	// were created against image_storage and must never be presigned through a
+	// different bucket/client after upgrade.
+	videoOffloadRecordKeyPrefix = "grok_video_offload:record:v2:"
 )
 
 type videoOffloadStore struct {

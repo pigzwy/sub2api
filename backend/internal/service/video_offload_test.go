@@ -122,7 +122,7 @@ func videoOffloadTestService(store VideoOffloadStore, storage VideoObjectStorage
 	return newVideoOffloadServiceWithOptions(
 		store,
 		func() (VideoObjectStorage, VideoStorageOptions, bool) {
-			return storage, VideoStorageOptions{Prefix: "images/", MaxDownloadBytes: maxBytes}, true
+			return storage, VideoStorageOptions{Prefix: "videos/", MaxDownloadBytes: maxBytes}, true
 		},
 		time.Minute,
 		time.Hour,

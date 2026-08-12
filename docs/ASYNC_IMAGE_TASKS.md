@@ -49,7 +49,6 @@ image_storage:
   public_base_url: ""              # set to return public_base_url/key直链; empty → presigned URL
   presign_expiry_hours: 24         # presigned link TTL when public_base_url is empty
   max_download_bytes: 33554432     # cap when re-hosting an upstream image URL (32MB)
-  video_max_download_bytes: 536870912 # cap for streaming completed videos (512MB)
 ```
 
 When a task completes, each generated image is uploaded to the bucket and the result is rewritten to a compact form: `data[].url` points at the stored object (a permanent `public_base_url/key` link, or a time-limited presigned URL) and `b64_json` is removed. Only this small JSON is stored in Redis. If an upload fails, the task is marked `failed` rather than persisting the raw base64.
@@ -59,10 +58,25 @@ To support a different vendor beyond the S3-compatible client, implement the
 for images. Video offload additionally requires `service.VideoObjectStorage`
 (`UploadVideo` with an `io.Reader`, plus `PresignVideo`).
 
-The same switch and credentials also offload completed Grok videos (the xAI
-status value is `done`). The first successful
+Completed Grok videos use an independent `video_storage` switch and S3 target:
+
+```yaml
+video_storage:
+  enabled: false
+  endpoint: "https://<account_id>.r2.cloudflarestorage.com"
+  region: "auto"
+  bucket: "sub2-video"
+  access_key_id: "..."
+  secret_access_key: "..."
+  prefix: "videos/"
+  force_path_style: false
+  presign_expiry_hours: 24
+  max_download_bytes: 536870912
+```
+
+When enabled (the xAI completed status value is `done`), the first successful
 `GET /v1/videos/generations/{request_id}` status poll streams the
-upstream video into multipart S3 storage under `<prefix>/videos/`, then adds a
+upstream video into multipart S3 storage under `<prefix>`, then adds a
 fresh `video_url` and `url_expires_at` to the completed JSON. The content endpoint
 redirects to a freshly presigned URL when that record exists; upload failures
 leave the original status and content passthrough behavior unchanged.

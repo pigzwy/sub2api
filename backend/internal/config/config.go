@@ -99,6 +99,7 @@ type Config struct {
 	Idempotency             IdempotencyConfig             `mapstructure:"idempotency"`
 	BatchImage              BatchImageConfig              `mapstructure:"batch_image"`
 	ImageStorage            ImageStorageConfig            `mapstructure:"image_storage"`
+	VideoStorage            VideoStorageConfig            `mapstructure:"video_storage"`
 }
 
 type LogConfig struct {
@@ -246,9 +247,47 @@ type ImageStorageConfig struct {
 	PublicBaseURL   string `mapstructure:"public_base_url"`      // 配了则返回 public_base_url/key 直链；否则 presigned
 	PresignExpiry   int    `mapstructure:"presign_expiry_hours"` // public_base_url 为空时的 presigned 过期时长(小时)
 	MaxDownloadByte int64  `mapstructure:"max_download_bytes"`   // 下载上游 url 图片的字节上限
-	// VideoMaxDownloadBytes limits streaming video offloads. A zero value from
-	// legacy database settings falls back to MaxDownloadByte at runtime.
-	VideoMaxDownloadBytes int64 `mapstructure:"video_max_download_bytes"`
+}
+
+// VideoStorageConfig configures the independent object storage used for
+// completed Grok videos. It deliberately has its own switch and credentials so
+// enabling async image storage never enables video offload implicitly.
+type VideoStorageConfig struct {
+	Enabled         bool   `mapstructure:"enabled"`
+	Endpoint        string `mapstructure:"endpoint"`
+	Region          string `mapstructure:"region"`
+	Bucket          string `mapstructure:"bucket"`
+	AccessKeyID     string `mapstructure:"access_key_id"`
+	SecretAccessKey string `mapstructure:"secret_access_key"`
+	Prefix          string `mapstructure:"prefix"`
+	ForcePathStyle  bool   `mapstructure:"force_path_style"`
+	PresignExpiry   int    `mapstructure:"presign_expiry_hours"`
+	MaxDownloadByte int64  `mapstructure:"max_download_bytes"`
+}
+
+// IsConfigured reports whether the independent video target has all required credentials.
+func (c *VideoStorageConfig) IsConfigured() bool {
+	return c.Bucket != "" && c.AccessKeyID != "" && c.SecretAccessKey != ""
+}
+
+// Active reports whether completed-video offload is enabled and configured.
+func (c *VideoStorageConfig) Active() bool {
+	return c.Enabled && c.IsConfigured()
+}
+
+// MissingCredentialKeys returns the video_storage keys that still need values.
+func (c *VideoStorageConfig) MissingCredentialKeys() []string {
+	var missing []string
+	if c.Bucket == "" {
+		missing = append(missing, "video_storage.bucket")
+	}
+	if c.AccessKeyID == "" {
+		missing = append(missing, "video_storage.access_key_id")
+	}
+	if c.SecretAccessKey == "" {
+		missing = append(missing, "video_storage.secret_access_key")
+	}
+	return missing
 }
 
 // IsConfigured 检查对象存储必要字段是否已配置
@@ -2146,7 +2185,6 @@ func setDefaults() {
 	viper.SetDefault("image_storage.force_path_style", false)
 	viper.SetDefault("image_storage.presign_expiry_hours", 24)
 	viper.SetDefault("image_storage.max_download_bytes", 33554432)
-	viper.SetDefault("image_storage.video_max_download_bytes", 536870912)
 	// Registered with empty defaults so AutomaticEnv can reach them: viper only
 	// decodes keys present in AllKeys(), so a credential that is supplied purely
 	// via IMAGE_STORAGE_* and never appears in config.yaml would be dropped and
@@ -2156,6 +2194,19 @@ func setDefaults() {
 	viper.SetDefault("image_storage.access_key_id", "")
 	viper.SetDefault("image_storage.secret_access_key", "")
 	viper.SetDefault("image_storage.public_base_url", "")
+
+	// Video storage (completed Grok video offload). This is intentionally
+	// independent from image_storage and disabled by default.
+	viper.SetDefault("video_storage.enabled", false)
+	viper.SetDefault("video_storage.region", "auto")
+	viper.SetDefault("video_storage.prefix", "videos/")
+	viper.SetDefault("video_storage.force_path_style", false)
+	viper.SetDefault("video_storage.presign_expiry_hours", 24)
+	viper.SetDefault("video_storage.max_download_bytes", 536870912)
+	viper.SetDefault("video_storage.endpoint", "")
+	viper.SetDefault("video_storage.bucket", "")
+	viper.SetDefault("video_storage.access_key_id", "")
+	viper.SetDefault("video_storage.secret_access_key", "")
 
 	// Ops (vNext)
 	viper.SetDefault("ops.enabled", true)

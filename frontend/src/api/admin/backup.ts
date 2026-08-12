@@ -91,12 +91,32 @@ export interface ImageStorageConfig {
   public_base_url: string
   presign_expiry_hours: number
   max_download_bytes: number
-  video_max_download_bytes: number
   endpoint: string
   region: string
   access_key_id: string
   secret_access_key?: string
   force_path_style: boolean
+}
+
+// Completed video object storage. This has a separate switch and S3 target from
+// async image storage, while retaining the option to reuse backup credentials.
+export interface VideoStorageConfig {
+  enabled: boolean
+  reuse_backup_s3: boolean
+  bucket: string
+  prefix: string
+  presign_expiry_hours: number
+  max_download_bytes: number
+  endpoint: string
+  region: string
+  access_key_id: string
+  secret_access_key?: string
+  force_path_style: boolean
+}
+
+export interface VideoStorageConfigResponse {
+  config: VideoStorageConfig
+  secret_configured: boolean
 }
 
 export interface ImageStorageConfigResponse {
@@ -121,6 +141,28 @@ export async function testImageStorageConnection(
 ): Promise<TestS3Response> {
   const { data } = await apiClient.post<TestS3Response>(
     '/admin/backups/image-storage/test',
+    config,
+  )
+  return data
+}
+
+export async function getVideoStorageConfig(): Promise<VideoStorageConfigResponse> {
+  const { data } = await apiClient.get<VideoStorageConfigResponse>('/admin/backups/video-storage')
+  return data
+}
+
+export async function updateVideoStorageConfig(
+  config: VideoStorageConfig,
+): Promise<VideoStorageConfig> {
+  const { data } = await apiClient.put<VideoStorageConfig>('/admin/backups/video-storage', config)
+  return data
+}
+
+export async function testVideoStorageConnection(
+  config: VideoStorageConfig,
+): Promise<TestS3Response> {
+  const { data } = await apiClient.post<TestS3Response>(
+    '/admin/backups/video-storage/test',
     config,
   )
   return data
@@ -175,6 +217,9 @@ export const backupAPI = {
   getImageStorageConfig,
   updateImageStorageConfig,
   testImageStorageConnection,
+  getVideoStorageConfig,
+  updateVideoStorageConfig,
+  testVideoStorageConnection,
   getSchedule,
   updateSchedule,
   createBackup,

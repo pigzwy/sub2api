@@ -155,6 +155,9 @@ type BackupService struct {
 	store   BackupObjectStore
 	s3Cfg   *BackupS3Config
 
+	s3InvalidatorMu sync.Mutex
+	s3Invalidators  []func()
+
 	recordsMu sync.Mutex // 保护 records 的 load/save 操作
 
 	cronMu      sync.Mutex
@@ -307,6 +310,17 @@ func (s *BackupService) EncryptionKeyConfigured() bool {
 	return s != nil && s.encryptionKeyConfigured
 }
 
+// RegisterS3ConfigInvalidator lets dependent object-storage settings rebuild
+// their clients immediately when the shared backup credentials change.
+func (s *BackupService) RegisterS3ConfigInvalidator(invalidate func()) {
+	if s == nil || invalidate == nil {
+		return
+	}
+	s.s3InvalidatorMu.Lock()
+	s.s3Invalidators = append(s.s3Invalidators, invalidate)
+	s.s3InvalidatorMu.Unlock()
+}
+
 func (s *BackupService) GetS3Config(ctx context.Context) (*BackupS3Config, error) {
 	cfg, err := s.loadS3Config(ctx)
 	if err != nil {
@@ -354,6 +368,13 @@ func (s *BackupService) UpdateS3Config(ctx context.Context, cfg BackupS3Config) 
 	s.store = nil
 	s.s3Cfg = nil
 	s.storeMu.Unlock()
+
+	s.s3InvalidatorMu.Lock()
+	invalidators := append([]func(){}, s.s3Invalidators...)
+	s.s3InvalidatorMu.Unlock()
+	for _, invalidate := range invalidators {
+		invalidate()
+	}
 
 	cfg.SecretAccessKey = ""
 	return &cfg, nil

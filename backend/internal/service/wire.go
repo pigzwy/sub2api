@@ -618,10 +618,24 @@ func ProvideImageTaskService(store ImageTaskStore, settings *ImageStorageSetting
 	return NewImageTaskServiceWithResolver(store, settings.Resolver(), defaultImageTaskTTL, defaultImageTaskExecutionTimeout)
 }
 
-// ProvideVideoOffloadService reuses the live image_storage binding while keeping
-// video locking/recording isolated from image task persistence.
-func ProvideVideoOffloadService(store VideoOffloadStore, settings *ImageStorageSettingService) *VideoOffloadService {
-	return NewVideoOffloadService(store, settings.VideoResolver())
+// ProvideVideoStorageSettingService constructs the independent completed-video
+// object-storage settings service.
+func ProvideVideoStorageSettingService(
+	settingRepo SettingRepository,
+	encryptor SecretEncryptor,
+	backup *BackupService,
+	factory VideoStorageFactory,
+	cfg *config.Config,
+) *VideoStorageSettingService {
+	if cfg.VideoStorage.Enabled && !cfg.VideoStorage.Active() {
+		logger.L().Warn("video_storage.enabled is true in config but object storage is not fully configured; configure it in the admin UI or complete the config file",
+			zap.Strings("missing_keys", cfg.VideoStorage.MissingCredentialKeys()))
+	}
+	return NewVideoStorageSettingService(settingRepo, encryptor, backup, factory, cfg.VideoStorage)
+}
+
+func ProvideVideoOffloadService(store VideoOffloadStore, settings *VideoStorageSettingService) *VideoOffloadService {
+	return NewVideoOffloadService(store, settings.Resolver())
 }
 
 // ProvideOpenAIGatewayService keeps the public constructor stable for tests and
@@ -832,6 +846,7 @@ var ProviderSet = wire.NewSet(
 	ProvideOpenAIGatewayService,
 	ProvideImageStorageSettingService,
 	ProvideImageTaskService,
+	ProvideVideoStorageSettingService,
 	ProvideVideoOffloadService,
 	ProvideBatchImageModelPricingResolver,
 	NewBatchImagePublicService,

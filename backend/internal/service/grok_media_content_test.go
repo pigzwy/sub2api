@@ -372,7 +372,7 @@ func TestForwardGrokVideoStatusOffloadsAndAddsPresignedFields(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Equal(t, "done", gjson.Get(recorder.Body.String(), "status").String())
 	require.Equal(t, "/v1/videos/task-1/content", gjson.Get(recorder.Body.String(), "video.url").String())
-	require.Equal(t, "https://s3.example.test/images/videos/task-1.mp4?signed=1", gjson.Get(recorder.Body.String(), "video_url").String())
+	require.Equal(t, "https://s3.example.test/videos/task-1.mp4?signed=1", gjson.Get(recorder.Body.String(), "video_url").String())
 	require.Equal(t, expiresAt.UnixMilli(), gjson.Get(recorder.Body.String(), "url_expires_at").Int())
 	require.Equal(t, "9007199254740993", gjson.Get(recorder.Body.String(), "counter").String())
 	require.Equal(t, []byte("video-payload"), storage.body)
@@ -411,7 +411,7 @@ func TestForwardGrokVideoStatusOffloadFailureKeepsCompletedResponse(t *testing.T
 
 func TestForwardGrokVideoContentRedirectsStoredVideo(t *testing.T) {
 	store := newMemoryVideoOffloadStore()
-	store.records["task-1"] = &VideoOffloadRecord{S3Key: "images/videos/task-1.mp4", UploadedAt: 1}
+	store.records["task-1"] = &VideoOffloadRecord{S3Key: "videos/task-1.mp4", UploadedAt: 1}
 	storage := &memoryVideoStorage{expiresAt: time.Now().Add(time.Hour)}
 	offload := videoOffloadTestService(store, storage, 1024)
 	upstream := &grokMediaContentUpstreamStub{responses: []*http.Response{
@@ -429,7 +429,7 @@ func TestForwardGrokVideoContentRedirectsStoredVideo(t *testing.T) {
 	require.NotNil(t, result)
 	require.Equal(t, "task-1", result.ResponseID)
 	require.Equal(t, http.StatusFound, recorder.Code)
-	require.Equal(t, "https://s3.example.test/images/videos/task-1.mp4?signed=1", recorder.Header().Get("Location"))
+	require.Equal(t, "https://s3.example.test/videos/task-1.mp4?signed=1", recorder.Header().Get("Location"))
 	require.Empty(t, recorder.Body.String())
 	require.Empty(t, upstream.requests, "stored content must not depend on xAI status or content")
 }

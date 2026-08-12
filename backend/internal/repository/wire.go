@@ -147,8 +147,9 @@ var ProviderSet = wire.NewSet(
 	NewPgDumper,
 	NewS3BackupStoreFactory,
 
-	// Image/video storage (async media result offload)
+	// Image/video storage (independent async media result offload settings)
 	ProvideImageStorageFactory,
+	ProvideVideoStorageFactory,
 
 	// HTTP service ports (DI Strategy A: return interface directly)
 	NewTurnstileVerifier,
@@ -190,6 +191,25 @@ func ProvideEnt(cfg *config.Config) (*ent.Client, error) {
 func ProvideImageStorageFactory() service.ImageStorageFactory {
 	return func(ctx context.Context, cfg *config.ImageStorageConfig) (service.ImageStorage, error) {
 		return NewS3ImageStorage(ctx, cfg)
+	}
+}
+
+// ProvideVideoStorageFactory uses the same S3-compatible client implementation
+// with an independent video configuration and lifecycle.
+func ProvideVideoStorageFactory() service.VideoStorageFactory {
+	return func(ctx context.Context, cfg *config.VideoStorageConfig) (service.VideoObjectStorage, error) {
+		return NewS3ImageStorage(ctx, &config.ImageStorageConfig{
+			Enabled:         cfg.Enabled,
+			Endpoint:        cfg.Endpoint,
+			Region:          cfg.Region,
+			Bucket:          cfg.Bucket,
+			AccessKeyID:     cfg.AccessKeyID,
+			SecretAccessKey: cfg.SecretAccessKey,
+			Prefix:          cfg.Prefix,
+			ForcePathStyle:  cfg.ForcePathStyle,
+			PresignExpiry:   cfg.PresignExpiry,
+			MaxDownloadByte: cfg.MaxDownloadByte,
+		})
 	}
 }
 

@@ -615,6 +615,11 @@ func registerBackupRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAut
 		backup.PUT("/image-storage", gin.HandlerFunc(stepUpAuth), h.Admin.Backup.UpdateImageStorageConfig)
 		backup.POST("/image-storage/test", h.Admin.Backup.TestImageStorageConnection)
 
+		// 异步视频对象存储配置（独立开关、存储桶、前缀和凭证）
+		backup.GET("/video-storage", h.Admin.Backup.GetVideoStorageConfig)
+		backup.PUT("/video-storage", gin.HandlerFunc(stepUpAuth), h.Admin.Backup.UpdateVideoStorageConfig)
+		backup.POST("/video-storage/test", h.Admin.Backup.TestVideoStorageConnection)
+
 		// 定时备份配置
 		backup.GET("/schedule", h.Admin.Backup.GetSchedule)
 		backup.PUT("/schedule", h.Admin.Backup.UpdateSchedule)

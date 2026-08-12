@@ -104,7 +104,7 @@ export default {
       },
       imageStorage: {
         title: 'Async image object storage',
-        description: 'Offloads asynchronous images and completed Grok videos to object storage. Shares the S3 client with backups and takes effect on save — no restart needed.',
+        description: 'Offloads asynchronous images to object storage. Changes take effect on save without a restart.',
         enabled: 'Enable async image tasks',
         reuseBackupS3: 'Reuse the backup S3 configuration above (different bucket/prefix only)',
         bucket: 'Bucket',
@@ -113,9 +113,20 @@ export default {
         publicBaseUrl: 'Public base URL',
         publicBaseUrlPlaceholder: 'Leave empty to return presigned links',
         presignExpiryHours: 'Presigned link TTL (hours)',
-        videoMaxDownloadBytes: 'Video transfer limit (bytes)',
-        videoMaxDownloadBytesHint: 'Completed videos larger than this stay on the original passthrough path. Default: 536870912 (512 MiB).',
         saved: 'Async image object storage saved'
+      },
+      videoStorage: {
+        title: 'Async video object storage',
+        description: 'Streams completed Grok videos to independent object storage. Changes take effect on save without a restart.',
+        enabled: 'Enable async video offload',
+        reuseBackupS3: 'Reuse the backup S3 configuration above (different bucket/prefix only)',
+        bucket: 'Bucket',
+        bucketInherited: 'Leave empty to use the backup bucket',
+        prefix: 'Key prefix',
+        presignExpiryHours: 'Presigned link TTL (hours)',
+        maxDownloadBytes: 'Video transfer limit (bytes)',
+        maxDownloadBytesHint: 'Completed videos larger than this stay on the original passthrough path. Default: 536870912 (512 MiB).',
+        saved: 'Async video object storage saved'
       },
       schedule: {
         title: 'Scheduled Backup',

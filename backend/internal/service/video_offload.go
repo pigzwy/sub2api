@@ -271,9 +271,9 @@ func buildVideoOffloadKey(prefix, requestID string) (string, error) {
 		prefix += "/"
 	}
 	// PathEscape keeps the request ID recognizable while preventing a crafted ID
-	// from escaping the dedicated videos/ sub-prefix.
+	// from escaping the configured video prefix.
 	safeID := strings.ReplaceAll(url.PathEscape(requestID), "/", "%2F")
-	return prefix + "videos/" + safeID + ".mp4", nil
+	return prefix + safeID + ".mp4", nil
 }
 
 func videoResponseContentLength(resp *http.Response) int64 {

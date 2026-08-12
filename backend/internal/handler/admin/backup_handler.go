@@ -11,13 +11,20 @@ type BackupHandler struct {
 	backupService *service.BackupService
 	userService   *service.UserService
 	imageStorage  *service.ImageStorageSettingService
+	videoStorage  *service.VideoStorageSettingService
 }
 
-func NewBackupHandler(backupService *service.BackupService, userService *service.UserService, imageStorage *service.ImageStorageSettingService) *BackupHandler {
+func NewBackupHandler(
+	backupService *service.BackupService,
+	userService *service.UserService,
+	imageStorage *service.ImageStorageSettingService,
+	videoStorage *service.VideoStorageSettingService,
+) *BackupHandler {
 	return &BackupHandler{
 		backupService: backupService,
 		userService:   userService,
 		imageStorage:  imageStorage,
+		videoStorage:  videoStorage,
 	}
 }
 
@@ -245,6 +252,48 @@ func (h *BackupHandler) TestImageStorageConnection(c *gin.Context) {
 		return
 	}
 	if err := h.imageStorage.TestConnection(c.Request.Context(), req); err != nil {
+		response.Success(c, gin.H{"ok": false, "message": err.Error()})
+		return
+	}
+	response.Success(c, gin.H{"ok": true, "message": "connection successful"})
+}
+
+// ─── 异步视频对象存储配置 ───
+
+func (h *BackupHandler) GetVideoStorageConfig(c *gin.Context) {
+	ctx := c.Request.Context()
+	cfg, err := h.videoStorage.Get(ctx)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{
+		"config":            cfg,
+		"secret_configured": h.videoStorage.SecretConfigured(ctx),
+	})
+}
+
+func (h *BackupHandler) UpdateVideoStorageConfig(c *gin.Context) {
+	var req service.VideoStorageSettings
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	cfg, err := h.videoStorage.Update(c.Request.Context(), req)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, cfg)
+}
+
+func (h *BackupHandler) TestVideoStorageConnection(c *gin.Context) {
+	var req service.VideoStorageSettings
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.videoStorage.TestConnection(c.Request.Context(), req); err != nil {
 		response.Success(c, gin.H{"ok": false, "message": err.Error()})
 		return
 	}
