@@ -35,6 +35,9 @@ type ImageStorageSettings struct {
 	PublicBaseURL    string `json:"public_base_url"`
 	PresignExpiry    int    `json:"presign_expiry_hours"`
 	MaxDownloadBytes int64  `json:"max_download_bytes"`
+	// VideoMaxDownloadBytes is optional for backward compatibility. Stored
+	// settings created before this field existed fall back to MaxDownloadBytes.
+	VideoMaxDownloadBytes int64 `json:"video_max_download_bytes"`
 
 	// 以下仅在 ReuseBackupS3 为假时使用
 	Endpoint        string `json:"endpoint"`
@@ -61,6 +64,8 @@ type ImageStorageSettingService struct {
 	mu       sync.Mutex
 	resolved bool
 	uploader *ImageResultUploader
+	video    VideoObjectStorage
+	videoOpt VideoStorageOptions
 	enabled  bool
 }
 
@@ -87,42 +92,76 @@ func (s *ImageStorageSettingService) Resolver() ImageStorageResolver {
 	}
 }
 
+// VideoResolver returns the same live S3 binding with video-specific limits.
+// It deliberately ignores public_base_url: VideoObjectStorage always presigns
+// completed videos so url_expires_at remains truthful.
+func (s *ImageStorageSettingService) VideoResolver() VideoStorageResolver {
+	return func() (VideoObjectStorage, VideoStorageOptions, bool) {
+		return s.resolveVideo()
+	}
+}
+
 func (s *ImageStorageSettingService) resolve() (*ImageResultUploader, bool) {
 	if s == nil {
 		return nil, false
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.resolveLocked()
+	return s.uploader, s.enabled
+}
+
+func (s *ImageStorageSettingService) resolveVideo() (VideoObjectStorage, VideoStorageOptions, bool) {
+	if s == nil {
+		return nil, VideoStorageOptions{}, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.resolveLocked()
+	return s.video, s.videoOpt, s.enabled && s.video != nil
+}
+
+func (s *ImageStorageSettingService) resolveLocked() {
 	if s.resolved {
-		return s.uploader, s.enabled
+		return
 	}
 
 	ctx := context.Background()
 	s.resolved = true
-	s.uploader, s.enabled = nil, false
+	s.uploader, s.video, s.videoOpt, s.enabled = nil, nil, VideoStorageOptions{}, false
 
 	cfg, err := s.effectiveConfig(ctx)
 	if err != nil {
 		logger.L().Warn("image_storage.settings_load_failed; async image tasks stay disabled", zap.Error(err))
-		return nil, false
+		return
 	}
 	if !cfg.Enabled {
-		return nil, false
+		return
 	}
 	if !cfg.IsConfigured() {
 		logger.L().Warn("image_storage is enabled but not fully configured; async image tasks are disabled",
 			zap.Strings("missing_keys", cfg.MissingCredentialKeys()))
-		return nil, false
+		return
 	}
 
 	storage, err := s.factory(ctx, cfg)
 	if err != nil {
 		logger.L().Error("image_storage.client_build_failed; async image tasks stay disabled", zap.Error(err))
-		return nil, false
+		return
 	}
 	s.uploader = NewImageResultUploader(storage, cfg.Prefix, cfg.MaxDownloadByte, nil)
+	if video, ok := storage.(VideoObjectStorage); ok {
+		maxBytes := cfg.VideoMaxDownloadBytes
+		if maxBytes <= 0 {
+			maxBytes = cfg.MaxDownloadByte
+		}
+		if maxBytes <= 0 {
+			maxBytes = defaultVideoMaxDownloadBytes
+		}
+		s.video = video
+		s.videoOpt = VideoStorageOptions{Prefix: cfg.Prefix, MaxDownloadBytes: maxBytes}
+	}
 	s.enabled = true
-	return s.uploader, true
 }
 
 // Invalidate 丢弃缓存，使下一次请求按最新设置重新解析。
@@ -133,6 +172,8 @@ func (s *ImageStorageSettingService) Invalidate() {
 	s.mu.Lock()
 	s.resolved = false
 	s.uploader = nil
+	s.video = nil
+	s.videoOpt = VideoStorageOptions{}
 	s.enabled = false
 	s.mu.Unlock()
 }
@@ -239,17 +280,18 @@ func (s *ImageStorageSettingService) effectiveConfig(ctx context.Context) (*conf
 
 func (s *ImageStorageSettingService) toImageStorageConfig(ctx context.Context, in *ImageStorageSettings) (*config.ImageStorageConfig, error) {
 	cfg := &config.ImageStorageConfig{
-		Enabled:         in.Enabled,
-		Bucket:          in.Bucket,
-		Prefix:          in.Prefix,
-		PublicBaseURL:   in.PublicBaseURL,
-		PresignExpiry:   in.PresignExpiry,
-		MaxDownloadByte: in.MaxDownloadBytes,
-		Endpoint:        in.Endpoint,
-		Region:          in.Region,
-		AccessKeyID:     in.AccessKeyID,
-		SecretAccessKey: in.SecretAccessKey,
-		ForcePathStyle:  in.ForcePathStyle,
+		Enabled:               in.Enabled,
+		Bucket:                in.Bucket,
+		Prefix:                in.Prefix,
+		PublicBaseURL:         in.PublicBaseURL,
+		PresignExpiry:         in.PresignExpiry,
+		MaxDownloadByte:       in.MaxDownloadBytes,
+		VideoMaxDownloadBytes: in.VideoMaxDownloadBytes,
+		Endpoint:              in.Endpoint,
+		Region:                in.Region,
+		AccessKeyID:           in.AccessKeyID,
+		SecretAccessKey:       in.SecretAccessKey,
+		ForcePathStyle:        in.ForcePathStyle,
 	}
 
 	if in.ReuseBackupS3 {
@@ -306,17 +348,18 @@ func (s *ImageStorageSettingService) load(ctx context.Context) (*ImageStorageSet
 
 func settingsFromConfig(cfg config.ImageStorageConfig) *ImageStorageSettings {
 	return &ImageStorageSettings{
-		Enabled:          cfg.Enabled,
-		Bucket:           cfg.Bucket,
-		Prefix:           cfg.Prefix,
-		PublicBaseURL:    cfg.PublicBaseURL,
-		PresignExpiry:    cfg.PresignExpiry,
-		MaxDownloadBytes: cfg.MaxDownloadByte,
-		Endpoint:         cfg.Endpoint,
-		Region:           cfg.Region,
-		AccessKeyID:      cfg.AccessKeyID,
-		SecretAccessKey:  cfg.SecretAccessKey,
-		ForcePathStyle:   cfg.ForcePathStyle,
+		Enabled:               cfg.Enabled,
+		Bucket:                cfg.Bucket,
+		Prefix:                cfg.Prefix,
+		PublicBaseURL:         cfg.PublicBaseURL,
+		PresignExpiry:         cfg.PresignExpiry,
+		MaxDownloadBytes:      cfg.MaxDownloadByte,
+		VideoMaxDownloadBytes: cfg.VideoMaxDownloadBytes,
+		Endpoint:              cfg.Endpoint,
+		Region:                cfg.Region,
+		AccessKeyID:           cfg.AccessKeyID,
+		SecretAccessKey:       cfg.SecretAccessKey,
+		ForcePathStyle:        cfg.ForcePathStyle,
 	}
 }
 
@@ -343,5 +386,10 @@ func normalizeImageStorageSettings(in *ImageStorageSettings) {
 	}
 	if in.MaxDownloadBytes <= 0 {
 		in.MaxDownloadBytes = defaultImageMaxDownloadBytes
+	}
+	if in.VideoMaxDownloadBytes <= 0 {
+		// Old rows have no video field. Preserve their chosen download policy by
+		// inheriting the image limit; new installations/default forms use 512 MiB.
+		in.VideoMaxDownloadBytes = in.MaxDownloadBytes
 	}
 }

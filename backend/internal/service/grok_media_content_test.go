@@ -3,12 +3,16 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
@@ -341,4 +345,136 @@ func TestRewriteGrokMediaVideoContentURLsRewritesSignedVideoURL(t *testing.T) {
 	require.Equal(t, "/v1/videos/request-1/content", gjson.GetBytes(rewritten, "video.url").String())
 	require.Equal(t, "8", gjson.GetBytes(rewritten, "video.duration").String())
 	require.Equal(t, "done", gjson.GetBytes(rewritten, "status").String())
+}
+
+func TestForwardGrokVideoStatusOffloadsAndAddsPresignedFields(t *testing.T) {
+	expiresAt := time.Unix(1786500000, 0).UTC()
+	storage := &memoryVideoStorage{expiresAt: expiresAt}
+	offload := videoOffloadTestService(newMemoryVideoOffloadStore(), storage, 1024)
+	statusBody := `{"id":"task-1","status":"done","model":"grok-imagine-video-1.5","video":{"url":"https://vidgen.x.ai/signed/task-1.mp4","duration":8},"counter":9007199254740993}`
+	upstream := &grokMediaContentUpstreamStub{responses: []*http.Response{
+		grokMediaContentStatusResponse(statusBody),
+		{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"video/mp4; codecs=h264"}},
+			Body:       io.NopCloser(bytes.NewReader([]byte("video-payload"))),
+		},
+	}}
+	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream, videoOffload: offload}
+	c, recorder := grokMediaContentTestContext(http.MethodGet, "https://api.example/v1/videos/task-1", nil)
+
+	_, err := svc.ForwardGrokMedia(
+		context.Background(), c, grokMediaContentTestAccount(),
+		GrokMediaEndpointVideoStatus, "task-1", nil, "",
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, "done", gjson.Get(recorder.Body.String(), "status").String())
+	require.Equal(t, "/v1/videos/task-1/content", gjson.Get(recorder.Body.String(), "video.url").String())
+	require.Equal(t, "https://s3.example.test/images/videos/task-1.mp4?signed=1", gjson.Get(recorder.Body.String(), "video_url").String())
+	require.Equal(t, expiresAt.UnixMilli(), gjson.Get(recorder.Body.String(), "url_expires_at").Int())
+	require.Equal(t, "9007199254740993", gjson.Get(recorder.Body.String(), "counter").String())
+	require.Equal(t, []byte("video-payload"), storage.body)
+	require.Equal(t, "video/mp4; codecs=h264", storage.contentType)
+	require.Len(t, upstream.requests, 2)
+	require.Empty(t, upstream.requests[1].Header.Get("Authorization"))
+}
+
+func TestForwardGrokVideoStatusOffloadFailureKeepsCompletedResponse(t *testing.T) {
+	storage := &memoryVideoStorage{uploadErr: errors.New("object storage down"), expiresAt: time.Now().Add(time.Hour)}
+	offload := videoOffloadTestService(newMemoryVideoOffloadStore(), storage, 1024)
+	statusBody := `{"id":"task-1","status":"done","video":{"url":"https://vidgen.x.ai/signed/task-1.mp4","duration":8}}`
+	upstream := &grokMediaContentUpstreamStub{responses: []*http.Response{
+		grokMediaContentStatusResponse(statusBody),
+		{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"video/mp4"}},
+			Body:       io.NopCloser(strings.NewReader("video-payload")),
+		},
+	}}
+	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream, videoOffload: offload}
+	c, recorder := grokMediaContentTestContext(http.MethodGet, "https://api.example/v1/videos/task-1", nil)
+
+	_, err := svc.ForwardGrokMedia(
+		context.Background(), c, grokMediaContentTestAccount(),
+		GrokMediaEndpointVideoStatus, "task-1", nil, "",
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, "done", gjson.Get(recorder.Body.String(), "status").String())
+	require.Equal(t, "/v1/videos/task-1/content", gjson.Get(recorder.Body.String(), "video.url").String())
+	require.False(t, gjson.Get(recorder.Body.String(), "video_url").Exists())
+	require.False(t, gjson.Get(recorder.Body.String(), "url_expires_at").Exists())
+}
+
+func TestForwardGrokVideoContentRedirectsStoredVideo(t *testing.T) {
+	store := newMemoryVideoOffloadStore()
+	store.records["task-1"] = &VideoOffloadRecord{S3Key: "images/videos/task-1.mp4", UploadedAt: 1}
+	storage := &memoryVideoStorage{expiresAt: time.Now().Add(time.Hour)}
+	offload := videoOffloadTestService(store, storage, 1024)
+	upstream := &grokMediaContentUpstreamStub{responses: []*http.Response{
+		grokMediaContentStatusResponse(`{"status":"done","video":{"url":"https://vidgen.x.ai/signed/task-1.mp4","duration":8}}`),
+	}}
+	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream, videoOffload: offload}
+	c, recorder := grokMediaContentTestContext(http.MethodGet, "https://api.example/v1/videos/task-1/content", nil)
+
+	result, err := svc.ForwardGrokMedia(
+		context.Background(), c, grokMediaContentTestAccount(),
+		GrokMediaEndpointVideoContent, "task-1", nil, "",
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, "task-1", result.ResponseID)
+	require.Equal(t, http.StatusFound, recorder.Code)
+	require.Equal(t, "https://s3.example.test/images/videos/task-1.mp4?signed=1", recorder.Header().Get("Location"))
+	require.Empty(t, recorder.Body.String())
+	require.Empty(t, upstream.requests, "stored content must not depend on xAI status or content")
+}
+
+func TestForwardGrokVideoContentResolveFailureFallsBackToPassthrough(t *testing.T) {
+	store := &failingVideoOffloadStore{getErr: errors.New("redis unavailable")}
+	storage := &memoryVideoStorage{expiresAt: time.Now().Add(time.Hour)}
+	offload := videoOffloadTestService(store, storage, 1024)
+	upstream := &grokMediaContentUpstreamStub{responses: []*http.Response{
+		grokMediaContentStatusResponse(`{"status":"completed"}`),
+		{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"video/mp4"}},
+			Body:       io.NopCloser(strings.NewReader("passthrough-video")),
+		},
+	}}
+	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream, videoOffload: offload}
+	c, recorder := grokMediaContentTestContext(http.MethodGet, "https://api.example/v1/videos/task-1/content", nil)
+
+	_, err := svc.ForwardGrokMedia(
+		context.Background(), c, grokMediaContentTestAccount(),
+		GrokMediaEndpointVideoContent, "task-1", nil, "",
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, "passthrough-video", recorder.Body.String())
+	require.Len(t, upstream.requests, 2)
+}
+
+type failingVideoOffloadStore struct {
+	mu     sync.Mutex
+	getErr error
+}
+
+func (s *failingVideoOffloadStore) TryLock(context.Context, string, time.Duration) (bool, error) {
+	return false, nil
+}
+
+func (s *failingVideoOffloadStore) Get(context.Context, string) (*VideoOffloadRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return nil, s.getErr
+}
+
+func (s *failingVideoOffloadStore) Save(context.Context, string, *VideoOffloadRecord, time.Duration) error {
+	return nil
 }

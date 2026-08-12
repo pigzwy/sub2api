@@ -126,6 +126,7 @@ var ProviderSet = wire.NewSet(
 	NewUpdateCache,
 	NewGeminiTokenCache,
 	NewImageTaskStore,
+	NewVideoOffloadStore,
 	NewBatchImageQueue,
 	NewBatchImageDownloadLimiter,
 	NewLeaderLockCache,
@@ -146,7 +147,7 @@ var ProviderSet = wire.NewSet(
 	NewPgDumper,
 	NewS3BackupStoreFactory,
 
-	// Image storage (async image task result offload)
+	// Image/video storage (async media result offload)
 	ProvideImageStorageFactory,
 
 	// HTTP service ports (DI Strategy A: return interface directly)

@@ -1286,7 +1286,7 @@ update:
   proxy_url: ""
 
 # =============================================================================
-# Image Storage (异步图片任务结果对象存储)
+# Image / Video Storage (异步媒体任务结果对象存储)
 # =============================================================================
 # 长耗时生图套 Cloudflare 会 524 超时，异步图片任务接口（/v1/images/generations/async
 # 等）先返回 task_id，再由客户端轮询 /v1/images/tasks/{task_id} 获取结果。
@@ -1320,3 +1320,5 @@ image_storage:
   presign_expiry_hours: 24
   # 当上游返回的是图片 url 时，下载该图片再转存的字节上限（默认 32MB）
   max_download_bytes: 33554432
+  # Grok 视频完成后流式转存的字节上限（默认 512MB）
+  video_max_download_bytes: 536870912

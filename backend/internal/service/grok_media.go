@@ -15,10 +15,12 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
+	"go.uber.org/zap"
 )
 
 type GrokMediaEndpoint string
@@ -711,6 +713,16 @@ func (s *OpenAIGatewayService) ForwardGrokMedia(
 		}
 	}
 	if endpoint == GrokMediaEndpointVideoStatus {
+		if IsGrokVideoStatusBillable(respBody) {
+			respBody = s.offloadCompletedGrokVideo(
+				upstreamCtx,
+				respBody,
+				account,
+				token,
+				requestID,
+				proxyURL,
+			)
+		}
 		respBody = rewriteGrokMediaVideoContentURLs(
 			respBody,
 			requestID,
@@ -756,6 +768,21 @@ func (s *OpenAIGatewayService) forwardGrokMediaVideoContent(
 	token, requestID string,
 	startTime time.Time,
 ) (*OpenAIForwardResult, error) {
+	// A persisted record outlives xAI's short task/content retention window. When
+	// it exists, serve it without making availability depend on upstream status.
+	if s.videoOffload != nil {
+		link, resolveErr := s.videoOffload.Resolve(ctx, requestID)
+		if resolveErr != nil {
+			logGrokVideoOffloadFailure(requestID, account, resolveErr)
+		} else if link != nil {
+			writeGrokVideoOffloadRedirect(c, link.URL)
+			return &OpenAIForwardResult{
+				ResponseID: strings.TrimSpace(requestID),
+				Duration:   time.Since(startTime),
+			}, nil
+		}
+	}
+
 	statusURL, err := buildGrokMediaURL(account, s.cfg, GrokMediaEndpointVideoStatus, requestID)
 	if err != nil {
 		return nil, err
@@ -864,9 +891,82 @@ func (s *OpenAIGatewayService) forwardGrokMediaVideoContent(
 	// Content download is an alternate completion observation: when status body is
 	// official done+video.url, attach billable units so the handler can claim once
 	// (same path as status polling). Pending snapshot is merged in the handler.
+	return grokVideoContentResult(statusBody, requestID, contentRequestID, contentResp.Header, startTime), nil
+}
+
+func (s *OpenAIGatewayService) offloadCompletedGrokVideo(
+	ctx context.Context,
+	statusBody []byte,
+	account *Account,
+	token, requestID, proxyURL string,
+) []byte {
+	if s == nil || s.videoOffload == nil {
+		return statusBody
+	}
+	link, err := s.videoOffload.ResolveOrOffload(ctx, requestID, func(downloadCtx context.Context) (*http.Response, error) {
+		return s.fetchGrokVideoOffloadSource(downloadCtx, statusBody, account, token, requestID, proxyURL)
+	})
+	if err != nil {
+		logGrokVideoOffloadFailure(requestID, account, err)
+		return statusBody
+	}
+	if link == nil {
+		return statusBody
+	}
+	out, err := sjson.SetBytes(statusBody, "video_url", link.URL)
+	if err != nil {
+		logGrokVideoOffloadFailure(requestID, account, fmt.Errorf("rewrite completed status video_url: %w", err))
+		return statusBody
+	}
+	out, err = sjson.SetBytes(out, "url_expires_at", link.ExpiresAt.UTC().UnixMilli())
+	if err != nil {
+		logGrokVideoOffloadFailure(requestID, account, fmt.Errorf("rewrite completed status url_expires_at: %w", err))
+		return statusBody
+	}
+	return out
+}
+
+func (s *OpenAIGatewayService) fetchGrokVideoOffloadSource(
+	ctx context.Context,
+	statusBody []byte,
+	account *Account,
+	token, requestID, proxyURL string,
+) (*http.Response, error) {
+	contentURL, err := grokMediaSignedVideoContentURL(statusBody, requestID)
+	if err != nil {
+		return nil, err
+	}
+	signedContent := contentURL != ""
+	if !signedContent {
+		contentURL, err = buildGrokMediaURL(account, s.cfg, GrokMediaEndpointVideoContent, requestID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	req, err := http.NewRequestWithContext(WithHTTPUpstreamRedirectsDisabled(ctx), http.MethodGet, contentURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "*/*")
+	if !signedContent {
+		req.Header.Set("Authorization", "Bearer "+token)
+		if account.IsGrokOAuth() && isGrokCLIProxyTarget(contentURL) {
+			applyGrokCLIHeaders(req.Header)
+		}
+		account.ApplyHeaderOverrides(req.Header)
+	}
+	return s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
+}
+
+func grokVideoContentResult(
+	statusBody []byte,
+	requestID, upstreamRequestID string,
+	responseHeaders http.Header,
+	startTime time.Time,
+) *OpenAIForwardResult {
 	result := &OpenAIForwardResult{
-		RequestID:       contentRequestID,
-		ResponseHeaders: contentResp.Header.Clone(),
+		RequestID:       upstreamRequestID,
+		ResponseHeaders: responseHeaders.Clone(),
 		Duration:        time.Since(startTime),
 	}
 	if billed := ExtractGrokVideoBillingFromStatusBody(statusBody, nil, requestID); billed != nil {
@@ -878,7 +978,25 @@ func (s *OpenAIGatewayService) forwardGrokMediaVideoContent(
 		result.VideoResolution = billed.VideoResolution
 		result.VideoDurationSeconds = billed.VideoDurationSeconds
 	}
-	return result, nil
+	return result
+}
+
+func writeGrokVideoOffloadRedirect(c *gin.Context, rawURL string) {
+	if c == nil || c.Writer == nil || c.Writer.Written() {
+		return
+	}
+	c.Header("Location", rawURL)
+	c.Status(http.StatusFound)
+	c.Writer.WriteHeaderNow()
+	MarkResponseCommitted(c)
+}
+
+func logGrokVideoOffloadFailure(requestID string, account *Account, err error) {
+	fields := []zap.Field{zap.String("request_id", strings.TrimSpace(requestID)), zap.Error(err)}
+	if account != nil {
+		fields = append(fields, zap.Int64("account_id", account.ID))
+	}
+	logger.L().Error("video_task.offload_failed", fields...)
 }
 
 func grokMediaSignedVideoContentURL(body []byte, requestID string) (string, error) {

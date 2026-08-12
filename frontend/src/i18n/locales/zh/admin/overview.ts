@@ -104,7 +104,7 @@ export default {
       },
       imageStorage: {
         title: '异步生图对象存储',
-        description: '开启后，异步生图接口可用，生成结果转存到对象存储，只把短链接写入 Redis。与备份共用同一套 S3 客户端，保存后立即生效，无需重启。',
+        description: '开启后，异步图片和已完成的 Grok 视频会转存到对象存储。与备份共用同一套 S3 客户端，保存后立即生效，无需重启。',
         enabled: '启用异步生图',
         reuseBackupS3: '复用上方备份的 S3 配置（只用不同的存储桶/前缀）',
         bucket: '存储桶',
@@ -113,6 +113,8 @@ export default {
         publicBaseUrl: '公开访问域名',
         publicBaseUrlPlaceholder: '留空则返回预签名临时链接',
         presignExpiryHours: '预签名链接有效期（小时）',
+        videoMaxDownloadBytes: '视频转存上限（字节）',
+        videoMaxDownloadBytesHint: '超过此大小的视频保留原透传路径。默认 536870912（512 MiB）。',
         saved: '异步生图对象存储配置已保存'
       },
       schedule: {

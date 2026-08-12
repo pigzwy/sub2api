@@ -410,6 +410,7 @@ type OpenAIGatewayService struct {
 	userRepo              UserRepository
 	userSubRepo           UserSubscriptionRepository
 	cache                 GatewayCache
+	videoOffload          *VideoOffloadService
 	cfg                   *config.Config
 	codexDetector         CodexClientRestrictionDetector
 	schedulerSnapshot     *SchedulerSnapshotService

@@ -117,6 +117,11 @@
             <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.imageStorage.presignExpiryHours') }}</label>
             <input v-model.number="imageStorageForm.presign_expiry_hours" type="number" min="1" class="input w-full" />
           </div>
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.imageStorage.videoMaxDownloadBytes') }}</label>
+            <input v-model.number="imageStorageForm.video_max_download_bytes" type="number" min="1" class="input w-full" />
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.imageStorage.videoMaxDownloadBytesHint') }}</p>
+          </div>
         </div>
 
         <div class="mt-4 flex flex-wrap gap-2">
@@ -453,6 +458,7 @@ const imageStorageForm = ref<ImageStorageConfig>({
   public_base_url: '',
   presign_expiry_hours: 24,
   max_download_bytes: 33554432,
+  video_max_download_bytes: 536870912,
   endpoint: '',
   region: 'auto',
   access_key_id: '',
@@ -640,6 +646,7 @@ async function loadImageStorageConfig() {
       ...config,
       prefix: config.prefix || 'images/',
       region: config.region || 'auto',
+      video_max_download_bytes: config.video_max_download_bytes || config.max_download_bytes || 536870912,
       secret_access_key: '',
     }
     imageStorageSecretConfigured.value = secret_configured

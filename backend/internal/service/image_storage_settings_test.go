@@ -6,9 +6,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
@@ -68,6 +70,18 @@ func (s *recordingStorage) Save(_ context.Context, key, _ string, _ []byte) (str
 	return "https://cdn.example.com/" + key, nil
 }
 
+type recordingVideoStorage struct {
+	recordingStorage
+}
+
+func (s *recordingVideoStorage) UploadVideo(context.Context, string, string, io.Reader) error {
+	return nil
+}
+
+func (s *recordingVideoStorage) PresignVideo(context.Context, string) (string, time.Time, error) {
+	return "https://storage.example.test/video", time.Now().Add(time.Hour), nil
+}
+
 func newImageStorageFixture(t *testing.T, fallback config.ImageStorageConfig) (*ImageStorageSettingService, *stubSettingRepo, *[]config.ImageStorageConfig) {
 	return newImageStorageFixtureWithKey(t, fallback, true)
 }
@@ -83,7 +97,7 @@ func newImageStorageFixtureWithKey(t *testing.T, fallback config.ImageStorageCon
 	var built []config.ImageStorageConfig
 	factory := func(_ context.Context, cfg *config.ImageStorageConfig) (ImageStorage, error) {
 		built = append(built, *cfg)
-		return &recordingStorage{}, nil
+		return &recordingVideoStorage{}, nil
 	}
 	return NewImageStorageSettingService(repo, encryptor, backup, factory, fallback), repo, &built
 }
@@ -251,4 +265,21 @@ func TestImageStorageSettingsFallBackToConfigFile(t *testing.T) {
 	require.True(t, fetched.Enabled)
 	require.Equal(t, "yaml-bucket", fetched.Bucket)
 	require.Empty(t, fetched.SecretAccessKey)
+}
+
+func TestImageStorageSettingsLegacyVideoLimitFallsBackToImageLimit(t *testing.T) {
+	svc, repo, _ := newImageStorageFixture(t, config.ImageStorageConfig{})
+	ctx := context.Background()
+	seedBackupS3(t, repo, BackupS3Config{
+		Bucket: "backup-bucket", AccessKeyID: "ak", SecretAccessKey: "sk",
+	})
+
+	// Simulate a row saved before video_max_download_bytes existed.
+	require.NoError(t, repo.Set(ctx, settingKeyImageStorageConfig,
+		`{"enabled":true,"reuse_backup_s3":true,"prefix":"images/","max_download_bytes":67108864}`))
+
+	storage, options, enabled := svc.resolveVideo()
+	require.True(t, enabled)
+	require.NotNil(t, storage)
+	require.Equal(t, int64(67108864), options.MaxDownloadBytes)
 }

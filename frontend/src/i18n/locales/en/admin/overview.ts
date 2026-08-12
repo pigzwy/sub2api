@@ -104,7 +104,7 @@ export default {
       },
       imageStorage: {
         title: 'Async image object storage',
-        description: 'Enables the asynchronous image endpoints and offloads generated images to object storage, keeping only short links in Redis. Shares the S3 client with backups and takes effect on save — no restart needed.',
+        description: 'Offloads asynchronous images and completed Grok videos to object storage. Shares the S3 client with backups and takes effect on save — no restart needed.',
         enabled: 'Enable async image tasks',
         reuseBackupS3: 'Reuse the backup S3 configuration above (different bucket/prefix only)',
         bucket: 'Bucket',
@@ -113,6 +113,8 @@ export default {
         publicBaseUrl: 'Public base URL',
         publicBaseUrlPlaceholder: 'Leave empty to return presigned links',
         presignExpiryHours: 'Presigned link TTL (hours)',
+        videoMaxDownloadBytes: 'Video transfer limit (bytes)',
+        videoMaxDownloadBytesHint: 'Completed videos larger than this stay on the original passthrough path. Default: 536870912 (512 MiB).',
         saved: 'Async image object storage saved'
       },
       schedule: {
