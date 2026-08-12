@@ -176,7 +176,7 @@ func (s *VideoOffloadService) ResolveOrOffload(
 		return presignVideoOffload(ctx, storage, record)
 	}
 
-	var offloadCtx context.Context = context.Background()
+	offloadCtx := context.Background()
 	if ctx != nil {
 		offloadCtx = context.WithoutCancel(ctx)
 	}

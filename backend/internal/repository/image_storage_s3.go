@@ -57,11 +57,13 @@ func NewS3ImageStorage(ctx context.Context, cfg *config.ImageStorageConfig) (*S3
 // At most roughly PartSize*Concurrency bytes are buffered, independent of the
 // total video size.
 func (s *S3ImageStorage) UploadVideo(ctx context.Context, key, contentType string, body io.Reader) error {
+	//nolint:staticcheck // SA1019: manager.Uploader is intentionally used for bounded-memory multipart streaming.
 	uploader := manager.NewUploader(s.client, func(u *manager.Uploader) {
 		u.PartSize = 8 << 20 // 8 MiB
 		u.Concurrency = 3
 	})
 	finish := servertiming.ObserveDependency(ctx, "s3")
+	//nolint:staticcheck // SA1019: keep the same manager.Uploader operation documented above.
 	_, err := uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket:      &s.bucket,
 		Key:         &key,
