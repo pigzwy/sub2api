@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -38,33 +39,51 @@ func NewS3BackupStoreFactory() service.BackupObjectStoreFactory {
 }
 
 func (s *S3BackupStore) Upload(ctx context.Context, key string, body io.Reader, contentType string) (int64, error) {
-	// PutObject 需要可重复读取的 body 和明确长度；先落临时文件，避免大备份整体进内存。
-	tmp, err := os.CreateTemp("", "sub2api-backup-*.sql.gz")
+	// 读取全部内容以获取大小（S3 PutObject 需要知道内容长度）
+	// 注意：阿里云 OSS 不兼容 s3manager 分片上传的签名方式，因此使用 PutObject
+	data, err := io.ReadAll(body)
 	if err != nil {
-		return 0, fmt.Errorf("create temp backup file: %w", err)
+		return 0, fmt.Errorf("read body: %w", err)
 	}
-	defer func() { _ = os.Remove(tmp.Name()) }()
-	defer func() { _ = tmp.Close() }()
 
-	sizeBytes, err := io.Copy(tmp, body)
+	finish := servertiming.ObserveDependency(ctx, "s3")
+	_, err = s.client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      &s.bucket,
+		Key:         &key,
+		Body:        bytes.NewReader(data),
+		ContentType: &contentType,
+	})
+	finish()
 	if err != nil {
-		return 0, fmt.Errorf("spool backup body: %w", err)
+		return 0, fmt.Errorf("S3 PutObject: %w", err)
 	}
-	if _, err := tmp.Seek(0, io.SeekStart); err != nil {
-		return 0, fmt.Errorf("rewind backup body: %w", err)
+	return int64(len(data)), nil
+}
+
+func (s *S3BackupStore) UploadFile(ctx context.Context, key string, filePath string, contentType string) (int64, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return 0, fmt.Errorf("open upload file: %w", err)
 	}
+	defer func() { _ = file.Close() }()
+
+	info, err := file.Stat()
+	if err != nil {
+		return 0, fmt.Errorf("stat upload file: %w", err)
+	}
+	sizeBytes := info.Size()
 
 	finish := servertiming.ObserveDependency(ctx, "s3")
 	_, err = s.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:        &s.bucket,
 		Key:           &key,
-		Body:          tmp,
+		Body:          file,
 		ContentLength: &sizeBytes,
 		ContentType:   &contentType,
 	})
 	finish()
 	if err != nil {
-		return 0, fmt.Errorf("S3 PutObject: %w", err)
+		return 0, fmt.Errorf("S3 PutObject file: %w", err)
 	}
 	return sizeBytes, nil
 }
