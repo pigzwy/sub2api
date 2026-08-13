@@ -5,7 +5,9 @@
 > 原始审计基线：分支 `request-audit`，HEAD `59f4a8917`（2026-08-10）。
 > 全程只读，未修改源码、未构建、未重启、未读取任何 `.env`/密钥。
 >
-> **2026-08-13 复核**：在 HEAD `645415b59`（比原基线多 121 个提交）重新核对。A 节十条核心结论与 `router.go:86/93`、`embed_on.go:103-104`、`embed_on.go:355-370` 等关键引用**行号仍精确命中**，结论继续成立。本次复核修正了 B3 节的两处过期事实并补充了新增端点，逐条见该节标注。
+> **2026-08-13 复核**：在 HEAD `645415b59`（比原基线多 121 个提交）逐条核对了全文 128 条 `文件:行号` 引用——**99 条精确命中，27 条行号漂移（逻辑未变，几乎全是 `gateway.go` 插入两段路由造成的 +2/+10/+18 位移，见 B7 表注），2 条失效**。
+> A 节十条核心结论中**九条继续成立**（含 SPA 全局吞噬、根级别名影子、fail-open/fail-close 分裂、无认证头早拒这四条防护基石，其 `router.go:86/93`、`embed_on.go:103-104`、`embed_on.go:355-370`、`panel_rate_limit.go:90-94/126-129`、`api_key_auth.go:94` 等引用行号仍精确命中）；**唯一失效的是结论 5 关于 `settings/public` 无缓存的断言**，已在该条就地标注。D 节规则草案的安全前提未被动摇。
+> 本次复核另修正了 B3 节的过期事实、补充了新增端点与 `/x_search` 根级别名，并新增规则 5B，逐条见对应章节标注。
 > 本文档同时**取代**原 `CLOUDFLARE_PROTECTION_PLAN_CN.md`：该方案存在 C 节列出的 7 项缺口，其规则设计已由 D 节替代，其仍然有效的源站与 Caddy 操作步骤已并入本文档附录二。
 
 ---
@@ -26,13 +28,16 @@
 
 1. **SPA 中间件在所有 API 路由之前全局注册且不校验 HTTP 方法**（`router.go:86` 的 `r.Use(frontendServer.Middleware())` 早于 `router.go:93` 的 `registerRoutes`；`embed_on.go:87-118` 只按路径前缀判断）。任何非 bypass 路径 + 非静态文件的请求，**无论方法**，都返回 `index.html` 200（`embed_on.go:103-104`），且**绕过所有 API 认证与限流**。这就是 `POST /login`、`POST /register`、`POST /任意页面` 返回 index.html 的根因。
 
-2. **~12 个根级网关别名被 SPA 吞掉**：`shouldBypassEmbeddedFrontend`（`embed_on.go:355-370`）漏掉了 `POST /chat/completions`（`gateway.go:366`）、`POST /embeddings`（`gateway.go:373`）、`POST /messages/count_tokens`（`gateway.go:351`）、`POST /videos`（精确，`gateway.go:391`）、`/tts /stt /custom-voices /realtime /web_search`（`gateway.go:414-438`）。embed 生产镜像下这些根别名**永远到不了 handler**。含义：CF 层 block「页面路径的写方法」对真实客户端**零损失**（真实流量走 `/v1/*`）。
+2. **~12 个根级网关别名被 SPA 吞掉**：`shouldBypassEmbeddedFrontend`（`embed_on.go:355-370`）漏掉了 `POST /chat/completions`（`gateway.go:376`）、`POST /embeddings`（`gateway.go:383`）、`POST /messages/count_tokens`（`gateway.go:361`）、`POST /videos`（精确，`gateway.go:401`）、`/tts /stt /custom-voices /realtime /web_search`（`gateway.go:424-448`）、以及 **`POST /x_search`（`gateway.go:456`，2026-08-13 补）**。embed 生产镜像下这些根别名**永远到不了 handler**。含义：CF 层 block「页面路径的写方法」对真实客户端**零损失**（真实流量走 `/v1/*`）。
+   > **2026-08-13 复核**：`embed_on.go` 的 bypass 白名单自基线**一行未改**，本条完全成立；上面的 `gateway.go` 行号已按当前 HEAD 更新（原文写的是基线行号，因 `gateway.go` 插入 `/x_search` 与 gemini 分支而整体后移）。新增的 `POST /x_search` 是本分支后加的第 10 个被吞根别名，规则 1 会一并 block，与既有处理一致，不引入新误伤。
 
 3. **两套限流器 Redis 失效语义相反**：`/api/v1/auth/*` 应用层限流 **fail-CLOSE**（Redis 挂→429，`rate_limiter.go:140-145`）；面板/公开限流（settings、model-plaza、admin、user）**fail-OPEN**（放行，`panel_rate_limit.go:90-94,126-129`）。且公开 IP 限流**跳过私网/代理 IP**（`panel_rate_limit.go:141-151`）——若 `trusted_proxies` 配错导致转发 IP 落私网段，公开限流形同虚设。→ **Redis 被打挂时，DB-heavy 公开口失去应用层保护，CF 边缘限流是唯一兜底。**
 
 4. **无认证头的网关请求在中间件早期被拒，不触达 key DB**（Anthropic 式 `api_key_auth.go:94` 401 早于 `:100` 的 `GetByKey`；Google 式 `api_key_auth_google.go:51`）。但拒绝前会调用滥用计数器（`ingress_reject.go`，Redis/内存，`api_key_auth.go:37,88`）。→ 无头洪泛在应用层廉价但仍打 Redis；**在 CF 边缘 block 无认证头请求收益最大**。
 
-5. **三个匿名可达、每请求打 DB 的放大面**：`GET /api/v1/settings/public`（每请求**无缓存**读 ~50 个设置键，`auth.go:246`→`setting_public.go:157`，SPA 渲染依赖）、`GET /api/v1/model-plaza`（`model_plaza.go:28`）、`GET /api/v1/pages/:slug/images/*filename`（**无 JWT、无限流** + DB 可见性检查 + 文件系统读，`page_handler.go:274`）。这些是主要匿名 CC 目标。
+5. **三个匿名可达、打 DB 的放大面**：`GET /api/v1/settings/public`（读 ~50 个设置键，`auth.go:246`→`setting_public.go:312`）、`GET /api/v1/model-plaza`（`model_plaza.go:28`）、`GET /api/v1/pages/:slug/images/*filename`（**无 JWT、无限流** + DB 可见性检查 + 文件系统读，`page_handler.go:274`）。这些是主要匿名 CC 目标。
+   > **2026-08-13 修订**：本条原文称 `settings/public` 为「每请求**无缓存**读」并引 `setting_public.go:157`——**该事实已失效**，是本次复核中十条结论里唯一不再成立的一条。现在 `GetPublicSettings` 移至 `setting_public.go:312`，带 5 秒进程内 TTL 缓存（`publicSettingsCacheTTL`，`:21`）与 singleflight 并发合并（`:319`），DB 加载下沉到 `loadPublicSettings`（`:357`），设置更新时由 `invalidatePublicSettingsCache`（`:54`）主动失效。
+   > **但本条的防护结论不变**：缓存只有 5 秒，且 `model-plaza` 与 `pages/*/images/*` 完全没有缓存，结论 3 的 fail-open 缺口一个都没堵——规则 5 仍需保留，只是对 `settings/public` 一路的紧迫性下降。
 
 6. **所有支付 webhook 是服务器到服务器、且已在 1MB 原始 body 上做加密签名校验**（`payment_webhook_handler.go:77-83`；easypay MD5、alipay/wxpay RSA、stripe/airwallex HMAC）。→ CF 对 `/api/v1/payment/webhook/*` **必须「仅限速、绝不 challenge」**；任何 JS/交互式 challenge 都会打断回调并触发服务商重试/告警（wxpay 尤甚：未知 provider 返回 400 而非 200 ack，`payment_webhook_handler.go:93-96`）。
 
@@ -42,7 +47,7 @@
 
 9. **静态资源查询串被源站完全忽略**（`http.FileServer`，`embed_on.go:71`），生产 embed 构建下 `/assets/*` **不存在**合法查询参数（无 `new URL(...import.meta.url)`、无 PWA/workbox、无字体 `url()` 参数、代码分割 chunk 不带 `?`）。资源头 `public, max-age=31536000, immutable` 无 ETag（`static_cache.go:13`）。→ CF 推荐**「忽略查询串作为缓存键」**（零风险，堵住 `?cachebuster=N` 缓存穿透），而非直接 block。
 
-10. **源站请求体上限高达 256MB**（全局 `http.MaxBytesHandler`，`http.go:127-133`；网关 `max_body_size`=256MB `config.go:2361`，文本类 32MB `config.go:2362`），且无 `WriteTimeout/ReadTimeout`（`http.go:123-124`，为流式）。→ 直连源站的大 body 攻击代价低；**锁死源站只放行 CF 网段是所有规则的前提**。
+10. **源站请求体上限高达 256MB**（全局 `http.MaxBytesHandler`，`http.go:127-133`；网关 `max_body_size`=256MB `config.go:2416`，文本类 32MB `config.go:2417`），且无 `WriteTimeout/ReadTimeout`（`http.go:123-124`，为流式）。→ 直连源站的大 body 攻击代价低；**锁死源站只放行 CF 网段是所有规则的前提**。
 
 ---
 
@@ -67,6 +72,7 @@
 | POST | /api/v1/auth/register | 是 | ✅ 前置（有 verify_code 时跳过） | **5** | bcrypt+DB+邮件 | auth.go:35 / handler:188 |
 | POST | /api/v1/auth/login | 是 | ✅ **bcrypt 之前**（handler:247 先于 svc:551） | **20** | bcrypt+DB(+Redis TOTP) | auth.go:38 |
 | POST | /api/v1/auth/login/2fa | 是 | ❌（temp-token 门控） | 20 | Redis+TOTP+DB | auth.go:41 |
+| POST | /api/v1/auth/passkey/login/{begin,finish} | 是 | ❌ | **20** | WebAuthn 校验+DB | auth.go:44,47（2026-08-13 补，基线漏列） |
 | POST | /api/v1/auth/send-verify-code | 是 | ✅ 前置 | **5** | DB+**发邮件** | auth.go:50 |
 | POST | /api/v1/auth/refresh | 是 | ❌ | 30 | Redis+DB | auth.go:54 |
 | POST | /api/v1/auth/logout | 是 | ❌ | **无** | — | auth.go:58 |
@@ -82,7 +88,7 @@
 | POST | …/{bind-login} | 是 | ❌ **DB+bcrypt 无 captcha** | 10-20 | DB+bcrypt | auth_oauth_pending_flow.go:1623 |
 | POST | …/{create-account} | 是 | ✅（但在 DB 查重**之后**） | 10 | DB+bcrypt | auth_oauth_pending_flow.go:1709 |
 | POST | /api/v1/auth/oauth/pending/{exchange,send-verify-code} | 是 | send-code ✅ / exchange ❌ | 20/5 | Redis(+邮件) | auth.go:121,127 |
-| GET/POST | /api/v1/auth/me · /revoke-all-sessions · /oauth/bind-token | 否 | — | Global(240) | JWT | auth.go:257,259,260 |
+| GET/POST | /api/v1/auth/me · /revoke-all-sessions · /oauth/bind-token | 否 | — | Global(240) | JWT | auth.go:260,262,263 |
 
 ### B3. 设置/广场/页面（公开子集，SPA 已 bypass `/api/`）
 
@@ -99,7 +105,7 @@
 | GET | /api/v1/pages | 否 | adminAuth | — | — | page_handler.go:282 |
 
 ### B4. 管理面 `/api/v1/admin/*`（`adminAuth`+`Global(240)`+`auditLog`+`AdminComplianceGuard`，`admin.go:23-29`）
-~250 条全部需 admin JWT 或 admin `x-api-key`（`admin_auth.go:28`），**无一公开**。敏感导出/备份/S3 额外需 step-up 2FA（`admin.go:399,494,593-596,623-631`）。代表：`/admin/users`(297)、`/admin/settings`(540)、`/admin/settings/panel-rate-limit`(560-561)、`/admin/ops/*`(186-272)、`/admin/accounts/*`(352-421)。
+~250 条全部需 admin JWT 或 admin `x-api-key`（`admin_auth.go:28`），**无一公开**。敏感导出/备份/S3 额外需 step-up 2FA（`admin.go:399,494,593-596,628-636`）。代表：`/admin/users`(297)、`/admin/settings`(540)、`/admin/settings/panel-rate-limit`(560-561)、`/admin/ops/*`(186-272)、`/admin/accounts/*`(352-421)。
 
 ### B5. 用户面 `/api/v1/{user,keys,groups,channels,usage,announcements,redeem,subscriptions,channel-monitor*}/*`（JWT+`Global(240)`+`auditLog`，`user.go:20-26`）
 全部需 JWT。`usage`(100)、api-key daily(40)、channel-monitor-v2(147) 叠加 `Heavy(60)`。`POST /api/v1/redeem` 在此组（`user.go:123`），非 `/auth`。
@@ -124,29 +130,29 @@
 
 | 组/路径 | 方法 | 认证 | Body | 流式 | 文件:行 |
 |---|---|---|---|---|---|
-| /v1/messages, /v1/responses(+/*subpath), /v1/chat/completions | POST | api-key | 256MB | **SSE** | gateway.go:187,205,224 |
-| /v1/embeddings, /v1/alpha/search | POST | api-key | **32MB** | 否 | gateway.go:231,219 |
-| /v1/responses (GET) | GET | api-key | — | **WebSocket** | gateway.go:220 |
-| /v1/live/:call_id (GET) | GET | api-key | — | **WebSocket** | gateway.go:203 |
-| /v1/realtime (GET, Grok) | GET | api-key | — | **WebSocket** | gateway.go:302 |
-| /v1/messages/count_tokens, /v1/models, /v1/usage, /v1/sub2api/billing | POST/GET | api-key | 256MB | 否 | gateway.go:196,200,201,182 |
-| /v1/images/*（~15 条 gen/edit/async/batches/tasks） | POST/GET/DELETE | api-key | 256MB | 否 | gateway.go:244-258 |
-| /v1/videos/*（~13 条 gen/edit/ext/status/content） | POST/GET | api-key | 256MB | 否 | gateway.go:261-272 |
-| /v1/{tts,stt,custom-voices,web_search}（Grok） | POST/GET/PATCH/DELETE | api-key | 256MB | 否 | gateway.go:286-317 |
-| /v1beta/models, /v1beta/models/:model | GET | google(?key=) | 256MB | 否 | gateway.go:330,331 |
-| /v1beta/models/*modelAction | POST | google(?key=) | 256MB | **SSE**(streamGenerateContent) | gateway.go:333 |
-| **根** /responses(+/*subpath), /alpha/search, /models | POST/GET | api-key | 256/32MB | **SSE**/WS | gateway.go:344-350 |
-| **根** /messages/count_tokens | POST | api-key | 256MB | 否（**被 SPA 吞**） | gateway.go:351 |
-| /backend-api/codex/{responses(+/*subpath),alpha/search,models,realtime/calls,:call_id} | POST/GET | api-key | 256/32MB | **SSE**/WS | gateway.go:355-363 |
-| **根** /chat/completions, /embeddings | POST | api-key | 256/32MB | **（被 SPA 吞）** | gateway.go:366,373 |
-| **根** /videos,/tts,/stt,/custom-voices,/realtime,/web_search | 各 | api-key | 256MB | **（被 SPA 吞）** | gateway.go:391-438 |
-| /antigravity/models | GET | api-key(**无 bodyLimit**) | — | 否 | gateway.go:448 |
-| /antigravity/v1/{messages,messages/count_tokens,models,usage} | POST/GET | ForcePlatform+api-key | 256MB | **SSE** | gateway.go:460-463 |
-| /antigravity/v1beta/models(+/:model,/*modelAction) | GET/POST | ForcePlatform+google | 256MB | **SSE** | gateway.go:475-477 |
+| /v1/messages, /v1/responses(+/*subpath), /v1/chat/completions | POST | api-key | 256MB | **SSE** | gateway.go:189,207,226 |
+| /v1/embeddings, /v1/alpha/search | POST | api-key | **32MB** | 否 | gateway.go:233,221 |
+| /v1/responses (GET) | GET | api-key | — | **WebSocket** | gateway.go:222 |
+| /v1/live/:call_id (GET) | GET | api-key | — | **WebSocket** | gateway.go:205 |
+| /v1/realtime (GET, Grok) | GET | api-key | — | **WebSocket** | gateway.go:304 |
+| /v1/messages/count_tokens, /v1/models, /v1/usage, /v1/sub2api/billing | POST/GET | api-key | 256MB | 否 | gateway.go:198,202,203,184 |
+| /v1/images/*（~15 条 gen/edit/async/batches/tasks） | POST/GET/DELETE | api-key | 256MB | 否 | gateway.go:246-260 |
+| /v1/videos/*（12 条 gen/edit/ext/status/content） | POST/GET | api-key | 256MB | 否 | gateway.go:263-274 |
+| /v1/{tts,stt,custom-voices,web_search,x_search}（Grok） | POST/GET/PATCH/DELETE | api-key | 256MB | 否 | gateway.go:288-322 |
+| /v1beta/models, /v1beta/models/:model | GET | google(?key=) | 256MB | 否 | gateway.go:340,341 |
+| /v1beta/models/*modelAction | POST | google(?key=) | 256MB | **SSE**(streamGenerateContent) | gateway.go:343 |
+| **根** /responses(+/*subpath), /alpha/search, /models | POST/GET | api-key | 256/32MB | **SSE**/WS | gateway.go:354-360 |
+| **根** /messages/count_tokens | POST | api-key | 256MB | 否（**被 SPA 吞**） | gateway.go:361 |
+| /backend-api/codex/{responses(+/*subpath),alpha/search,models,realtime/calls,:call_id} | POST/GET | api-key | 256/32MB | **SSE**/WS | gateway.go:362-373 |
+| **根** /chat/completions, /embeddings | POST | api-key | 256/32MB | **（被 SPA 吞）** | gateway.go:376,383 |
+| **根** /videos,/tts,/stt,/custom-voices,/realtime,/web_search,/x_search | 各 | api-key | 256MB | **（被 SPA 吞）** | gateway.go:401-456 |
+| /antigravity/models | GET | api-key(**无 bodyLimit**) | — | 否 | gateway.go:466 |
+| /antigravity/v1/{messages,messages/count_tokens,models,usage} | POST/GET | ForcePlatform+api-key | 256MB | **SSE** | gateway.go:478-481 |
+| /antigravity/v1beta/models(+/:model,/*modelAction) | GET/POST | ForcePlatform+google | 256MB | **SSE** | gateway.go:493-495 |
 
 **2026-08-13 补充：gemini 分组不再只在 `/v1beta/*`**。`imagesHandler` 现在对 `PlatformGemini` 分发到 `GatewayHandler.GeminiImages`（`gateway.go:85-86`、`gemini_images.go:37`），因此 gemini 分组的出图请求走 `/v1/images/{generations,edits}` 与对应异步端点。**规则 3 无需为此放宽**：`/v1` 组仍然拒绝 `?key=` 查询认证（`api_key_auth.go:49-56` 直接 400），gemini 走这条路时必须带 `Authorization` 或 `x-api-key`，无认证头拦截依然安全。
 
-**WebSocket 路由汇总**（`coderws.Accept`）：`GET /v1/responses`、`GET /responses`、`GET /backend-api/codex/responses`（`openai_gateway_handler.go:1661`）；`GET /v1/live/:call_id`、`GET /backend-api/codex/:call_id`（`openai_live.go:217`）；`GET /v1/realtime`、`GET /realtime`（`grok_audio.go:81`）。
+**WebSocket 路由汇总**（`coderws.Accept`）：`GET /v1/responses`、`GET /responses`、`GET /backend-api/codex/responses`（`openai_gateway_handler.go:1665`）；`GET /v1/live/:call_id`、`GET /backend-api/codex/:call_id`（`openai_live.go:217`）；`GET /v1/realtime`、`GET /realtime`（`grok_audio.go:81`）。
 
 ### B8. Setup 首次安装流（独立引擎，仅安装前）
 `runSetupServer()` 单独 `gin.New()`（`main.go:97-104`），仅 `setup.NeedsSetup()` 为真时挂载。`test-db`/`test-redis`/`install` 均 `setupGuard()` 门控（`setup/handler.go:54-63`），装机后一律 403 且不再注册。**装机后不可滥用**；唯一残余风险是安装前 `test-db`/`test-redis` 可拨号任意（已校验）host:port（`handler.go:169,223`）。正常运行态仅剩静态 `/setup/status`（`common.go:23`）。
@@ -284,7 +290,7 @@
 | E-11 | `GET /assets/app.js?rand=1..50` | 全部同一缓存对象（`cf-cache-status: HIT`），源站不涨请求 | 规则3B/结论9 |
 | E-12 | `GET /assets/<hash>.js` 连续两次 | 第二次 `HIT` | 规则3B |
 | E-13 | 直连源站 IP `https://<origin>/` | 超时/拒绝（防火墙只放行 CF） | 结论10 |
-| E-14 | `GET /api/v1/settings/public` ×70/min 单 IP | 第 ~60 次后 429 | 规则5/结论5 |
+| E-14 | `GET /api/v1/settings/public` ×70/min 单 IP | 第 ~60 次后 429（由 CF 规则 5 产生；应用层 5 秒缓存不影响边缘计数） | 规则5/结论5 |
 
 **回滚总原则**：所有规则先以 `log` 动作灰度 24–48h（看 Security Events 误杀），再切 `block`/`rate-limit`；应急 challenge 规则常关；任一规则可独立删除，互不依赖（skip 类除外，删除后 OWASP 误杀风险回归，需同步评估）。
 
@@ -293,7 +299,7 @@
 ## F. 无法确认的事项
 
 1. **运行镜像对应的 commit**：`llpig/sub2api:request-audit` 是**可变 tag**，每次 push `request-audit` 分支覆盖（`fork-docker-build.yml:80-99`）。源码无法回答运行态是哪个 commit——需 `docker inspect` digest、应用版本端点、或对应的不可变 `:request-audit-<shortcommit>` tag。
-2. **能否构建出 `llpig/...`**：**能，当且仅当** 仓库 secret `DOCKER_HUB_USERNAME=llpig`（`fork-docker-build.yml:36`）。secret 值无法读取（且按规则禁止读取密钥）。
+2. **能否构建出 `llpig/...`**：**能，当且仅当** 仓库 secret `DOCKER_HUB_USERNAME=llpig`（`fork-docker-build.yml:28`）。secret 值无法读取（且按规则禁止读取密钥）。
 3. **参考文档不存在**：`/home/pig/docs/CF 防护/参考－Sub2API防CC与DDoS方案.md` 及 `/home/pig/docs/` 整个目录缺失，第八节无法对真实文档逐条比对（C 节改为对照仓库内 `CLOUDFLARE_PROTECTION_PLAN_CN.md`）。如有真实路径，可再比对。
 4. **生产真实 IP 链路状态**：`server.trusted_proxies` 是否配置、`TrustForwardedIP` 开关是否开启，属运行时配置（`.env`/DB），源码不含，且禁止读取密钥/env——**未确认**。这直接决定结论 3 的公开限流是否真的生效。
 5. **是否 embed 构建**：`Dockerfile:94` 用 `-tags embed`，故官方镜像应为 embed（SPA 吞噬结论成立）；但无法在不 inspect 运行镜像的前提下 100% 确认部署用的就是该 Dockerfile 产物。
@@ -305,10 +311,10 @@
 
 ## 附录：版本与构建确认（第一节）
 
-- **分支/commit**：`request-audit`，HEAD `59f4a8917f3c79484536d0d06d7d3d6bbab83eb4`（2026-08-10 00:28:33 UTC，`fix(ci): clear response model billing checks`）。
-- **Tag**：HEAD 无 tag；最近可达 `v0.1.173`；`git describe --tags` = `v0.1.173-79-g59f4a8917`（领先 79 个提交）。
+- **原始审计基线**：`request-audit`，HEAD `59f4a8917f3c79484536d0d06d7d3d6bbab83eb4`（2026-08-10 00:28:33 UTC，`fix(ci): clear response model billing checks`），当时 `git describe --tags` = `v0.1.173-79-g59f4a8917`。
+- **2026-08-13 复核基线**：`request-audit`，HEAD `645415b59`（领先原基线 121 个提交），上游基线已同步至 `fbfdcef81`（v0.1.176+）。本节以下条目经复核仍然成立。
 - **Dockerfile**：多阶段，前端 `node:24-alpine` + 后端 `golang:1.26.5-alpine`，`-tags embed` 内嵌前端（`Dockerfile:94`），`-X main.Commit=${COMMIT}` 注入短 commit（`Dockerfile:95`）。
-- **CI**：`.github/workflows/fork-docker-build.yml` —— push `request-audit` 分支构建并推送 `${DOCKER_HUB_USERNAME}/sub2api:request-audit` + `:request-audit-<shortcommit>` + `:request-audit-build-<timestamp>`（`fork-docker-build.yml:80-99`），`DOCKER_IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/sub2api`（`:36`）。
+- **CI**：`.github/workflows/fork-docker-build.yml` —— push `request-audit` 分支构建并推送 `${DOCKER_HUB_USERNAME}/sub2api:request-audit` + `:request-audit-<shortcommit>` + `:request-audit-build-<timestamp>`（`fork-docker-build.yml:80-99`），`DOCKER_IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/sub2api`（`:28`）。
 - **能否构建 `llpig/sub2api:request-audit`**：能，当且仅当 `DOCKER_HUB_USERNAME=llpig`（见 F-2）。
 - **无法确认运行镜像的 commit**：`:request-audit` 可变 tag（见 F-1）。
 
