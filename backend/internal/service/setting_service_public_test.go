@@ -37,6 +37,12 @@ func TestSettingService_GetCompactPublicSettings_RemovesLargeInlineAssets(t *tes
 	require.Equal(t, "large legal body", legacy.LoginAgreementDocuments[0].ContentMD)
 }
 
+func TestCompactSiteLogo_PreservesUnsupportedDataURL(t *testing.T) {
+	svg := `data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%3E%3C/svg%3E`
+	require.Equal(t, svg, compactSiteLogo(svg))
+	require.Equal(t, "https://cdn.example.com/logo.svg", compactSiteLogo("https://cdn.example.com/logo.svg"))
+}
+
 func TestSettingService_PublicAssetsRequireCurrentRevision(t *testing.T) {
 	logoBytes := []byte("\xff\xd8\xff test jpeg")
 	logo := "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(logoBytes)

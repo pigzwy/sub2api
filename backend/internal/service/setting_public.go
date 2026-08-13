@@ -206,10 +206,24 @@ func compactLoginAgreementDocuments(docs []LoginAgreementDocument) []LoginAgreem
 
 func compactSiteLogo(raw string) string {
 	trimmed := strings.TrimSpace(raw)
-	if !strings.HasPrefix(strings.ToLower(trimmed), "data:image/") {
+	if !supportedInlineLogoDataURL(trimmed) {
 		return trimmed
 	}
 	return "/api/v1/settings/public/logo/" + publicAssetRevision(trimmed)
+}
+
+func supportedInlineLogoDataURL(raw string) bool {
+	comma := strings.IndexByte(raw, ',')
+	if comma <= len("data:") || !strings.HasPrefix(strings.ToLower(raw), "data:image/") {
+		return false
+	}
+	mediaType := strings.ToLower(strings.TrimSpace(strings.SplitN(raw[len("data:"):comma], ";", 2)[0]))
+	switch mediaType {
+	case "image/png", "image/jpeg", "image/gif", "image/webp", "image/x-icon", "image/vnd.microsoft.icon":
+		return true
+	default:
+		return false
+	}
 }
 
 // GetCompactPublicSettings returns the browser bootstrap payload without large
@@ -233,7 +247,7 @@ func (s *SettingService) GetPublicLogoAsset(ctx context.Context, revision string
 		return "", nil, false, err
 	}
 	raw := strings.TrimSpace(settings.SiteLogo)
-	if raw == "" || publicAssetRevision(raw) != strings.TrimSpace(revision) {
+	if raw == "" || !supportedInlineLogoDataURL(raw) || publicAssetRevision(raw) != strings.TrimSpace(revision) {
 		return "", nil, false, nil
 	}
 	comma := strings.IndexByte(raw, ',')
