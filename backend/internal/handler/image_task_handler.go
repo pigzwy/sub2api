@@ -23,6 +23,7 @@ import (
 type AsyncImageHandler struct {
 	tasks   *service.ImageTaskService
 	openAI  *OpenAIGatewayHandler
+	gemini  geminiImageForwarder
 	execute func(platform string, c *gin.Context)
 }
 
@@ -30,6 +31,28 @@ func NewAsyncImageHandler(tasks *service.ImageTaskService, openAI *OpenAIGateway
 	h := &AsyncImageHandler{tasks: tasks, openAI: openAI}
 	h.execute = h.executeWithGateway
 	return h
+}
+
+// SetGeminiForwarder wires the gemini-platform image executor. It is set
+// post-construction (in ProvideHandlers) to avoid a Wire provider dependency
+// cycle between the async handler and the gateway handler. When nil, gemini
+// groups keep the previous "not supported" behavior.
+func (h *AsyncImageHandler) SetGeminiForwarder(forwarder geminiImageForwarder) {
+	if h != nil {
+		h.gemini = forwarder
+	}
+}
+
+// supportsPlatform reports whether async image tasks can run for the platform.
+func (h *AsyncImageHandler) supportsPlatform(platform string) bool {
+	switch platform {
+	case service.PlatformOpenAI, service.PlatformGrok:
+		return true
+	case service.PlatformGemini:
+		return h.gemini != nil
+	default:
+		return false
+	}
 }
 
 // enabled reports whether the async image task feature is available. Object
@@ -62,7 +85,7 @@ func (h *AsyncImageHandler) Submit(c *gin.Context) {
 	if apiKey.Group != nil {
 		platform = apiKey.Group.Platform
 	}
-	if platform != service.PlatformOpenAI && platform != service.PlatformGrok {
+	if !h.supportsPlatform(platform) {
 		imageTaskJSONError(c, http.StatusNotFound, "not_found_error", "Images API is not supported for this platform")
 		return
 	}
@@ -205,10 +228,23 @@ func (h *AsyncImageHandler) validateRequest(c *gin.Context, platform string, bod
 	if parsed.Stream {
 		return errors.New("streaming image requests cannot be submitted as asynchronous tasks")
 	}
+	// Gemini's generateContent requires an explicit model (it becomes the upstream
+	// URL path), so reject an empty model at submit instead of failing the task.
+	if platform == service.PlatformGemini && strings.TrimSpace(parsed.Model) == "" {
+		return errors.New("model is required")
+	}
 	return nil
 }
 
 func (h *AsyncImageHandler) executeWithGateway(platform string, c *gin.Context) {
+	if platform == service.PlatformGemini {
+		if h.gemini == nil {
+			imageTaskJSONError(c, http.StatusServiceUnavailable, "api_error", "image gateway is unavailable")
+			return
+		}
+		h.gemini.GeminiImages(c)
+		return
+	}
 	if h.openAI == nil {
 		imageTaskJSONError(c, http.StatusServiceUnavailable, "api_error", "image gateway is unavailable")
 		return

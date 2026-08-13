@@ -196,6 +196,10 @@ func ProvideHandlers(
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 ) *Handlers {
+	// Gemini image generations reuse the native gateway forwarding path; wire the
+	// forwarder here (post-construction) so the async image executor can dispatch
+	// gemini-platform tasks without a Wire provider dependency cycle.
+	asyncImageHandler.SetGeminiForwarder(gatewayHandler)
 	return &Handlers{
 		Auth:             authHandler,
 		User:             userHandler,

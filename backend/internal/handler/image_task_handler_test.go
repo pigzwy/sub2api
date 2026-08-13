@@ -106,6 +106,108 @@ func TestAsyncImageHandlerSubmitAndPoll(t *testing.T) {
 	require.Contains(t, pollWriter.Body.String(), "https://example.test/image.png")
 }
 
+// fakeGeminiImageForwarder stands in for GatewayHandler.GeminiImages: it records
+// the dispatched request and writes an OpenAI Images-shaped payload, which is
+// what the real forwarder emits after converting the Gemini response.
+type fakeGeminiImageForwarder struct {
+	mu    sync.Mutex
+	calls int
+	path  string
+}
+
+func (f *fakeGeminiImageForwarder) GeminiImages(c *gin.Context) {
+	f.mu.Lock()
+	f.calls++
+	f.path = c.Request.URL.Path
+	f.mu.Unlock()
+	c.JSON(http.StatusOK, gin.H{"created": 123, "data": []gin.H{{"b64_json": "aGk=", "mime_type": "image/png"}}})
+}
+
+// A gemini-platform group must flow through the same async task pipeline as
+// openai/grok once a forwarder is wired: 202 → detached execution → completed
+// task whose result keeps the OpenAI Images shape (the S3 offload contract).
+func TestAsyncImageHandlerGeminiSubmitDispatchesForwarder(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	store := &asyncImageMemoryStore{tasks: make(map[string]*service.ImageTaskRecord)}
+	tasks := service.NewImageTaskServiceWithUploader(store, nil, time.Hour, time.Minute)
+	forwarder := &fakeGeminiImageForwarder{}
+	h := NewAsyncImageHandler(tasks, nil)
+	h.SetGeminiForwarder(forwarder)
+
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		groupID := int64(67)
+		c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{
+			ID:      9,
+			UserID:  7,
+			GroupID: &groupID,
+			Group:   &service.Group{ID: groupID, Platform: service.PlatformGemini, AllowImageGeneration: true},
+		})
+		c.Next()
+	})
+	router.POST("/v1/images/generations/async", h.Submit)
+	router.GET("/v1/images/tasks/:task_id", h.Get)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations/async", strings.NewReader(`{"model":"gemini-3.1-flash-image","prompt":"cat"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	require.Equal(t, http.StatusAccepted, w.Code)
+
+	var accepted struct {
+		TaskID string `json:"task_id"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &accepted))
+
+	require.Eventually(t, func() bool {
+		got, err := tasks.Get(context.Background(), service.ImageTaskOwner{UserID: 7, APIKeyID: 9}, accepted.TaskID)
+		return err == nil && got.Status == service.ImageTaskStatusCompleted
+	}, time.Second, 10*time.Millisecond)
+
+	forwarder.mu.Lock()
+	calls, path := forwarder.calls, forwarder.path
+	forwarder.mu.Unlock()
+	require.Equal(t, 1, calls)
+	// The executor must hand the forwarder the synchronous endpoint path.
+	require.Equal(t, "/v1/images/generations", path)
+
+	pollReq := httptest.NewRequest(http.MethodGet, "/v1/images/tasks/"+accepted.TaskID, nil)
+	pollWriter := httptest.NewRecorder()
+	router.ServeHTTP(pollWriter, pollReq)
+	require.Equal(t, http.StatusOK, pollWriter.Code)
+	require.Contains(t, pollWriter.Body.String(), `"b64_json"`)
+}
+
+// Without a wired forwarder gemini keeps the previous "not supported" behavior
+// instead of accepting tasks that could never execute.
+func TestAsyncImageHandlerGeminiWithoutForwarderReturns404(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	store := &asyncImageMemoryStore{tasks: make(map[string]*service.ImageTaskRecord)}
+	tasks := service.NewImageTaskServiceWithUploader(store, nil, time.Hour, time.Minute)
+	h := NewAsyncImageHandler(tasks, nil)
+
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		groupID := int64(67)
+		c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{
+			ID:      9,
+			UserID:  7,
+			GroupID: &groupID,
+			Group:   &service.Group{ID: groupID, Platform: service.PlatformGemini, AllowImageGeneration: true},
+		})
+		c.Next()
+	})
+	router.POST("/v1/images/generations/async", h.Submit)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations/async", strings.NewReader(`{"model":"gemini-3.1-flash-image","prompt":"cat"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	require.Equal(t, http.StatusNotFound, w.Code)
+	require.Contains(t, w.Body.String(), "Images API is not supported for this platform")
+	require.Empty(t, store.tasks)
+}
+
 // When object storage is not configured the feature is fully disabled: the
 // endpoints must return 404 without creating a task or writing to Redis.
 func TestAsyncImageHandlerDisabledReturns404(t *testing.T) {

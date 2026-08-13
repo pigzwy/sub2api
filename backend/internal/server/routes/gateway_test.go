@@ -143,6 +143,27 @@ func TestGatewayRoutesAsyncImagesPathsAreRegistered(t *testing.T) {
 	}
 }
 
+// Gemini-platform groups must reach the images handler on the shared image
+// endpoints instead of falling through to the platform 404.
+func TestGatewayRoutesGeminiImagesPathsAreRouted(t *testing.T) {
+	router := newGatewayRoutesTestRouter(service.PlatformGemini)
+
+	for _, path := range []string{
+		"/v1/images/generations",
+		"/v1/images/edits",
+		"/images/generations",
+		"/images/edits",
+	} {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"model":"gemini-3.1-flash-image","prompt":"draw a cat"}`))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+		require.NotEqual(t, http.StatusNotFound, w.Code, "path=%s should hit Gemini images handler", path)
+		require.NotContains(t, w.Body.String(), "not supported for this platform")
+	}
+}
+
 func TestGatewayRoutesGrokImagesAndVideosPathsAreRegistered(t *testing.T) {
 	router := newGatewayRoutesTestRouter(service.PlatformGrok)
 
