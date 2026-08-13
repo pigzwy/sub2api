@@ -182,6 +182,18 @@ export interface SendVerifyCodeResponse {
   countdown: number
 }
 
+/**
+ * How a custom menu item presents its target.
+ * - `iframe`: embed inside the app shell (the historical behavior, and the
+ *   default when the field is absent on items saved before this option existed)
+ * - `self`: navigate the current tab away to the target URL
+ * - `blank`: open the target URL in a new tab
+ *
+ * Markdown-backed items (`page_slug`, or a `md:` URL) always render in-app and
+ * ignore this field.
+ */
+export type CustomMenuOpenMode = 'iframe' | 'self' | 'blank'
+
 export interface CustomMenuItem {
   id: string
   label: string
@@ -190,6 +202,7 @@ export interface CustomMenuItem {
   page_slug?: string
   visibility: 'user' | 'admin'
   sort_order: number
+  open_mode?: CustomMenuOpenMode
 }
 
 export interface CustomEndpoint {

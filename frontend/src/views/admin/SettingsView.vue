@@ -6672,6 +6672,38 @@
                     </select>
                   </div>
 
+                  <!-- Open mode -->
+                  <div class="sm:col-span-2">
+                    <label
+                      class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
+                    >
+                      {{ t("admin.settings.customMenu.openMode") }}
+                    </label>
+                    <select
+                      :value="item.open_mode || 'iframe'"
+                      class="input text-sm"
+                      :disabled="isMarkdownMenuUrl(item.url)"
+                      @change="(e) => (item.open_mode = (e.target as HTMLSelectElement).value as CustomMenuOpenMode)"
+                    >
+                      <option value="iframe">
+                        {{ t("admin.settings.customMenu.openModeIframe") }}
+                      </option>
+                      <option value="self">
+                        {{ t("admin.settings.customMenu.openModeSelf") }}
+                      </option>
+                      <option value="blank">
+                        {{ t("admin.settings.customMenu.openModeBlank") }}
+                      </option>
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      {{
+                        isMarkdownMenuUrl(item.url)
+                          ? t("admin.settings.customMenu.openModeMarkdownHint")
+                          : t("admin.settings.customMenu.openModeHint")
+                      }}
+                    </p>
+                  </div>
+
                   <!-- URL (full width) -->
                   <div class="sm:col-span-2">
                     <label
@@ -8901,6 +8933,7 @@ import type {
 } from "@/api/admin/settings";
 import type {
   AdminGroup,
+  CustomMenuOpenMode,
   LoginAgreementDocument,
   NotifyEmailEntry,
   Proxy,
@@ -9720,6 +9753,7 @@ const form = reactive<SettingsForm>({
     url: string;
     visibility: "user" | "admin";
     sort_order: number;
+    open_mode?: CustomMenuOpenMode;
   }>,
   custom_endpoints: [] as Array<{
     name: string;
@@ -10845,7 +10879,14 @@ function addMenuItem() {
     url: "",
     visibility: "user",
     sort_order: form.custom_menu_items.length,
+    open_mode: "iframe",
   });
+}
+
+// Markdown-backed items (md:<slug>) always render in-app, so the open mode
+// select is disabled for them rather than silently ignored.
+function isMarkdownMenuUrl(url: string): boolean {
+  return url.trim().startsWith("md:");
 }
 
 function removeMenuItem(index: number) {

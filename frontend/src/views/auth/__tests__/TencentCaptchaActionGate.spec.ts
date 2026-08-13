@@ -36,7 +36,10 @@ vi.mock('@/stores', () => ({
   useAppStore: () => ({
     showError: vi.fn(),
     showSuccess: vi.fn(),
-    showWarning: vi.fn()
+    showWarning: vi.fn(),
+    // LoginView reads public settings through the store (which serves the
+    // compact endpoint and caches it) rather than calling the API directly.
+    fetchPublicSettings: (...args: unknown[]) => getPublicSettingsMock(...args)
   })
 }))
 

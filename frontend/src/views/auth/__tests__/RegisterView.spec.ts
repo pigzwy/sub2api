@@ -50,7 +50,10 @@ vi.mock('@/stores', () => ({
   useAppStore: () => ({
     showError: (...args: unknown[]) => showErrorMock(...args),
     showSuccess: vi.fn(),
-    showWarning: vi.fn()
+    showWarning: vi.fn(),
+    // RegisterView reads public settings through the store (which serves the
+    // compact endpoint and caches it) rather than calling the API directly.
+    fetchPublicSettings: (...args: unknown[]) => getPublicSettingsMock(...args)
   })
 }))
 

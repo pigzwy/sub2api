@@ -117,7 +117,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores'
 import { useAuthStore } from '@/stores/auth'
@@ -126,6 +126,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { buildApiUrl } from '@/api/client'
 import { buildEmbeddedUrl, detectTheme } from '@/utils/embedded-url'
+import { externalHref, resolveOpenMode } from '@/utils/custom-menu'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 
@@ -137,6 +138,7 @@ interface TocItem {
 
 const { t, locale } = useI18n()
 const route = useRoute()
+const router = useRouter()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const adminSettingsStore = useAdminSettingsStore()
@@ -189,6 +191,29 @@ const isValidUrl = computed(() => {
   const url = embeddedUrl.value
   return url.startsWith('http://') || url.startsWith('https://')
 })
+
+// Reaching this route for a `self`/`blank` item means the sidebar anchor was
+// bypassed — a bookmark, a shared link, or a link saved before the item's open
+// mode changed. Hand the browser the target rather than embedding it anyway,
+// so the configured mode still decides. `replace` keeps the transient
+// /custom/:id entry out of history, and `blank` returns to the previous page
+// because this view has nothing to show. A blocked popup leaves the user here
+// with the normal iframe view rather than a dead end.
+const externalUrl = computed(() => (menuItem.value ? externalHref(menuItem.value) : ''))
+
+function followExternalTarget(): boolean {
+  const url = externalUrl.value
+  if (!url || typeof window === 'undefined') return false
+  if (resolveOpenMode(menuItem.value!) === 'blank') {
+    const opened = window.open(url, '_blank', 'noopener,noreferrer')
+    if (!opened) return false
+    if (window.history.length > 1) router.back()
+    else router.replace('/dashboard')
+    return true
+  }
+  window.location.replace(url)
+  return true
+}
 
 function generateHeadingId(text: string, index: number): string {
   const base = text
@@ -341,6 +366,12 @@ watch(markdownSlug, (slug) => {
     renderedHtml.value = ''
     tocItems.value = []
   }
+}, { immediate: true })
+
+// The item may only resolve once public settings finish loading, so react to it
+// rather than acting once on mount.
+watch(externalUrl, (url) => {
+  if (url) followExternalTarget()
 }, { immediate: true })
 
 onMounted(async () => {

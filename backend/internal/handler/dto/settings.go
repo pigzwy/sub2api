@@ -16,6 +16,11 @@ type CustomMenuItem struct {
 	PageSlug   string `json:"page_slug,omitempty"`
 	Visibility string `json:"visibility"` // "user" or "admin"
 	SortOrder  int    `json:"sort_order"`
+	// OpenMode selects how the frontend presents the target: "iframe" (embed in
+	// the app shell), "self" (navigate the current tab) or "blank" (new tab).
+	// Empty means iframe, which is what every item saved before this option
+	// existed carries. Markdown-backed items always render in-app.
+	OpenMode string `json:"open_mode,omitempty"`
 }
 
 // CustomEndpoint represents an admin-configured API endpoint for quick copy.

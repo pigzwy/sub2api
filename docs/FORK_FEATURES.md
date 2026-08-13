@@ -36,6 +36,7 @@ git log --no-merges --oneline upstream/main..request-audit  # 本地提交
 | Gemini 图像走 Images 管线 | ✅ | — | — | — | — |
 | 公开设置缓存与首屏瘦身 | ✅ | ✅ | — | — | — |
 | 管理统计自定义日期区间 | ✅ | ✅ | — | — | — |
+| 自定义菜单打开方式 | ✅ | ✅ | — | — | 复用 `custom_menu_items` |
 | fork 分支镜像构建 | — | — | — | — | — |
 
 ---
@@ -251,7 +252,42 @@ GET /api/v1/settings/public/legal/:revision/:document_id
 
 ---
 
-## 7. fork 分支镜像构建
+## 7. 自定义菜单打开方式
+
+自定义菜单项此前一律在站内 iframe 中打开。现在每项可单独选择打开方式，便于把新功能直接挂成一个外部标签页，而不必强行嵌进本站。
+
+**入口**：管理后台 `系统设置 → General → 自定义菜单页面`，每个菜单项新增「打开方式」下拉框。
+
+**三种取值**（存在菜单项 JSON 的 `open_mode` 字段里）
+
+| 值 | 行为 |
+|---|---|
+| `iframe`（默认） | 站内 iframe 嵌入，与改动前完全一致 |
+| `self` | 当前标签页跳转到目标 URL，离开本站 |
+| `blank` | 新标签页打开目标 URL |
+
+**兼容性**：字段可省略。改动前保存的菜单项没有 `open_mode`，解析为 `iframe`，行为不变。Markdown 页面（`md:<slug>` 或 `page_slug`）始终在站内渲染，配置界面会把该下拉框置灰。
+
+**两个刻意的设计决定**
+
+1. **非 iframe 模式不走 `buildEmbeddedUrl`**，只使用管理员填写的原始 URL。`buildEmbeddedUrl` 会把当前用户的 JWT、user_id 和 `ui_mode=embedded` 拼进 query——放进 iframe src 尚可（不进地址栏），但当前标签页跳转或新标签页会把令牌带进浏览器地址栏、历史记录和后续 referer。需要向目标传参的管理员应自行把参数写进 URL。
+2. **侧边栏对非 iframe 项渲染 `<a>` 而不是 `router-link`**，让浏览器直接从用户点击完成跳转。若先路由到 `/custom/:id` 再异步 `window.open`，会被弹窗拦截器拦掉。
+
+**兜底**：直接访问 `/custom/:id`（书签、旧链接、菜单项改过打开方式）时，`CustomPageView` 按配置的方式把目标交给浏览器；新标签页被拦截时留在原页面显示既有 iframe 视图，不会变成死路。外部模式但 URL 非 http(s) 时回落到站内路由，显示既有的「URL 未配置」空态。
+
+**涉及文件**
+
+- 后端：`handler/dto/settings.go`（`CustomMenuItem.OpenMode`，管理端保存走结构化 DTO，字段不加会被丢弃）、`handler/admin/setting_handler_update.go`（取值校验）。
+- 前端新增：`utils/custom-menu.ts`（模式解析与外链推导）。
+- 前端修改：`types/index.ts`、`components/layout/AppSidebar.vue`、`views/user/CustomPageView.vue`、`views/admin/SettingsView.vue`、`i18n/locales/{zh,en}/admin/settings.ts`。
+
+**测试**：`frontend/src/utils/__tests__/custom-menu.spec.ts`（10 例）、`backend/internal/handler/dto/custom_menu_open_mode_test.go`（3 例，锁定字段在管理端保存与公开设置过滤两条链路上不丢失）。
+
+**未改动**：CSP `frame-src` 仍然收录全部菜单项 URL（`GetFrameSrcOrigins`），包括已改为跳转的项。多授权一个 origin 无害，且菜单项改回 iframe 时不会因为 CSP 漏配而白屏。
+
+---
+
+## 8. fork 分支镜像构建
 
 `.github/workflows/fork-docker-build.yml`（`[FORK] Build & Push Docker Image`）是唯一的 CI 二开，上游 workflow 均未改动。
 

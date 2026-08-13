@@ -1312,6 +1312,14 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 				response.BadRequest(c, "Custom menu item visibility must be 'user' or 'admin'")
 				return
 			}
+			// Empty open_mode means iframe; every item saved before the option
+			// existed carries no value and must keep working.
+			switch item.OpenMode {
+			case "", "iframe", "self", "blank":
+			default:
+				response.BadRequest(c, "Custom menu item open_mode must be 'iframe', 'self' or 'blank'")
+				return
+			}
 			if len(item.IconSVG) > maxMenuItemIconSVGLen {
 				response.BadRequest(c, "Custom menu item icon SVG is too large (max 10KB)")
 				return
