@@ -255,8 +255,8 @@ GET /api/v1/settings/public/legal/:revision/:document_id
 
 `.github/workflows/fork-docker-build.yml`（`[FORK] Build & Push Docker Image`）是唯一的 CI 二开，上游 workflow 均未改动。
 
-- 触发：push 到 `main` / `cc` / `gy` / `request-audit`，或手动触发并可指定 tag。
-- 镜像：`${DOCKER_HUB_USERNAME}/sub2api`，标签 `main → latest`、`cc → cc`、`gy → gy`、`request-audit → request-audit`；每次推送三个标签 `:<branch>`、`:<branch>-<short_sha>`、`:<branch>-build-<UTC 时间戳>`。
+- 触发：push 到 `main` / `cc` / `gy` / `request-audit`，或手动触发并可指定 tag。其中 `cc` 和 `gy` 在 `origin` 上已不存在，触发条件形同虚设，可在下次改动该 workflow 时一并删除。
+- 镜像：`${DOCKER_HUB_USERNAME}/sub2api`，标签 `main → latest`、`request-audit → request-audit`；每次推送三个标签 `:<branch>`、`:<branch>-<short_sha>`、`:<branch>-build-<UTC 时间戳>`。
 - 版本号优先取 `git describe --tags --match 'v*'`，回落读 `backend/cmd/server/VERSION`。
 
 当前 Docker Hub 用户名为 `llpig` 时，本分支镜像为 `llpig/sub2api:request-audit`：

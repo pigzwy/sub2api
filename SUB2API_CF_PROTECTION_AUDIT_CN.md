@@ -2,9 +2,11 @@
 
 > 目标域：**pigcode.ai** ｜ 目标：设计不会误伤 SDK / SSE / WebSocket / 支付 / 正常登录的 Cloudflare Pro 防护规则。
 > 方法：对 Sub2API 后端源码的只读审计，每条结论附 `文件:行号`。
-> 审计范围：`/home/pig/sub2api-request-audit`（分支 `request-audit`，HEAD `59f4a8917`）。
+> 原始审计基线：分支 `request-audit`，HEAD `59f4a8917`（2026-08-10）。
 > 全程只读，未修改源码、未构建、未重启、未读取任何 `.env`/密钥。
-> **对比基准缺失**：指定文档 `/home/pig/docs/CF 防护/参考－Sub2API防CC与DDoS方案.md` 不存在（详见 F 节）。
+>
+> **2026-08-13 复核**：在 HEAD `645415b59`（比原基线多 121 个提交）重新核对。A 节十条核心结论与 `router.go:86/93`、`embed_on.go:103-104`、`embed_on.go:355-370` 等关键引用**行号仍精确命中**，结论继续成立。本次复核修正了 B3 节的两处过期事实并补充了新增端点，逐条见该节标注。
+> 本文档同时**取代**原 `CLOUDFLARE_PROTECTION_PLAN_CN.md`：该方案存在 C 节列出的 7 项缺口，其规则设计已由 D 节替代，其仍然有效的源站与 Caddy 操作步骤已并入本文档附录二。
 
 ---
 
@@ -16,6 +18,7 @@
 - [E. 测试与回滚清单](#e-测试与回滚清单无副作用)
 - [F. 无法确认的事项](#f-无法确认的事项)
 - [附录：版本与构建确认（第一节）](#附录版本与构建确认第一节)
+- [附录二：源站与 Caddy 操作步骤](#附录二源站与-caddy-操作步骤)
 
 ---
 
@@ -85,8 +88,11 @@
 
 | 方法 | 完整路径 | 公开 | 认证 | 限速 | 后端触达 | 文件:行 |
 |---|---|---|---|---|---|---|
-| GET | /api/v1/settings/public | 是 | 无 | PublicIP(300) | **每请求无缓存读 ~50 键 DB** | auth.go:246 / setting_public.go:157 |
-| GET | /api/v1/settings/email-unsubscribe | 是 | `?token=` | PublicIP(300) | DB 读写 | auth.go:247 |
+| GET | /api/v1/settings/public | 是 | 无 | PublicIP(300) | DB 读 ~50 键，**已加 5 秒进程内缓存 + 并发合并** | auth.go:246 |
+| GET | /api/v1/settings/public/compact | 是 | 无 | PublicIP(300) | 同上缓存；剥离 Logo 与法律正文，载荷约 5.5 KiB | auth.go:247 |
+| GET | /api/v1/settings/public/logo/:revision | 是 | 无 | PublicIP(300) | 内存/DB 读，**内容按 revision 不可变** | auth.go:248 |
+| GET | /api/v1/settings/public/legal/:revision/:document_id | 是 | 无 | PublicIP(300) | 同上，**内容按 revision 不可变** | auth.go:249 |
+| GET | /api/v1/settings/email-unsubscribe | 是 | `?token=` | PublicIP(300) | DB 读写 | auth.go:250 |
 | GET | /api/v1/model-plaza | 条件 | OptionalJWT | PublicIP(300) | **DB**(设置+ListPlazaGroups) | model_plaza.go:28 |
 | GET | /api/v1/pages/:slug/images/*filename | 是 | **无** | **无** | **DB 可见性+文件系统读** | page_handler.go:274 |
 | GET | /api/v1/pages/:slug | 否 | JWT | — | — | page_handler.go:268 |
@@ -138,6 +144,8 @@
 | /antigravity/v1/{messages,messages/count_tokens,models,usage} | POST/GET | ForcePlatform+api-key | 256MB | **SSE** | gateway.go:460-463 |
 | /antigravity/v1beta/models(+/:model,/*modelAction) | GET/POST | ForcePlatform+google | 256MB | **SSE** | gateway.go:475-477 |
 
+**2026-08-13 补充：gemini 分组不再只在 `/v1beta/*`**。`imagesHandler` 现在对 `PlatformGemini` 分发到 `GatewayHandler.GeminiImages`（`gateway.go:85-86`、`gemini_images.go:37`），因此 gemini 分组的出图请求走 `/v1/images/{generations,edits}` 与对应异步端点。**规则 3 无需为此放宽**：`/v1` 组仍然拒绝 `?key=` 查询认证（`api_key_auth.go:49-56` 直接 400），gemini 走这条路时必须带 `Authorization` 或 `x-api-key`，无认证头拦截依然安全。
+
 **WebSocket 路由汇总**（`coderws.Accept`）：`GET /v1/responses`、`GET /responses`、`GET /backend-api/codex/responses`（`openai_gateway_handler.go:1661`）；`GET /v1/live/:call_id`、`GET /backend-api/codex/:call_id`（`openai_live.go:217`）；`GET /v1/realtime`、`GET /realtime`（`grok_audio.go:81`）。
 
 ### B8. Setup 首次安装流（独立引擎，仅安装前）
@@ -147,7 +155,7 @@
 
 ## C. 当前防护文档状态（第八节）
 
-**指定对比基准 `/home/pig/docs/CF 防护/参考－Sub2API防CC与DDoS方案.md` 不存在**（`/home/pig/docs/` 整个目录缺失），无法逐条比对（列入 F 节）。仓库内唯一既有防护产物是先前生成的 `CLOUDFLARE_PROTECTION_PLAN_CN.md`。对照本次源码审计，该文档的**缺口**如下（若确认另有真实文档，可针对性重做比对）：
+**指定对比基准 `/home/pig/docs/CF 防护/参考－Sub2API防CC与DDoS方案.md` 不存在**（`/home/pig/docs/` 整个目录缺失），无法逐条比对（列入 F 节）。当时仓库内唯一既有防护产物是先前生成的 `CLOUDFLARE_PROTECTION_PLAN_CN.md`（**已于 2026-08-13 删除**，因下列缺口而被本文档取代；其仍有效的源站步骤见附录二，全文可在 git 历史中查到）。对照本次源码审计，该文档的**缺口**如下：
 
 1. **未覆盖 `POST /login` SPA 吞噬攻击面**：文档只处理 API 路径无认证头拦截，未包含「页面路径写方法 block」规则 → 攻击者可对任意页面路径 POST 得 200 index.html 绕过 API 防护。
 2. **未覆盖根级别名影子**：`/chat/completions /embeddings /messages/count_tokens /videos /tts /stt /custom-voices /realtime /web_search` 根路径不在 bypass 列表，文档的 API 前缀白名单未反映此事实。
@@ -223,13 +231,24 @@
 
 ### 规则 5 — DB-heavy 公开口边缘限速（补 fail-open 缺口）
 - **名称**：`05-rl-public-db`
-- **表达式**：`http.request.uri.path in {"/api/v1/settings/public"} or starts_with(http.request.uri.path,"/api/v1/model-plaza") or http.request.uri.path matches "^/api/v1/pages/[^/]+/images/"`
+- **表达式**：`http.request.uri.path in {"/api/v1/settings/public" "/api/v1/settings/public/compact"} or starts_with(http.request.uri.path,"/api/v1/model-plaza") or http.request.uri.path matches "^/api/v1/pages/[^/]+/images/"`
 - **动作**：`block`；**speed**：单 IP `60 req / 1 min`。**启用**：✅（结论 3/5：应用层 fail-open + `pages/images` 无限流）。**误伤**：低。**回滚**：调高阈值。**测试**：E-14。
+- **2026-08-13 修订**：`settings/public` 已在应用层加 5 秒进程内缓存与并发合并，单机穿透 DB 的频率大幅下降，本规则对它的紧迫性降低，但**不应删除**——缓存只有 5 秒，且 `model-plaza` 与 `pages/*/images/*` 的 fail-open 缺口未变。表达式同时纳入新的 `compact` 端点，它与 `/public` 命中同一份缓存。
+
+### 规则 5B — 公开设置版本化资源长缓存（Cache Rule）
+- **名称**：`05b-cache-public-versioned-assets`
+- **匹配**：`http.request.uri.path matches "^/api/v1/settings/public/(logo|legal)/"`
+- **动作**：Cache Rule → **Eligible for cache**，`Edge TTL` 取源站 `Cache-Control`。源站已显式下发 `Cache-Control: public, max-age=31536000, immutable`（Logo 另带 `ETag: "<revision>"`），见 `setting_handler.go:152`、`setting_handler.go:171`。
+- **启用**：⚠️ **必须在新版本部署上线之后**。部署前这些路径尚未返回 200，提前建规则会把 404 缓存下来。
+- ⚠️ **优先级必须高于任何 `/api/*` 的 blanket bypass-cache 规则**。被取代的旧方案用一条通配 `/api/*` 的 `cache:false` 兜底，会让这两个刻意标 `immutable` 的资源永不进边缘缓存、每次匿名访问都回源——这是删除该方案的原因之一。
+- **误伤风险**：低——路径含 revision，配置更新后 revision 变化即自然失效。**回滚**：删除 Cache Rule。**测试**：改一次 Logo/法律正文，确认 revision 变化且新内容立即可见。
+- **背景**：登录/注册首屏改用 `compact` 后，Logo 与法律正文被剥离成这两个版本化路径，本就是为了让 CF 长期缓存；不建此规则则优化只兑现了载荷缩减、没兑现边缘卸载。
 
 ### 规则 6 — 模型入口边缘限速（不触碰 SSE/WS 语义）
 - **名称**：`06-rl-gateway`
 - **表达式**：`starts_with(http.request.uri.path,"/v1/") or starts_with(http.request.uri.path,"/backend-api/") or starts_with(http.request.uri.path,"/antigravity/") or starts_with(http.request.uri.path,"/v1beta/") or http.request.uri.path in {"/responses" "/alpha/search"}`
 - **动作**：`block`；**speed**：单 IP `300 req / 1 min`（观察一周再收紧；NAT 大出口勿低于 120）。**启用**：✅。**误伤风险**：WebSocket/SSE 长连接每连接仅 1 次计数，阈值 300 安全；**动作必须是 block 而非 challenge**。**回滚**：调阈值/改 log。**测试**：E-8。
+- **2026-08-13 补充：异步图片任务会显著抬高合法请求速率**。`/v1/images/{generations,edits}/async` 提交返回 202 + `Retry-After: 3`，客户端随后轮询 `/v1/images/tasks/:task_id`（`image_task_handler.go:133-145`、`:206-210`，均带 `Cache-Control: no-store`），单个任务约 20 req/min。多任务并发的合法客户端可以逼近 300/min，**收紧阈值前必须先确认异步图片的实际使用量**，否则会误杀正常出图。轮询响应带 `no-store`，不会被边缘缓存。
 
 ### 规则 7 — 托管 WAF 对 LLM 路径豁免（防 prompt 误报）
 - **名称**：`07-skip-owasp-llm`
@@ -292,6 +311,64 @@
 - **CI**：`.github/workflows/fork-docker-build.yml` —— push `request-audit` 分支构建并推送 `${DOCKER_HUB_USERNAME}/sub2api:request-audit` + `:request-audit-<shortcommit>` + `:request-audit-build-<timestamp>`（`fork-docker-build.yml:80-99`），`DOCKER_IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/sub2api`（`:36`）。
 - **能否构建 `llpig/sub2api:request-audit`**：能，当且仅当 `DOCKER_HUB_USERNAME=llpig`（见 F-2）。
 - **无法确认运行镜像的 commit**：`:request-audit` 可变 tag（见 F-1）。
+
+---
+
+## 附录二：源站与 Caddy 操作步骤
+
+> 这部分原属 `CLOUDFLARE_PROTECTION_PLAN_CN.md`。该方案的**规则设计**已被 C 节判定存在 7 项缺口并由 D 节取代，但下列源站侧步骤经 2026-08-13 复核仍然有效，故并入本文档，原文件已删除（内容可在 git 历史中查到）。
+
+### A2.1 源站锁死
+
+没有这一步，前面全部白做。
+
+1. **换源站 IP**：源站若曾被直接打过，旧 IP 视为已暴露。迁移或更换 IP 后再接入 CF，DNS 只保留橙云记录，不留任何指向源站的灰云或历史记录（含邮件 MX 泄漏）。
+2. **防火墙只放行 CF 网段**到 80/443，其余端口一律不对公网开放：
+
+```bash
+# ufw 示例（v4+v6，建议放 cron 每周刷新一次 CF 网段）
+for ip in $(curl -s https://www.cloudflare.com/ips-v4) $(curl -s https://www.cloudflare.com/ips-v6); do
+  ufw allow proto tcp from "$ip" to any port 80,443 comment cloudflare
+done
+ufw deny in to any port 80,443
+```
+
+3. **进阶（强烈推荐）**：开启 Authenticated Origin Pulls（zone 设置 `tls_client_auth=on` + Caddy 校验 CF origin-pull 客户端证书），即使 IP 泄漏也无法绕过 CF 直连。
+
+### A2.2 Caddy 配置（真实 IP + SSE + 证书）
+
+```caddyfile
+{
+  servers {
+    # 只信任来自 CF 的转发头，并用 CF-Connecting-IP 还原真实客户端 IP
+    trusted_proxies static 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+    client_ip_headers CF-Connecting-IP
+  }
+}
+
+$DOMAIN {
+  # 证书二选一：
+  # A（推荐）：Cloudflare DNS-01（需 caddy-dns/cloudflare 插件 + 仅含 DNS:Edit 的独立 token）
+  tls {
+    dns cloudflare {env.CF_DNS_API_TOKEN}
+  }
+  # B：Cloudflare Origin CA 证书（面板签 15 年，配 ssl=strict）
+  # tls /etc/caddy/origin-cert.pem /etc/caddy/origin-key.pem
+
+  encode zstd gzip
+  reverse_proxy 127.0.0.1:8080 {
+    flush_interval -1   # SSE 逐字下发，禁止缓冲
+  }
+}
+```
+
+**sub2api 侧**：`server.trusted_proxies` 设为 Caddy 地址（如 `["127.0.0.1"]`）。代码原生支持 CF-Connecting-IP 链路（`backend/internal/pkg/ip/ip.go:116`，2026-08-13 复核仍成立），配好后用量日志 `ip_address` 与应用内按 IP 的风控拿到的才是真实客户端 IP，而不是 CF/Caddy 的 IP。
+
+### A2.3 执行须知（API Token 与顺序）
+
+- 用 **zone 级最小权限 API Token**，不要用 Global API Key。权限：`Zone:Read` + `Zone Settings:Edit` + `Zone WAF:Edit` + `Cache Rules:Edit` + `Config Rules:Edit`；Zone Resources 只选目标域名，设置过期时间，可再加 Client IP 过滤限定执行方出口 IP。
+- 执行顺序：zone 设置 → 缓存规则 → 托管规则豁免 → 自定义规则 → 限速规则 → 源站锁死与 Caddy → E 节验收。
+- 规则 API 的 PUT entrypoint 是**整体替换**该 phase 的全部规则：zone 里若已有手工建的规则，先 GET 备份再合并，否则会被覆盖。
 
 ---
 
