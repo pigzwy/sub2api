@@ -90,7 +90,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
@@ -99,6 +99,7 @@ import Icon from '@/components/icons/Icon.vue'
 import { getLocale } from '@/i18n'
 import { sanitizeUrl } from '@/utils/url'
 import { useAppStore } from '@/stores/app'
+import { getPublicLoginAgreementDocument } from '@/api/auth'
 import type { LoginAgreementDocument } from '@/types'
 import zhAdminCompliance from '../../../../docs/legal/admin-compliance.zh.md?raw'
 import enAdminCompliance from '../../../../docs/legal/admin-compliance.en.md?raw'
@@ -111,6 +112,7 @@ const appStore = useAppStore()
 const settings = computed(() => appStore.cachedPublicSettings)
 const loading = ref(!settings.value)
 const loadError = ref(false)
+const loadedDocument = ref<LoginAgreementDocument | null>(null)
 
 marked.setOptions({
   breaks: true,
@@ -144,6 +146,9 @@ const currentDocument = computed<LoginAgreementDocument | null>(() => {
   if (!id) {
     return null
   }
+  if (loadedDocument.value?.id === id) {
+    return loadedDocument.value
+  }
   return documents.value.find((doc) => doc.id === id) ?? null
 })
 
@@ -172,13 +177,34 @@ const documentIcon = computed<LegalDocumentIcon>(() => {
   return 'document'
 })
 
-onMounted(async () => {
+async function loadDocument(): Promise<void> {
   loadError.value = false
+  loading.value = true
+  loadedDocument.value = null
   const loadedSettings = await appStore.fetchPublicSettings()
   if (!loadedSettings) {
     loadError.value = true
+    loading.value = false
+    return
+  }
+  if (!isAdminComplianceDocument.value) {
+    const meta = loadedSettings.login_agreement_documents?.find((doc) => doc.id === documentId.value)
+    const revision = loadedSettings.login_agreement_revision || ''
+    if (meta && revision && !meta.content_md?.trim()) {
+      try {
+        loadedDocument.value = await getPublicLoginAgreementDocument(revision, meta.id)
+      } catch {
+        loadError.value = true
+      }
+    }
   }
   loading.value = false
+}
+
+onMounted(loadDocument)
+
+watch(documentId, () => {
+  void loadDocument()
 })
 </script>
 

@@ -42,7 +42,22 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
+	h.writePublicSettings(c, settings)
+}
 
+// GetCompactPublicSettings returns the browser bootstrap payload without large
+// inline assets while the legacy endpoint remains backward compatible.
+// GET /api/v1/settings/public/compact
+func (h *SettingHandler) GetCompactPublicSettings(c *gin.Context) {
+	settings, err := h.settingService.GetCompactPublicSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	h.writePublicSettings(c, settings)
+}
+
+func (h *SettingHandler) writePublicSettings(c *gin.Context, settings *service.PublicSettings) {
 	response.Success(c, dto.PublicSettings{
 		RegistrationEnabled:                 settings.RegistrationEnabled,
 		EmailVerifyEnabled:                  settings.EmailVerifyEnabled,
@@ -118,6 +133,44 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		RiskControlEnabled: settings.RiskControlEnabled,
 
 		AllowUserViewErrorRequests: settings.AllowUserViewErrorRequests,
+	})
+}
+
+// GetPublicSettingsLogo serves a versioned inline logo as a cacheable resource.
+// GET /api/v1/settings/public/logo/:revision
+func (h *SettingHandler) GetPublicSettingsLogo(c *gin.Context) {
+	revision := strings.TrimSpace(c.Param("revision"))
+	contentType, data, ok, err := h.settingService.GetPublicLogoAsset(c.Request.Context(), revision)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if !ok {
+		response.NotFound(c, "logo not found")
+		return
+	}
+	c.Header("Cache-Control", "public, max-age=31536000, immutable")
+	c.Header("ETag", `"`+revision+`"`)
+	c.Data(http.StatusOK, contentType, data)
+}
+
+// GetPublicLoginAgreementDocument loads a single versioned legal document.
+// GET /api/v1/settings/public/legal/:revision/:document_id
+func (h *SettingHandler) GetPublicLoginAgreementDocument(c *gin.Context) {
+	document, ok, err := h.settingService.GetPublicLoginAgreementDocument(
+		c.Request.Context(), c.Param("revision"), c.Param("document_id"),
+	)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if !ok {
+		response.NotFound(c, "legal document not found")
+		return
+	}
+	c.Header("Cache-Control", "public, max-age=31536000, immutable")
+	response.Success(c, dto.LoginAgreementDocument{
+		ID: document.ID, Title: document.Title, ContentMD: document.ContentMD,
 	})
 }
 

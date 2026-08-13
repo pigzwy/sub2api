@@ -4,7 +4,9 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -13,6 +15,60 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
 )
+
+func TestSettingService_GetCompactPublicSettings_RemovesLargeInlineAssets(t *testing.T) {
+	documents := `[{"id":"terms","title":"Terms","content_md":"large legal body"}]`
+	logoBytes := []byte("\xff\xd8\xff test jpeg")
+	logo := "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(logoBytes)
+	repo := &settingPublicRepoStub{values: map[string]string{
+		SettingKeySiteLogo:                logo,
+		SettingKeyLoginAgreementDocuments: documents,
+	}}
+	svc := NewSettingService(repo, &config.Config{})
+
+	compact, err := svc.GetCompactPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.Regexp(t, `^/api/v1/settings/public/logo/[a-f0-9]{16}$`, compact.SiteLogo)
+	require.Equal(t, []LoginAgreementDocument{{ID: "terms", Title: "Terms"}}, compact.LoginAgreementDocuments)
+
+	legacy, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, logo, legacy.SiteLogo)
+	require.Equal(t, "large legal body", legacy.LoginAgreementDocuments[0].ContentMD)
+}
+
+func TestSettingService_PublicAssetsRequireCurrentRevision(t *testing.T) {
+	logoBytes := []byte("\xff\xd8\xff test jpeg")
+	logo := "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(logoBytes)
+	repo := &settingPublicRepoStub{values: map[string]string{
+		SettingKeySiteLogo:                logo,
+		SettingKeyLoginAgreementUpdatedAt: "2026-08-13",
+		SettingKeyLoginAgreementDocuments: `[{"id":"terms","title":"Terms","content_md":"body"}]`,
+	}}
+	svc := NewSettingService(repo, &config.Config{})
+	compact, err := svc.GetCompactPublicSettings(context.Background())
+	require.NoError(t, err)
+
+	logoRevision := compact.SiteLogo[strings.LastIndex(compact.SiteLogo, "/")+1:]
+	contentType, data, ok, err := svc.GetPublicLogoAsset(context.Background(), logoRevision)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, "image/jpeg", contentType)
+	require.Equal(t, logoBytes, data)
+
+	_, _, ok, err = svc.GetPublicLogoAsset(context.Background(), "stale")
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	doc, ok, err := svc.GetPublicLoginAgreementDocument(context.Background(), compact.LoginAgreementRevision, "terms")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, "body", doc.ContentMD)
+
+	_, ok, err = svc.GetPublicLoginAgreementDocument(context.Background(), "stale", "terms")
+	require.NoError(t, err)
+	require.False(t, ok)
+}
 
 type settingPublicRepoStub struct {
 	values map[string]string

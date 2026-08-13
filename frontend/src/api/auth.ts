@@ -14,6 +14,7 @@ import type {
   SendVerifyCodeRequest,
   SendVerifyCodeResponse,
   PublicSettings,
+  LoginAgreementDocument,
   ActionCaptchaRequestProof,
   TotpLoginResponse,
   TotpLogin2FARequest
@@ -351,7 +352,16 @@ export function isAuthenticated(): boolean {
  * @returns Public settings including registration and Turnstile config
  */
 export async function getPublicSettings(): Promise<PublicSettings> {
-  const { data } = await apiClient.get<PublicSettings>('/settings/public')
+  const { data } = await apiClient.get<PublicSettings>('/settings/public/compact')
+  return data
+}
+
+export async function getPublicLoginAgreementDocument(
+  revision: string,
+  documentId: string
+): Promise<LoginAgreementDocument> {
+  const path = `/settings/public/legal/${encodeURIComponent(revision)}/${encodeURIComponent(documentId)}`
+  const { data } = await apiClient.get<LoginAgreementDocument>(path)
   return data
 }
 

@@ -3,10 +3,12 @@ package service
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -18,6 +20,7 @@ import (
 const (
 	publicSettingsCacheTTL      = 5 * time.Second
 	publicSettingsDBLoadTimeout = 3 * time.Second
+	publicAssetRevisionLength   = 16
 )
 
 type cachedPublicSettings struct {
@@ -185,7 +188,101 @@ func buildLoginAgreementRevision(updatedAt string, docs []LoginAgreementDocument
 		payload = []byte(strings.TrimSpace(updatedAt))
 	}
 	sum := sha256.Sum256(payload)
-	return hex.EncodeToString(sum[:])[:16]
+	return hex.EncodeToString(sum[:])[:publicAssetRevisionLength]
+}
+
+func publicAssetRevision(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:])[:publicAssetRevisionLength]
+}
+
+func compactLoginAgreementDocuments(docs []LoginAgreementDocument) []LoginAgreementDocument {
+	compact := make([]LoginAgreementDocument, 0, len(docs))
+	for _, doc := range docs {
+		compact = append(compact, LoginAgreementDocument{ID: doc.ID, Title: doc.Title})
+	}
+	return compact
+}
+
+func compactSiteLogo(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if !strings.HasPrefix(strings.ToLower(trimmed), "data:image/") {
+		return trimmed
+	}
+	return "/api/v1/settings/public/logo/" + publicAssetRevision(trimmed)
+}
+
+// GetCompactPublicSettings returns the browser bootstrap payload without large
+// inline assets. The legacy GetPublicSettings response remains unchanged for
+// compatibility with older clients.
+func (s *SettingService) GetCompactPublicSettings(ctx context.Context) (*PublicSettings, error) {
+	settings, err := s.GetPublicSettings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	settings.SiteLogo = compactSiteLogo(settings.SiteLogo)
+	settings.LoginAgreementDocuments = compactLoginAgreementDocuments(settings.LoginAgreementDocuments)
+	return settings, nil
+}
+
+// GetPublicLogoAsset resolves a versioned data-URL logo into a cacheable HTTP
+// resource. External and relative logo URLs do not use this endpoint.
+func (s *SettingService) GetPublicLogoAsset(ctx context.Context, revision string) (string, []byte, bool, error) {
+	settings, err := s.GetPublicSettings(ctx)
+	if err != nil {
+		return "", nil, false, err
+	}
+	raw := strings.TrimSpace(settings.SiteLogo)
+	if raw == "" || publicAssetRevision(raw) != strings.TrimSpace(revision) {
+		return "", nil, false, nil
+	}
+	comma := strings.IndexByte(raw, ',')
+	if comma <= len("data:") || !strings.HasPrefix(strings.ToLower(raw), "data:image/") {
+		return "", nil, false, nil
+	}
+	meta, payload := raw[len("data:"):comma], raw[comma+1:]
+	parts := strings.Split(meta, ";")
+	contentType := strings.ToLower(strings.TrimSpace(parts[0]))
+	switch contentType {
+	case "image/png", "image/jpeg", "image/gif", "image/webp", "image/x-icon", "image/vnd.microsoft.icon":
+	default:
+		return "", nil, false, nil
+	}
+
+	var data []byte
+	if len(parts) > 1 && strings.EqualFold(strings.TrimSpace(parts[len(parts)-1]), "base64") {
+		data, err = base64.StdEncoding.DecodeString(payload)
+	} else {
+		var decoded string
+		decoded, err = url.PathUnescape(payload)
+		data = []byte(decoded)
+	}
+	if err != nil || len(data) == 0 || len(data) > 2<<20 {
+		return "", nil, false, nil
+	}
+	if detected := http.DetectContentType(data); detected != "application/octet-stream" && !strings.HasPrefix(detected, "image/") {
+		return "", nil, false, nil
+	}
+	return contentType, data, true, nil
+}
+
+// GetPublicLoginAgreementDocument returns one versioned document body for
+// on-demand loading by the legal page.
+func (s *SettingService) GetPublicLoginAgreementDocument(ctx context.Context, revision, documentID string) (LoginAgreementDocument, bool, error) {
+	settings, err := s.GetPublicSettings(ctx)
+	if err != nil {
+		return LoginAgreementDocument{}, false, err
+	}
+	if settings.LoginAgreementRevision != strings.TrimSpace(revision) {
+		return LoginAgreementDocument{}, false, nil
+	}
+	id := normalizeLoginAgreementDocumentID(documentID)
+	for _, doc := range settings.LoginAgreementDocuments {
+		if doc.ID == id {
+			return doc, true, nil
+		}
+	}
+	return LoginAgreementDocument{}, false, nil
 }
 
 // GetFrontendURL 获取前端基础URL（数据库优先，fallback 到配置文件）
@@ -706,7 +803,7 @@ type PublicSettingsInjectionPayload struct {
 // GetPublicSettingsForInjection returns public settings in a format suitable for HTML injection.
 // This implements the web.PublicSettingsProvider interface.
 func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any, error) {
-	settings, err := s.GetPublicSettings(ctx)
+	settings, err := s.GetCompactPublicSettings(ctx)
 	if err != nil {
 		return nil, err
 	}
