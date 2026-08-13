@@ -14,7 +14,9 @@ GET  /v1/images/tasks/{task_id}
 
 The aliases are `/images/generations/async`, `/images/edits/async`, and `/images/tasks/{task_id}`.
 
-Only OpenAI and Grok groups are supported. Requests use the same JSON or multipart payload as the corresponding synchronous endpoint. Streaming image requests are rejected because a polled task returns one final JSON result.
+OpenAI, Grok and Gemini groups are supported. Requests use the same JSON or multipart payload as the corresponding synchronous endpoint. Streaming image requests are rejected because a polled task returns one final JSON result.
+
+Gemini groups reach this pipeline through an adapter that translates the OpenAI Images request into a `generateContent` call and maps the returned inline images back to `data[].b64_json`, so the offload below applies unchanged. A Gemini task must carry an explicit model — it becomes the upstream URL path — and is rejected at submit time otherwise.
 
 ## Enabling the feature (object storage)
 
