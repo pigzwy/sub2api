@@ -270,7 +270,8 @@ GET /api/v1/settings/public/legal/:revision/:document_id
 
 **两个刻意的设计决定**
 
-1. **非 iframe 模式不走 `buildEmbeddedUrl`**，只使用管理员填写的原始 URL。`buildEmbeddedUrl` 会把当前用户的 JWT、user_id 和 `ui_mode=embedded` 拼进 query——放进 iframe src 尚可（不进地址栏），但当前标签页跳转或新标签页会把令牌带进浏览器地址栏、历史记录和后续 referer。需要向目标传参的管理员应自行把参数写进 URL。
+1. **三种模式共用 `buildEmbeddedUrl`，参数完全一致**：`user_id`、`token`、`theme`、`lang`、`ui_mode=embedded`、`src_host`、`src_url`。目标页在嵌入和跳转两种形态下拿到的地址相同，因此一个能在 iframe 里跑通的页面，换成新标签页也能直接跑通——这是本功能的实际用途（把已有工具挂成一个外部标签页）。URL 里已有的 query 会被保留，不会被覆盖。
+   **代价**：跳转模式会让令牌出现在浏览器地址栏、历史记录和后续 referer 里，这是 iframe 模式没有的暴露面。接收方 origin 与 iframe 模式完全相同（都是管理员配置的那个 URL），变化的只是它对用户自己浏览器的可见性。配置界面用中英文都写明了这一点，并提示只指向自己信任的站点。若将来需要「跳转但不带令牌」，应加一个按项的开关，而不是全局改掉这里。
 2. **侧边栏对非 iframe 项渲染 `<a>` 而不是 `router-link`**，让浏览器直接从用户点击完成跳转。若先路由到 `/custom/:id` 再异步 `window.open`，会被弹窗拦截器拦掉。
 
 **兜底**：直接访问 `/custom/:id`（书签、旧链接、菜单项改过打开方式）时，`CustomPageView` 按配置的方式把目标交给浏览器；新标签页被拦截时留在原页面显示既有 iframe 视图，不会变成死路。外部模式但 URL 非 http(s) 时回落到站内路由，显示既有的「URL 未配置」空态。

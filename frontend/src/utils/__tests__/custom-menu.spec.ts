@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { externalHref, isMarkdownMenuItem, resolveOpenMode } from '../custom-menu'
+import { buildExternalHref, externalHref, isMarkdownMenuItem, resolveOpenMode } from '../custom-menu'
 import type { CustomMenuItem } from '@/types'
 
 function item(overrides: Partial<CustomMenuItem> = {}): CustomMenuItem {
@@ -56,14 +56,6 @@ describe('externalHref', () => {
     expect(externalHref(item({ open_mode: 'blank' }))).toBe('https://example.test/page')
   })
 
-  // The href must be the raw configured URL: buildEmbeddedUrl appends the auth
-  // token, which must not reach the address bar or browser history.
-  it('does not append embedded parameters', () => {
-    const href = externalHref(item({ open_mode: 'blank' }))
-    expect(href).not.toContain('token=')
-    expect(href).not.toContain('ui_mode=')
-  })
-
   it('rejects non-http targets so they fall back to the in-app route', () => {
     expect(externalHref(item({ url: 'javascript:alert(1)', open_mode: 'blank' }))).toBe('')
     expect(externalHref(item({ url: '/internal/path', open_mode: 'self' }))).toBe('')
@@ -72,5 +64,46 @@ describe('externalHref', () => {
 
   it('is empty for markdown items even when an external mode is set', () => {
     expect(externalHref(item({ url: 'md:guide', open_mode: 'blank' }))).toBe('')
+  })
+})
+
+describe('buildExternalHref', () => {
+  const ctx = { userId: 7, token: 'jwt-abc', theme: 'dark' as const, lang: 'zh' }
+
+  // The whole point of the external modes carrying parameters: a target that
+  // works embedded must keep working when opened in a tab.
+  it('passes the same parameters an iframe src would carry', () => {
+    const href = buildExternalHref(item({ open_mode: 'blank' }), ctx)
+    const url = new URL(href)
+    expect(url.origin + url.pathname).toBe('https://example.test/page')
+    expect(url.searchParams.get('user_id')).toBe('7')
+    expect(url.searchParams.get('token')).toBe('jwt-abc')
+    expect(url.searchParams.get('theme')).toBe('dark')
+    expect(url.searchParams.get('lang')).toBe('zh')
+    expect(url.searchParams.get('ui_mode')).toBe('embedded')
+  })
+
+  it('preserves query parameters already present on the configured URL', () => {
+    const href = buildExternalHref(
+      item({ url: 'https://example.test/page?tenant=acme', open_mode: 'self' }),
+      ctx,
+    )
+    const url = new URL(href)
+    expect(url.searchParams.get('tenant')).toBe('acme')
+    expect(url.searchParams.get('token')).toBe('jwt-abc')
+  })
+
+  it('omits credentials that are not available', () => {
+    const href = buildExternalHref(item({ open_mode: 'blank' }), {})
+    const url = new URL(href)
+    expect(url.searchParams.has('user_id')).toBe(false)
+    expect(url.searchParams.has('token')).toBe(false)
+    expect(url.searchParams.get('theme')).toBe('light')
+  })
+
+  it('stays empty wherever externalHref is empty', () => {
+    expect(buildExternalHref(item({ open_mode: 'iframe' }), ctx)).toBe('')
+    expect(buildExternalHref(item({ url: 'md:guide', open_mode: 'blank' }), ctx)).toBe('')
+    expect(buildExternalHref(item({ url: 'javascript:alert(1)', open_mode: 'blank' }), ctx)).toBe('')
   })
 })

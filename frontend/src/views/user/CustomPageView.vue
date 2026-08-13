@@ -126,7 +126,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { buildApiUrl } from '@/api/client'
 import { buildEmbeddedUrl, detectTheme } from '@/utils/embedded-url'
-import { externalHref, resolveOpenMode } from '@/utils/custom-menu'
+import { buildExternalHref, resolveOpenMode } from '@/utils/custom-menu'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 
@@ -199,7 +199,16 @@ const isValidUrl = computed(() => {
 // /custom/:id entry out of history, and `blank` returns to the previous page
 // because this view has nothing to show. A blocked popup leaves the user here
 // with the normal iframe view rather than a dead end.
-const externalUrl = computed(() => (menuItem.value ? externalHref(menuItem.value) : ''))
+const externalUrl = computed(() =>
+  menuItem.value
+    ? buildExternalHref(menuItem.value, {
+        userId: authStore.user?.id,
+        token: authStore.token,
+        theme: pageTheme.value,
+        lang: locale.value,
+      })
+    : '',
+)
 
 function followExternalTarget(): boolean {
   const url = externalUrl.value

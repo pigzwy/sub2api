@@ -672,7 +672,7 @@ export default {
         openModeSelf: 'Current tab (leaves this site)',
         openModeBlank: 'New tab',
         openModeHint:
-          'Embedding appends the auth token and other parameters to the iframe URL. Both navigation modes use the URL exactly as entered, keeping the token out of the address bar and browser history.',
+          'All three modes append the same parameters (user_id, token, theme, lang, ui_mode, src_host, src_url), so the target receives an identical URL whether embedded or navigated to. Note the navigation modes put those parameters in the address bar and browser history — point them only at sites you trust.',
         openModeMarkdownHint: 'Markdown pages (md: prefix) always render in-app, so this setting does not apply.',
         iconSvg: 'SVG Icon',
         iconSvgPlaceholder: '<svg>...</svg>',

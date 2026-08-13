@@ -8,6 +8,7 @@
  */
 
 import type { CustomMenuItem, CustomMenuOpenMode } from '@/types'
+import { buildEmbeddedUrl } from './embedded-url'
 
 const OPEN_MODES: readonly CustomMenuOpenMode[] = ['iframe', 'self', 'blank']
 
@@ -29,19 +30,44 @@ export function resolveOpenMode(item: Pick<CustomMenuItem, 'url' | 'page_slug' |
 }
 
 /**
- * The URL a `self`/`blank` item navigates to, or '' when the item should not
- * leave the app (markdown, iframe mode, or a non-http target).
+ * The configured target of a `self`/`blank` item, or '' when the item should
+ * not leave the app (markdown, iframe mode, or a non-http target).
  *
- * This is the URL exactly as configured — deliberately NOT `buildEmbeddedUrl`,
- * which appends the caller's auth token, user id and `ui_mode=embedded`. Those
- * belong in an iframe src, which never reaches the address bar; a same-tab or
- * new-tab navigation would put the token in the URL bar, browser history and
- * any onward referrer. An admin who needs the target to receive parameters can
- * put them in the configured URL.
+ * This is the raw URL. Call sites that actually navigate should use
+ * {@link buildExternalHref}, which decorates it the same way an iframe src is
+ * decorated.
  */
 export function externalHref(item: Pick<CustomMenuItem, 'url' | 'page_slug' | 'open_mode'>): string {
   const mode = resolveOpenMode(item)
   if (mode === 'iframe') return ''
   const url = item.url?.trim() ?? ''
   return url.startsWith('http://') || url.startsWith('https://') ? url : ''
+}
+
+/** Caller context needed to decorate an external target, mirroring the iframe src. */
+export interface ExternalHrefContext {
+  userId?: number
+  token?: string | null
+  theme?: 'light' | 'dark'
+  lang?: string
+}
+
+/**
+ * The URL a `self`/`blank` item actually navigates to: the configured target
+ * carrying the same `user_id` / `token` / `theme` / `lang` / `ui_mode` /
+ * `src_*` query parameters that an embedded iframe receives, so a target that
+ * works embedded keeps working in a tab.
+ *
+ * Note this puts the auth token in the address bar and browser history, unlike
+ * an iframe src. That is the accepted trade for handing the target the same
+ * session it already gets when embedded — the recipient origin is unchanged,
+ * only its visibility to the user's own browser is.
+ */
+export function buildExternalHref(
+  item: Pick<CustomMenuItem, 'url' | 'page_slug' | 'open_mode'>,
+  ctx: ExternalHrefContext = {},
+): string {
+  const raw = externalHref(item)
+  if (!raw) return ''
+  return buildEmbeddedUrl(raw, ctx.userId, ctx.token, ctx.theme ?? 'light', ctx.lang)
 }

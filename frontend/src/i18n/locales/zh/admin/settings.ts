@@ -667,7 +667,7 @@ export default {
         openModeSelf: '在当前标签页打开（离开本站）',
         openModeBlank: '在新标签页打开',
         openModeHint:
-          '嵌入方式会把登录令牌等参数附加到 iframe 地址上；两种跳转方式只使用你填写的原始 URL，不会把令牌带进浏览器地址栏和历史记录。',
+          '三种方式都会附加相同的参数（user_id、token、theme、lang、ui_mode、src_host、src_url），目标页在嵌入和跳转下拿到的地址一致。注意：跳转方式会让这些参数出现在浏览器地址栏和历史记录里，请只指向你自己信任的站点。',
         openModeMarkdownHint: 'Markdown 页面（md: 开头）始终在站内渲染，打开方式对其无效。',
         iconSvg: 'SVG 图标',
         iconSvgPlaceholder: '<svg>...</svg>',

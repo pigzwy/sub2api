@@ -200,7 +200,7 @@ import { sanitizeSvg } from '@/utils/sanitize'
 import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
 import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
-import { externalHref, resolveOpenMode } from '@/utils/custom-menu'
+import { buildExternalHref, resolveOpenMode } from '@/utils/custom-menu'
 import type { CustomMenuItem } from '@/types'
 
 interface NavItem {
@@ -233,9 +233,18 @@ interface NavItem {
   newTab?: boolean
 }
 
-/** Builds the nav entry for a custom menu item, honoring its open mode. */
+/**
+ * Builds the nav entry for a custom menu item, honoring its open mode. The
+ * href carries the same query parameters as an embedded iframe src, so a
+ * target that reads `token`/`user_id`/`theme`/`lang` keeps working in a tab.
+ */
 function customMenuNavItem(item: CustomMenuItem): NavItem {
-  const href = externalHref(item)
+  const href = buildExternalHref(item, {
+    userId: authStore.user?.id,
+    token: authStore.token,
+    theme: isDark.value ? 'dark' : 'light',
+    lang: locale.value,
+  })
   return {
     path: `/custom/${item.id}`,
     label: item.label,
@@ -273,7 +282,7 @@ function applyFeatureFlags(items: NavItem[]): NavItem[] {
   return out
 }
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const route = useRoute()
 const router = useRouter()
