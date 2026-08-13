@@ -274,13 +274,35 @@ docker compose pull sub2api
 docker compose up -d sub2api
 ```
 
+### 各分支镜像标签对照
+
+| 分支 | 镜像标签 | 说明 |
+|------|----------|------|
+| `main` | `<DOCKER_HUB_USERNAME>/sub2api:latest` | 主线同步上游后的默认部署镜像 |
+| `cc` | `<DOCKER_HUB_USERNAME>/sub2api:cc` | 分支在 `origin` 上已不存在，标签形同虚设 |
+| `gy` | `<DOCKER_HUB_USERNAME>/sub2api:gy` | 同上 |
+| `request-audit` | `<DOCKER_HUB_USERNAME>/sub2api:request-audit` | 本分支部署镜像 |
+
+切换镜像标签时，先确认 `docker-compose.yml` 里的 `image` 已改好，再执行上面的 pull 与 up。
+
+---
+
+## 视频转存与异步图片对象存储的补充说明
+
+上游 `docs/ASYNC_IMAGE_TASKS.md` 描述的是异步图片任务与 `image_storage`。本分支在其基础上增加了**独立的视频对象存储**，两者互不影响：
+
+- 要接入 S3 之外的图片厂商，实现 `service.ImageStorage`（`Save(ctx, key, contentType, data) (url, error)`）即可；**视频转存另需实现 `service.VideoObjectStorage`**（`UploadVideo`，接收 `io.Reader`；外加 `PresignVideo`）。
+- 已完成的 Grok 视频使用独立的 `video_storage` 开关与 S3 目标，配置见本文件第 3 节。
+- 触发时机：xAI 侧完成状态值为 `done`，第一次成功的 `GET /v1/videos/generations/{request_id}` 状态轮询会把上游视频以分片方式流式写入 `<prefix>` 下，然后在完成 JSON 里补上新的 `video_url` 与 `url_expires_at`。内容接口在该记录存在时重定向到新签发的预签名 URL；上传失败则保持原有的状态与内容透传行为不变。
+- 异步图片任务的平台支持范围本分支已扩展：除 OpenAI 与 Grok 外，**gemini 分组也可使用**（见本文件第 4 节）。上游文档中「Only OpenAI and Grok groups are supported」的表述对本分支不适用。
+
 ---
 
 ## 非功能性差异
 
 以下差异不属于用户可见功能，但也在 diff 中：
 
-- **文档**：`docs/MERGE_RECORDS.md`、`docs/FORK_FEATURES.md`（本文件）；`DEV_GUIDE.md` 与 `docs/ASYNC_IMAGE_TASKS.md` 有二开补充章节。根目录曾有三份一次性产出的中文文档（Claude Code OAuth 独立网关规格、Cloudflare 防护方案与源码审计），已于 2026-08-13 全部删除，需要时从 git 历史取回，见 [MERGE_RECORDS.md](./MERGE_RECORDS.md) 对应条目。
+- **文档**：二开文档只有 `docs/MERGE_RECORDS.md` 与 `docs/FORK_FEATURES.md`（本文件）两份。**所有上游文档保持与上游逐字一致，零本地改动**——原先加在 `DEV_GUIDE.md` 与 `docs/ASYNC_IMAGE_TASKS.md` 里的二开章节已于 2026-08-13 全部迁入本文件，以消除这两处合并冲突面。根目录曾有三份一次性产出的中文文档（Claude Code OAuth 独立网关规格、Cloudflare 防护方案与源码审计），同日删除，需要时从 git 历史取回，见 [MERGE_RECORDS.md](./MERGE_RECORDS.md) 对应条目。
 - **订阅每日窗口测试残留**：`service/subscription_window_test.go`（本地新增）、`subscription_assign_idempotency_test.go`、`user_subscription_daily_quota_test.go` 的 stub 起点调整，以及 `subscription_service.go` 的一行注释翻译。**业务逻辑与上游完全一致**，属于历史二开被上游取代后剩下的测试侧残留，可在下次合并时考虑清理。
 - **`paseo.json`**：内容为 `{}` 的工具占位文件。
 
@@ -292,6 +314,8 @@ docker compose up -d sub2api
 2. **设置链路 7 文件**：`service/domain_constants.go`、`setting_parse.go`、`setting_update.go`、`settings_view.go`、`handler/dto/settings.go`、`handler/admin/setting_handler.go`、`setting_handler_update.go` —— 同时承载请求审计与请求拦截。
 3. **网关热路径**：`gateway_handler.go`、`gateway_handler_chat_completions.go`、`gateway_handler_responses.go`、`openai_chat_completions.go`、`openai_gateway_handler.go` —— 审计埋点与拦截判断都插在这里。
 4. **前端大文件**：`views/admin/SettingsView.vue`（+447 行，承载审计与拦截两组配置）、`views/admin/BackupView.vue`（+145）、`views/admin/UsageView.vue`（+41）。
+
+**文档不再是冲突点**：所有上游文档（`README*.md`、`CLA.md`、`DEV_GUIDE.md`、`docs/` 下 7 份）本地零改动，可在合并时直接采用上游版本，无需人工比对。二开说明一律写在本文件里。这条约束请在后续改动中保持——需要补充上游功能的二开行为时，写进本文件对应章节并在其中指明上游文档的哪一句不适用，而不是回头去改上游文档。
 
 ## 已由上游接管、不再维护的历史二开
 

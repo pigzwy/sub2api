@@ -50,54 +50,6 @@ npm install -g pnpm
 | **backend-ci.yml** | push, pull_request | 单元测试 + 集成测试 + golangci-lint v2.9 |
 | **security-scan.yml** | push, pull_request, 每周一 | govulncheck + gosec + pnpm audit |
 | **release.yml** | tag `v*` | 构建发布（PR 不触发） |
-| **fork-docker-build.yml** | push 到 `main` / `cc` / `gy` / `request-audit`，或手动触发 | 构建并推送二开 Docker 镜像 |
-
-### 二开分支与镜像标签
-
-二开镜像使用 `.github/workflows/fork-docker-build.yml` 构建。不同分支推送后会生成不同镜像标签，线上部署时只需要在 `docker-compose.yml` 中切换 `image`。
-
-| 分支 | 镜像标签 | 说明 |
-|------|----------|------|
-| `main` | `<DOCKER_HUB_USERNAME>/sub2api:latest` | 主线同步上游后的默认部署镜像 |
-| `cc` | `<DOCKER_HUB_USERNAME>/sub2api:cc` | `cc` 分支独立部署镜像 |
-| `gy` | `<DOCKER_HUB_USERNAME>/sub2api:gy` | `gy` 分支独立部署镜像 |
-| `request-audit` | `<DOCKER_HUB_USERNAME>/sub2api:request-audit` | 请求审计和请求拦截二开镜像 |
-
-当前 Docker Hub 用户名为 `llpig` 时，`request-audit` 分支对应镜像为 `llpig/sub2api:request-audit`。
-
-示例 `docker-compose.yml`：
-
-```yaml
-sub2api:
-  image: llpig/sub2api:request-audit
-  container_name: sub2api
-  restart: unless-stopped
-  mem_limit: 5g
-```
-
-切换镜像标签后，执行以下命令拉取并重建容器：
-
-```bash
-docker compose pull sub2api
-docker compose up -d sub2api
-```
-
-### `request-audit` 二开范围
-
-`request-audit` 分支增加请求审计和请求内容拦截能力。详细功能记录在 `docs/MERGE_RECORDS.md` 的“2026-06-29：request-audit 分支增加请求审计与请求拦截二开”章节。
-
-主要入口如下：
-
-- `系统设置 -> 功能开关 -> 请求审计`：开启请求和响应内容记录，配置保留时长、用户范围和分组范围。
-- `系统设置 -> 功能开关 -> 请求内容拦截`：开启本地拦截，配置生效分组和完整匹配规则。
-- `用量统计 -> 请求审计`：查看请求体、响应体、状态码、耗时、账号、用户和 API Key。
-
-数据影响如下：
-
-- 新增 `request_audit_logs` 表。
-- 新增 `request_audit_*` 和 `request_intercept_*` 系统设置项。
-- 不修改用户、分组、账号、API Key、余额或既有用量日志。
-- 请求审计默认关闭；开启后会保存请求体和响应体片段，生产环境应限定用户或分组，并配置保留时长。
 
 ### CI 要求
 

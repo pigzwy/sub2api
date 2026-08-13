@@ -14,9 +14,7 @@ GET  /v1/images/tasks/{task_id}
 
 The aliases are `/images/generations/async`, `/images/edits/async`, and `/images/tasks/{task_id}`.
 
-OpenAI, Grok and Gemini groups are supported. Requests use the same JSON or multipart payload as the corresponding synchronous endpoint. Streaming image requests are rejected because a polled task returns one final JSON result.
-
-Gemini groups reach this pipeline through an adapter that translates the OpenAI Images request into a `generateContent` call and maps the returned inline images back to `data[].b64_json`, so the offload below applies unchanged. A Gemini task must carry an explicit model — it becomes the upstream URL path — and is rejected at submit time otherwise.
+Only OpenAI and Grok groups are supported. Requests use the same JSON or multipart payload as the corresponding synchronous endpoint. Streaming image requests are rejected because a polled task returns one final JSON result.
 
 ## Enabling the feature (object storage)
 
@@ -55,33 +53,7 @@ image_storage:
 
 When a task completes, each generated image is uploaded to the bucket and the result is rewritten to a compact form: `data[].url` points at the stored object (a permanent `public_base_url/key` link, or a time-limited presigned URL) and `b64_json` is removed. Only this small JSON is stored in Redis. If an upload fails, the task is marked `failed` rather than persisting the raw base64.
 
-To support a different vendor beyond the S3-compatible client, implement the
-`service.ImageStorage` interface (`Save(ctx, key, contentType, data) (url, error)`)
-for images. Video offload additionally requires `service.VideoObjectStorage`
-(`UploadVideo` with an `io.Reader`, plus `PresignVideo`).
-
-Completed Grok videos use an independent `video_storage` switch and S3 target:
-
-```yaml
-video_storage:
-  enabled: false
-  endpoint: "https://<account_id>.r2.cloudflarestorage.com"
-  region: "auto"
-  bucket: "sub2-video"
-  access_key_id: "..."
-  secret_access_key: "..."
-  prefix: "videos/"
-  force_path_style: false
-  presign_expiry_hours: 24
-  max_download_bytes: 536870912
-```
-
-When enabled (the xAI completed status value is `done`), the first successful
-`GET /v1/videos/generations/{request_id}` status poll streams the
-upstream video into multipart S3 storage under `<prefix>`, then adds a
-fresh `video_url` and `url_expires_at` to the completed JSON. The content endpoint
-redirects to a freshly presigned URL when that record exists; upload failures
-leave the original status and content passthrough behavior unchanged.
+To support a different vendor beyond the S3-compatible client, implement the `service.ImageStorage` interface (`Save(ctx, key, contentType, data) (url, error)`) and provide it in place of the S3 implementation.
 
 ### Troubleshooting: the endpoints return 404 after enabling
 
