@@ -10,9 +10,53 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 )
+
+const (
+	publicSettingsCacheTTL      = 5 * time.Second
+	publicSettingsDBLoadTimeout = 3 * time.Second
+)
+
+type cachedPublicSettings struct {
+	settings  *PublicSettings
+	expiresAt int64
+}
+
+func clonePublicSettings(settings *PublicSettings) *PublicSettings {
+	if settings == nil {
+		return nil
+	}
+	cloned := *settings
+	cloned.RegistrationEmailSuffixWhitelist = append(
+		[]string(nil), settings.RegistrationEmailSuffixWhitelist...,
+	)
+	cloned.LoginAgreementDocuments = append(
+		[]LoginAgreementDocument(nil), settings.LoginAgreementDocuments...,
+	)
+	cloned.TablePageSizeOptions = append([]int(nil), settings.TablePageSizeOptions...)
+	return &cloned
+}
+
+func (s *SettingService) cachedPublicSettings(now int64) *PublicSettings {
+	cached, _ := s.publicSettingsCache.Load().(*cachedPublicSettings)
+	if cached == nil || cached.settings == nil || now >= cached.expiresAt {
+		return nil
+	}
+	return clonePublicSettings(cached.settings)
+}
+
+func (s *SettingService) invalidatePublicSettingsCache() {
+	if s == nil {
+		return
+	}
+	s.publicSettingsCacheMu.Lock()
+	s.publicSettingsGeneration.Add(1)
+	s.publicSettingsCache.Store(&cachedPublicSettings{})
+	s.publicSettingsCacheMu.Unlock()
+}
 
 func normalizeLoginAgreementMode(raw string) string {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
@@ -155,6 +199,51 @@ func (s *SettingService) GetFrontendURL(ctx context.Context) string {
 
 // GetPublicSettings 获取公开设置（无需登录）
 func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings, error) {
+	if cached := s.cachedPublicSettings(time.Now().UnixNano()); cached != nil {
+		return cached, nil
+	}
+
+	generation := s.publicSettingsGeneration.Load()
+	cacheKey := fmt.Sprintf("public_settings:%d", generation)
+	result := s.publicSettingsSF.DoChan(cacheKey, func() (any, error) {
+		if cached := s.cachedPublicSettings(time.Now().UnixNano()); cached != nil {
+			return cached, nil
+		}
+
+		loadCtx, cancel := context.WithTimeout(
+			context.WithoutCancel(ctx), publicSettingsDBLoadTimeout,
+		)
+		defer cancel()
+		settings, err := s.loadPublicSettings(loadCtx)
+		if err != nil {
+			return nil, err
+		}
+		s.publicSettingsCacheMu.Lock()
+		if s.publicSettingsGeneration.Load() == generation {
+			s.publicSettingsCache.Store(&cachedPublicSettings{
+				settings:  clonePublicSettings(settings),
+				expiresAt: time.Now().Add(publicSettingsCacheTTL).UnixNano(),
+			})
+		}
+		s.publicSettingsCacheMu.Unlock()
+		return settings, nil
+	})
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case loaded := <-result:
+		if loaded.Err != nil {
+			return nil, loaded.Err
+		}
+		settings, ok := loaded.Val.(*PublicSettings)
+		if !ok || settings == nil {
+			return nil, fmt.Errorf("get public settings: unexpected cache value")
+		}
+		return clonePublicSettings(settings), nil
+	}
+}
+
+func (s *SettingService) loadPublicSettings(ctx context.Context) (*PublicSettings, error) {
 	keys := []string{
 		SettingKeyRegistrationEnabled,
 		SettingKeyEmailVerifyEnabled,

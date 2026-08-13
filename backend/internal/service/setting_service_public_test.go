@@ -4,7 +4,11 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
@@ -13,6 +17,9 @@ import (
 type settingPublicRepoStub struct {
 	values map[string]string
 	err    error
+	delay  time.Duration
+	calls  atomic.Int32
+	mu     sync.RWMutex
 }
 
 func (s *settingPublicRepoStub) Get(ctx context.Context, key string) (*Setting, error) {
@@ -28,9 +35,19 @@ func (s *settingPublicRepoStub) Set(ctx context.Context, key, value string) erro
 }
 
 func (s *settingPublicRepoStub) GetMultiple(ctx context.Context, keys []string) (map[string]string, error) {
+	s.calls.Add(1)
+	if s.delay > 0 {
+		select {
+		case <-time.After(s.delay):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
 	if s.err != nil {
 		return nil, s.err
 	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	out := make(map[string]string, len(keys))
 	for _, key := range keys {
 		if value, ok := s.values[key]; ok {
@@ -38,6 +55,78 @@ func (s *settingPublicRepoStub) GetMultiple(ctx context.Context, keys []string) 
 		}
 	}
 	return out, nil
+}
+
+func TestSettingService_GetPublicSettings_CachesAndReturnsIndependentCopies(t *testing.T) {
+	repo := &settingPublicRepoStub{values: map[string]string{
+		SettingKeyRegistrationEmailSuffixWhitelist: `["@example.com"]`,
+		SettingKeyTablePageSizeOptions:             `[20,50]`,
+	}}
+	svc := NewSettingService(repo, &config.Config{})
+
+	first, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	first.RegistrationEmailSuffixWhitelist[0] = "@mutated.invalid"
+	first.TablePageSizeOptions[0] = 999
+
+	second, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, []string{"@example.com"}, second.RegistrationEmailSuffixWhitelist)
+	require.Equal(t, []int{20, 50}, second.TablePageSizeOptions)
+	require.EqualValues(t, 1, repo.calls.Load())
+}
+
+func TestSettingService_GetPublicSettings_CoalescesConcurrentLoads(t *testing.T) {
+	repo := &settingPublicRepoStub{
+		values: map[string]string{SettingKeySiteName: "Concurrent Site"},
+		delay:  50 * time.Millisecond,
+	}
+	svc := NewSettingService(repo, &config.Config{})
+
+	const callers = 64
+	start := make(chan struct{})
+	errs := make(chan error, callers)
+	var wait sync.WaitGroup
+	for i := 0; i < callers; i++ {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			<-start
+			settings, err := svc.GetPublicSettings(context.Background())
+			if err == nil && settings.SiteName != "Concurrent Site" {
+				err = fmt.Errorf("site name = %q", settings.SiteName)
+			}
+			errs <- err
+		}()
+	}
+	close(start)
+	wait.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+	require.EqualValues(t, 1, repo.calls.Load())
+}
+
+func TestSettingService_GetPublicSettings_InvalidatesAfterSettingsRefresh(t *testing.T) {
+	repo := &settingPublicRepoStub{values: map[string]string{
+		SettingKeyRegistrationEnabled: "true",
+	}}
+	svc := NewSettingService(repo, &config.Config{})
+
+	before, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.True(t, before.RegistrationEnabled)
+
+	repo.mu.Lock()
+	repo.values[SettingKeyRegistrationEnabled] = "false"
+	repo.mu.Unlock()
+	svc.refreshCachedSettings(&SystemSettings{})
+
+	after, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.False(t, after.RegistrationEnabled)
+	require.EqualValues(t, 2, repo.calls.Load())
 }
 
 func (s *settingPublicRepoStub) SetMultiple(ctx context.Context, settings map[string]string) error {

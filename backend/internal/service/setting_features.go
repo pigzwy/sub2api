@@ -445,6 +445,7 @@ func (s *SettingService) UpdateAuthSourceDefaultSettings(ctx context.Context, se
 	if err := s.settingRepo.SetMultiple(ctx, updates); err != nil {
 		return fmt.Errorf("update auth source default settings: %w", err)
 	}
+	s.invalidatePublicSettingsCache()
 	return nil
 }
 

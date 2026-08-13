@@ -6,13 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"golang.org/x/sync/singleflight"
-	"sync"
 )
 
 const (
@@ -142,6 +142,14 @@ type SettingService struct {
 	// 面板每个认证请求都会读取，禁止在热路径上直接访问 DB。
 	panelRateLimitCache atomic.Value
 	panelRateLimitSF    singleflight.Group
+
+	// publicSettingsCache shields the anonymous public-settings endpoint from
+	// bursty database reads. Updates invalidate it immediately; generation
+	// fencing prevents an in-flight stale load from repopulating the cache.
+	publicSettingsCache      atomic.Value // *cachedPublicSettings
+	publicSettingsSF         singleflight.Group
+	publicSettingsGeneration atomic.Uint64
+	publicSettingsCacheMu    sync.Mutex
 
 	// openAIQuotaAutoPauseSettingsCache holds the most recently observed quota auto-pause
 	// settings. GetOpenAIQuotaAutoPauseSettings reads this atomic.Value on the request hot
