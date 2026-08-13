@@ -32,6 +32,26 @@
 
 已由上游接管、不再作为本分支二开维护的功能：按响应模型计费、数据库备份与对象存储（均于 2026-08-12 切换）、订阅额度滚动窗口（上游自行实现按自然日对齐的版本）。它们的历史记录已从本文件删除，避免与现状冲突；再次遇到相关需求时直接使用上游实现。后续若上游接管上述剩余功能，也按本节规则删除对应二开与记录。
 
+## 2026-08-13：清理根目录一次性中文文档
+
+根目录三份一次性产出的中文文档全部删除，仓库文档收敛为「上游文档 + `docs/` 下两份二开文档」。三份都只在 `849ee52b6` 存在过，未被任何代码或配置引用，删除不影响构建与部署。
+
+| 文档 | 删除提交 | 删除理由 |
+|---|---|---|
+| `CLOUDFLARE_PROTECTION_PLAN_CN.md` | `4c30d2b93` | 被同批的源码审计取代，且自身有两处会导致真实故障的错误：支付回调 SKIP 只覆盖 `/api/v1/payment/public/*`（浏览器 XHR），漏掉真正的服务器回调 `/api/v1/payment/webhook/*`；通配 `/api/*` 的 bypass-cache 会打死刻意标 `immutable` 的版本化公开设置资源。 |
+| `SUB2API_CF_PROTECTION_AUDIT_CN.md` | 本次 | 一次性审计产出，Cloudflare 规则未执行。删除前已在 `1af6d8532` 完成全量复核（128 条引用中 99 条命中、27 条行号漂移、2 条失效），需要时取回的是已修订版本。 |
+| `CLAUDE_CODE_OAUTH_GATEWAY_SPEC_CN.md` | 本次 | 未落地的外部项目任务书，本仓库无对应实现，其推荐目录结构一个都不存在；基线落后约 1300 个提交，行号锚点约半数失效。 |
+
+取回方式：
+
+```bash
+git log --oneline --diff-filter=D -- '*_CN.md'          # 找到删除提交
+git show <删除提交>^:SUB2API_CF_PROTECTION_AUDIT_CN.md   # 查看内容
+git checkout <删除提交>^ -- SUB2API_CF_PROTECTION_AUDIT_CN.md  # 恢复文件
+```
+
+Cloudflare 防护的两份文档合计包含：完整路由矩阵、九条经复核仍成立的防护结论、十余条 CF 规则草案、源站 ufw 锁死脚本与 Caddy 真实 IP 配置。若后续真要落地 CF 防护，应从 `1af6d8532` 取回审计文档而不是重写。
+
 ## 2026-08-13：同步 main 至上游并重建二开清单
 
 - `main` 分支直接同步为上游 `fbfdcef81`（原 `main` 停留在 v0.1.139 基线，含若干已被 `request-audit` 取代的本地 CI 提交）。同步前的旧 `main` 保留在标签 `backup/main-before-upstream-sync-20260813`。`origin/main` 未推送，如需远端也镜像上游需自行 force push。

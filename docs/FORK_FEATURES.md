@@ -280,7 +280,7 @@ docker compose up -d sub2api
 
 以下差异不属于用户可见功能，但也在 diff 中：
 
-- **文档**：`docs/MERGE_RECORDS.md`、`docs/FORK_FEATURES.md`（本文件）、`CLAUDE_CODE_OAUTH_GATEWAY_SPEC_CN.md`（Claude Code OAuth 独立网关规格草案）、`CLOUDFLARE_PROTECTION_PLAN_CN.md`、`SUB2API_CF_PROTECTION_AUDIT_CN.md`；`DEV_GUIDE.md` 与 `docs/ASYNC_IMAGE_TASKS.md` 有二开补充章节。
+- **文档**：`docs/MERGE_RECORDS.md`、`docs/FORK_FEATURES.md`（本文件）；`DEV_GUIDE.md` 与 `docs/ASYNC_IMAGE_TASKS.md` 有二开补充章节。根目录曾有三份一次性产出的中文文档（Claude Code OAuth 独立网关规格、Cloudflare 防护方案与源码审计），已于 2026-08-13 全部删除，需要时从 git 历史取回，见 [MERGE_RECORDS.md](./MERGE_RECORDS.md) 对应条目。
 - **订阅每日窗口测试残留**：`service/subscription_window_test.go`（本地新增）、`subscription_assign_idempotency_test.go`、`user_subscription_daily_quota_test.go` 的 stub 起点调整，以及 `subscription_service.go` 的一行注释翻译。**业务逻辑与上游完全一致**，属于历史二开被上游取代后剩下的测试侧残留，可在下次合并时考虑清理。
 - **`paseo.json`**：内容为 `{}` 的工具占位文件。
 
