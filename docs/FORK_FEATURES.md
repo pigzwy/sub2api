@@ -11,9 +11,11 @@
 | 统计日期 | 2026-08-13 |
 | 上游基线 | `fbfdcef81`（`main` 分支已同步到此提交） |
 | 分支共同祖先 | `0e82efe48`（`v0.1.176`） |
-| 差异规模 | 123 个文件，+18649 / -137 行 |
-| 其中后端 | 91 个文件，+13843 / -85 行 |
-| 其中前端及其它 | 32 个文件，+4868 / -52 行 |
+| 差异规模 | 129 个文件，+16296 / -163 行 |
+| 其中后端 | 92 个文件，+13908 / -85 行 |
+| 其中前端及其它 | 37 个文件，+2388 / -78 行 |
+
+（前端及其它一项较早前统计明显下降，是因为根目录三份一次性中文文档已删除、上游文档的二开段落已迁入本文件。）
 
 重新核对清单：
 
@@ -348,9 +350,12 @@ docker compose up -d sub2api
 按侵入程度排序，合并上游时优先检查：
 
 1. **装配文件**：`cmd/server/wire_gen.go`、`service/wire.go`、`repository/wire.go`、`handler/wire.go`、`server/routes/admin.go` —— 被 4 组功能反复修改。
-2. **设置链路 7 文件**：`service/domain_constants.go`、`setting_parse.go`、`setting_update.go`、`settings_view.go`、`handler/dto/settings.go`、`handler/admin/setting_handler.go`、`setting_handler_update.go` —— 同时承载请求审计与请求拦截。
+2. **设置链路 7 文件**：`service/domain_constants.go`、`setting_parse.go`、`setting_update.go`、`settings_view.go`、`handler/dto/settings.go`、`handler/admin/setting_handler.go`、`setting_handler_update.go` —— 同时承载请求审计、请求拦截，以及自定义菜单打开方式（`dto/settings.go` 的 `CustomMenuItem.OpenMode` 与 `setting_handler_update.go` 的取值校验）。
 3. **网关热路径**：`gateway_handler.go`、`gateway_handler_chat_completions.go`、`gateway_handler_responses.go`、`openai_chat_completions.go`、`openai_gateway_handler.go` —— 审计埋点与拦截判断都插在这里。
-4. **前端大文件**：`views/admin/SettingsView.vue`（+447 行，承载审计与拦截两组配置）、`views/admin/BackupView.vue`（+145）、`views/admin/UsageView.vue`（+41）。
+4. **前端大文件**：`views/admin/SettingsView.vue`（+487 行，承载审计、拦截两组配置与自定义菜单打开方式下拉框）、`views/admin/BackupView.vue`（+145）、`views/admin/UsageView.vue`（+41）。
+5. **导航与自定义页面**：`components/layout/AppSidebar.vue`（+65/-22）、`views/user/CustomPageView.vue`（+41）—— 自定义菜单打开方式引入。**这两个是上游高频改动的布局文件，且本地改动是「改写既有结构」而非「追加新块」**，冲突概率高于上面几处按块追加的改动：
+   - `AppSidebar.vue`：三处 `router-link` 被改成 `<component :is="item.href ? 'a' : RouterLink">`。上游若重构侧边栏渲染或调整这几处链接属性，会直接冲突。合并时保留「外链项渲染成 `<a>`」这一语义即可，标记类名与 `data-tour` 等属性以上游为准。另注意 `NavItem` 接口新增了 `href`/`newTab` 两个可选字段，以及 `customMenuNavItem` / `navLinkProps` 两个本地函数。
+   - `CustomPageView.vue`：新增 `externalUrl` 计算属性与 `followExternalTarget`，以及一个 `watch(externalUrl)`。该文件其余部分（Markdown 渲染、TOC、iframe 嵌入）均为上游实现，合并时应整体采用上游版本后再把这三块搬回。
 
 **文档不再是冲突点**：所有上游文档（`README*.md`、`CLA.md`、`DEV_GUIDE.md`、`docs/` 下 7 份）本地零改动，可在合并时直接采用上游版本，无需人工比对。二开说明一律写在本文件里。这条约束请在后续改动中保持——需要补充上游功能的二开行为时，写进本文件对应章节并在其中指明上游文档的哪一句不适用，而不是回头去改上游文档。
 
