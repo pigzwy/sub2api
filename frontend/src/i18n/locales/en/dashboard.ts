@@ -581,6 +581,27 @@ export default {
     }
   },
 
+  checkin: {
+    title: 'Daily Check-in',
+    description: 'Check in once a day for a random balance reward.',
+    action: 'Check in',
+    submitting: 'Checking in…',
+    alreadySigned: 'Checked in today',
+    verifyFirst: 'Complete verification first',
+    rewardRange: 'Daily reward between {min} and {max}',
+    rewardGranted: 'Checked in — you received {amount}',
+    failed: 'Check-in failed, please try again later',
+    captchaFailed: 'Verification failed, please try again',
+    calendarTitle: 'This month',
+    disabledTitle: 'Check-in is off',
+    disabledDesc: 'The administrator has not enabled daily check-in yet.',
+    stats: {
+      balance: 'Balance',
+      monthDays: 'Days this month',
+      totalDays: 'Total check-ins',
+      totalAmount: 'Total earned',
+    },
+  },
   affiliate: {
     title: 'Affiliate Rebates',
     description: 'Invite new users and convert your rebate quota into account balance',

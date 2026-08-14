@@ -7186,6 +7186,86 @@
           </div>
         </div>
 
+        <!-- 活动 (Activities) section — 面向用户的运营活动统一放在这里。
+             签到与邀请返利都属于此类，后续新增活动继续追加到本分区。 -->
+        <div class="pt-2">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+            {{ t("admin.settings.features.activity.title") }}
+          </h2>
+          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            {{ t("admin.settings.features.activity.description") }}
+          </p>
+        </div>
+
+        <!-- 签到 (Daily check-in) feature card -->
+        <div class="card">
+          <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              {{ t("admin.settings.features.checkin.title") }}
+            </h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {{ t("admin.settings.features.checkin.description") }}
+            </p>
+          </div>
+          <div class="space-y-5 p-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t("admin.settings.features.checkin.enabled") }}
+                </label>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.features.checkin.enabledHint") }}
+                </p>
+              </div>
+              <Toggle v-model="form.checkin_enabled" />
+            </div>
+
+            <div v-if="form.checkin_enabled" class="space-y-5">
+              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label class="input-label">
+                    {{ t("admin.settings.features.checkin.minAmount") }}
+                  </label>
+                  <input
+                    v-model.number="form.checkin_min_amount"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    class="input"
+                  />
+                </div>
+                <div>
+                  <label class="input-label">
+                    {{ t("admin.settings.features.checkin.maxAmount") }}
+                  </label>
+                  <input
+                    v-model.number="form.checkin_max_amount"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    class="input"
+                  />
+                </div>
+              </div>
+              <p class="text-xs text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.features.checkin.amountHint") }}
+              </p>
+
+              <div class="flex items-center justify-between">
+                <div>
+                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t("admin.settings.features.checkin.captcha") }}
+                  </label>
+                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.features.checkin.captchaHint") }}
+                  </p>
+                </div>
+                <Toggle v-model="form.checkin_captcha_enabled" />
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Affiliate (邀请返利) feature card -->
         <div class="card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
@@ -9692,6 +9772,11 @@ const form = reactive<SettingsForm>({
   model_plaza_description: '',
   // Affiliate (邀请返利) feature switch
   affiliate_enabled: false,
+  // 每日签到（活动）
+  checkin_enabled: false,
+  checkin_min_amount: 0.1,
+  checkin_max_amount: 0.3,
+  checkin_captcha_enabled: false,
   // Allow user view error requests
   allow_user_view_error_requests: false,
 });
@@ -11344,6 +11429,10 @@ async function saveSettings() {
       model_plaza_description: form.model_plaza_description,
       // Affiliate (邀请返利) feature switch
       affiliate_enabled: form.affiliate_enabled,
+      checkin_enabled: form.checkin_enabled,
+      checkin_min_amount: form.checkin_min_amount,
+      checkin_max_amount: form.checkin_max_amount,
+      checkin_captcha_enabled: form.checkin_captcha_enabled,
       allow_user_view_error_requests: form.allow_user_view_error_requests,
     };
 

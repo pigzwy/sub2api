@@ -40,6 +40,10 @@ func RegisterUserRoutes(
 			user.GET("/api-keys/:id/usage/daily", panelRateLimiter.Heavy(), h.Usage.GetMyAPIKeyDailyUsage)
 			user.GET("/platform-quotas", h.User.GetMyPlatformQuotas)
 
+			// 每日签到（活动）。功能关闭时 handler 返回 404，路由常驻即可。
+			user.GET("/checkin", h.Checkin.GetCheckin)
+			user.POST("/checkin", h.Checkin.Checkin)
+
 			// 通知邮箱管理
 			notifyEmail := user.Group("/notify-email")
 			{

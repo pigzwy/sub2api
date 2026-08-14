@@ -194,6 +194,52 @@ export async function getMyPlatformQuotas(): Promise<PlatformQuotasResponse> {
   return data
 }
 
+/** 每日签到（活动）。 */
+export interface CheckinDay {
+  date: string
+  day: number
+  signed: boolean
+  amount: number
+}
+
+export interface CheckinSnapshot {
+  enabled: boolean
+  captcha_enabled: boolean
+  today: string
+  year_month: string
+  signed_today: boolean
+  min_amount: number
+  max_amount: number
+  month_signed_days: number
+  total_days: number
+  total_amount: number
+  balance: number
+  days: CheckinDay[]
+}
+
+export interface CheckinResult {
+  amount: number
+  date: string
+  snapshot: CheckinSnapshot | null
+}
+
+/** 签到时携带的人机验证凭证；未开启验证时全部留空即可。 */
+export interface CheckinCaptchaProof {
+  captcha_token?: string
+  tencent_ticket?: string
+  tencent_randstr?: string
+}
+
+export async function getCheckin(): Promise<CheckinSnapshot> {
+  const { data } = await apiClient.get<CheckinSnapshot>('/user/checkin')
+  return data
+}
+
+export async function submitCheckin(proof: CheckinCaptchaProof = {}): Promise<CheckinResult> {
+  const { data } = await apiClient.post<CheckinResult>('/user/checkin', proof)
+  return data
+}
+
 export const userAPI = {
   getProfile,
   updateProfile,
@@ -210,6 +256,8 @@ export const userAPI = {
   getAffiliateDetail,
   transferAffiliateQuota,
   getMyPlatformQuotas,
+  getCheckin,
+  submitCheckin,
 }
 
 export default userAPI

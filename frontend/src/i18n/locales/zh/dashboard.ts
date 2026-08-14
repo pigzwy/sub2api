@@ -586,6 +586,27 @@ export default {
     }
   },
 
+  checkin: {
+    title: '每日签到',
+    description: '每天签到一次，领取随机余额奖励。',
+    action: '立即签到',
+    submitting: '签到中…',
+    alreadySigned: '今日已签到',
+    verifyFirst: '请先完成验证',
+    rewardRange: '每日奖励区间 {min} ~ {max}',
+    rewardGranted: '签到成功，获得 {amount}',
+    failed: '签到失败，请稍后重试',
+    captchaFailed: '人机验证未通过，请重试',
+    calendarTitle: '本月签到',
+    disabledTitle: '签到未开启',
+    disabledDesc: '管理员尚未开启每日签到，请稍后再来。',
+    stats: {
+      balance: '当前余额',
+      monthDays: '本月已签',
+      totalDays: '累计签到',
+      totalAmount: '累计获得',
+    },
+  },
   affiliate: {
     title: '邀请返利',
     description: '邀请新用户注册，并将返利额度转入账户余额',

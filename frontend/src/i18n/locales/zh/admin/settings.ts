@@ -59,7 +59,22 @@ export default {
           cyberSessionBlockHint: '开启后,被上游网络安全策略(cyber_policy)拦截的会话将在 TTL 内被本地屏蔽,不再发往上游。仅屏蔽该会话,不影响同 Key 其他会话。',
           cyberSessionBlockTTL: '屏蔽时长(秒)',
         },
-        affiliate: {
+        activity: {
+        title: '活动',
+        description: '面向用户的运营活动。开启后用户端会出现对应入口，关闭后入口隐藏且接口拒绝访问。',
+      },
+      checkin: {
+        title: '每日签到',
+        description: '用户每天可签到一次，获得区间内的随机余额奖励。默认关闭。',
+        enabled: '启用每日签到',
+        enabledHint: '关闭后用户端侧边栏入口隐藏，签到接口返回 404。',
+        minAmount: '单次奖励下限',
+        maxAmount: '单次奖励上限',
+        amountHint: '每次签到在该区间内随机取值，保留两位小数。上限低于下限时按下限发放；单次最高不超过 1000。',
+        captcha: '签到需要人机验证',
+        captchaHint: '开启后用户点击签到需先通过已配置的验证码（Turnstile / 腾讯 / 阿里云）。未配置任何验证码时该开关不生效。',
+      },
+      affiliate: {
           title: '邀请返利',
           description: '老用户邀请新用户注册，新用户充值后老用户按比例获得返利额度。默认关闭。',
           enabled: '启用邀请返利',

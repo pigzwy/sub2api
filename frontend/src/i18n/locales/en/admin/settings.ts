@@ -59,7 +59,22 @@ export default {
           cyberSessionBlockHint: 'When enabled, sessions hit by upstream cyber_policy are blocked locally for the TTL and no longer forwarded. Only the offending session is blocked; other sessions on the same key are unaffected.',
           cyberSessionBlockTTL: 'Block TTL (seconds)',
         },
-        affiliate: {
+        activity: {
+        title: 'Activities',
+        description: 'User-facing campaigns. Enabling one adds its entry to the user sidebar; disabling hides the entry and makes the API reject requests.',
+      },
+      checkin: {
+        title: 'Daily Check-in',
+        description: 'Users can check in once per day for a random balance reward within a configured range. Disabled by default.',
+        enabled: 'Enable daily check-in',
+        enabledHint: 'When off, the sidebar entry is hidden and the check-in API returns 404.',
+        minAmount: 'Minimum reward',
+        maxAmount: 'Maximum reward',
+        amountHint: 'Each check-in draws a random amount in this range, rounded to two decimals. A maximum below the minimum pays the minimum; a single reward never exceeds 1000.',
+        captcha: 'Require captcha to check in',
+        captchaHint: 'Users must pass the configured captcha (Turnstile / Tencent / Aliyun) before checking in. Has no effect when no captcha provider is configured.',
+      },
+      affiliate: {
           title: 'Affiliate (Invite Rebate)',
           description: 'Existing users invite new ones; the inviter earns a percentage rebate on the invitee’s recharges. Disabled by default.',
           enabled: 'Enable Affiliate',

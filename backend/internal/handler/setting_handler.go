@@ -115,6 +115,11 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 
 		AffiliateEnabled: settings.AffiliateEnabled,
 
+		CheckinEnabled:        settings.CheckinEnabled,
+		CheckinMinAmount:      settings.CheckinMinAmount,
+		CheckinMaxAmount:      settings.CheckinMaxAmount,
+		CheckinCaptchaEnabled: settings.CheckinCaptchaEnabled,
+
 		RiskControlEnabled: settings.RiskControlEnabled,
 
 		AllowUserViewErrorRequests: settings.AllowUserViewErrorRequests,

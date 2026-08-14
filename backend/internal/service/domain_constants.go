@@ -24,16 +24,26 @@ const (
 
 // Affiliate rebate settings
 const (
-	AffiliateRebateRateDefault          = 20.0
-	AffiliateRebateRateMin              = 0.0
-	AffiliateRebateRateMax              = 100.0
-	AffiliateEnabledDefault             = false // 邀请返利总开关默认关闭
-	AffiliateRebateFreezeHoursDefault   = 0     // 0 = 不冻结（向后兼容）
-	AffiliateRebateFreezeHoursMax       = 720   // 最大 30 天
+	AffiliateRebateRateDefault        = 20.0
+	AffiliateRebateRateMin            = 0.0
+	AffiliateRebateRateMax            = 100.0
+	AffiliateEnabledDefault           = false // 邀请返利总开关默认关闭
+	AffiliateRebateFreezeHoursDefault = 0     // 0 = 不冻结（向后兼容）
+	AffiliateRebateFreezeHoursMax     = 720   // 最大 30 天
+
 	AffiliateRebateDurationDaysDefault  = 0     // 0 = 永久有效
 	AffiliateRebateDurationDaysMax      = 3650  // ~10 年
 	AffiliateRebatePerInviteeCapDefault = 0.0   // 0 = 无上限
 	AdminRechargeRebateEnabledDefault   = false // 管理员充值默认不产生返利
+)
+
+// 每日签到（活动）
+const (
+	CheckinEnabledDefault        = false  // 签到总开关默认关闭
+	CheckinMinAmountDefault      = 0.1    // 单次签到奖励下限
+	CheckinMaxAmountDefault      = 0.3    // 单次签到奖励上限
+	CheckinAmountMax             = 1000.0 // 单次奖励可配置的绝对上限，避免误填天价金额
+	CheckinCaptchaEnabledDefault = false  // 签到是否要求人机验证，默认关闭
 )
 
 // Platform constants
@@ -163,6 +173,11 @@ const (
 	SettingKeyLoginAgreementMode                  = "login_agreement_mode"             // 条款确认展示模式：modal / checkbox
 	SettingKeyLoginAgreementUpdatedAt             = "login_agreement_updated_at"       // 条款更新日期（展示用）
 	SettingKeyLoginAgreementDocuments             = "login_agreement_documents"        // 条款文档列表（JSON，Markdown 内容）
+	// 每日签到（活动）
+	SettingKeyCheckinEnabled        = "checkin_enabled"         // 每日签到功能开关
+	SettingKeyCheckinMinAmount      = "checkin_min_amount"      // 单次签到奖励下限
+	SettingKeyCheckinMaxAmount      = "checkin_max_amount"      // 单次签到奖励上限
+	SettingKeyCheckinCaptchaEnabled = "checkin_captcha_enabled" // 签到是否要求人机验证
 
 	// 邮件服务设置
 	SettingKeySMTPHost     = "smtp_host"      // SMTP服务器地址

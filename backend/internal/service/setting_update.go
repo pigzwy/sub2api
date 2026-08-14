@@ -438,6 +438,12 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	// Affiliate (邀请返利) feature switch
 	updates[SettingKeyAffiliateEnabled] = strconv.FormatBool(settings.AffiliateEnabled)
 
+	// 每日签到（活动）
+	updates[SettingKeyCheckinEnabled] = strconv.FormatBool(settings.CheckinEnabled)
+	updates[SettingKeyCheckinMinAmount] = strconv.FormatFloat(settings.CheckinMinAmount, 'f', -1, 64)
+	updates[SettingKeyCheckinMaxAmount] = strconv.FormatFloat(settings.CheckinMaxAmount, 'f', -1, 64)
+	updates[SettingKeyCheckinCaptchaEnabled] = strconv.FormatBool(settings.CheckinCaptchaEnabled)
+
 	// 风控中心功能开关
 	updates[SettingKeyRiskControlEnabled] = strconv.FormatBool(settings.RiskControlEnabled)
 

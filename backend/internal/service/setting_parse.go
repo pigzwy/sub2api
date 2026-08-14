@@ -208,6 +208,12 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyAffiliateEnabled:              "false",
 		SettingKeyAffiliateAdminRechargeEnabled: strconv.FormatBool(AdminRechargeRebateEnabledDefault),
 
+		// 每日签到（活动，默认关闭）
+		SettingKeyCheckinEnabled:        strconv.FormatBool(CheckinEnabledDefault),
+		SettingKeyCheckinMinAmount:      strconv.FormatFloat(CheckinMinAmountDefault, 'f', -1, 64),
+		SettingKeyCheckinMaxAmount:      strconv.FormatFloat(CheckinMaxAmountDefault, 'f', -1, 64),
+		SettingKeyCheckinCaptchaEnabled: strconv.FormatBool(CheckinCaptchaEnabledDefault),
+
 		// 风控中心功能（默认关闭，显式启用）
 		SettingKeyRiskControlEnabled: "false",
 
@@ -820,6 +826,16 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	// Affiliate (邀请返利) feature (default: disabled; strict true)
 	result.AffiliateEnabled = settings[SettingKeyAffiliateEnabled] == "true"
 
+	// 每日签到（默认关闭，严格 true 才启用）。金额解析失败时回落到默认区间，
+	// 避免一条脏配置让整个签到入口不可用。
+	result.CheckinEnabled = settings[SettingKeyCheckinEnabled] == "true"
+	result.CheckinCaptchaEnabled = settings[SettingKeyCheckinCaptchaEnabled] == "true"
+	result.CheckinMinAmount = parsePositiveFloatOrDefault(settings[SettingKeyCheckinMinAmount], CheckinMinAmountDefault)
+	result.CheckinMaxAmount = parsePositiveFloatOrDefault(settings[SettingKeyCheckinMaxAmount], CheckinMaxAmountDefault)
+	if result.CheckinMaxAmount < result.CheckinMinAmount {
+		result.CheckinMaxAmount = result.CheckinMinAmount
+	}
+
 	// 风控中心功能（默认关闭，严格 true 才启用）
 	result.RiskControlEnabled = settings[SettingKeyRiskControlEnabled] == "true"
 
@@ -1302,4 +1318,16 @@ func normalizeTablePreferences(defaultPageSize int, options []int) (int, []int) 
 	}
 
 	return defaultPageSize, normalizedOptions
+}
+
+// parsePositiveFloatOrDefault 解析一个要求为正数的浮点设置值。
+//
+// 空值、非法值和非正值都回落到 fallback：签到金额这类配置一旦解析失败，
+// 宁可用默认区间继续发奖，也不要让整个功能因为一条脏数据而不可用。
+func parsePositiveFloatOrDefault(raw string, fallback float64) float64 {
+	v, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+	if err != nil || v <= 0 {
+		return fallback
+	}
+	return v
 }

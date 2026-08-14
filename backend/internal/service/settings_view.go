@@ -174,6 +174,10 @@ type SystemSettings struct {
 	AffiliateRebateRate          float64
 	AffiliateRebateFreezeHours   int
 	AffiliateRebateDurationDays  int
+	CheckinEnabled               bool
+	CheckinMinAmount             float64
+	CheckinMaxAmount             float64
+	CheckinCaptchaEnabled        bool
 	AffiliateRebatePerInviteeCap float64
 	AdminRechargeRebateEnabled   bool
 	DefaultUserRPMLimit          int
@@ -393,6 +397,13 @@ type PublicSettings struct {
 
 	// Affiliate (邀请返利) feature toggle
 	AffiliateEnabled bool `json:"affiliate_enabled"`
+
+	// 每日签到（活动）。金额一并下发，用户端在签到前就能看到奖励区间；
+	// 验证码开关决定用户端是否需要先过人机验证。
+	CheckinEnabled        bool    `json:"checkin_enabled"`
+	CheckinMinAmount      float64 `json:"checkin_min_amount"`
+	CheckinMaxAmount      float64 `json:"checkin_max_amount"`
+	CheckinCaptchaEnabled bool    `json:"checkin_captcha_enabled"`
 
 	// 风控中心功能开关
 	RiskControlEnabled bool `json:"risk_control_enabled"`

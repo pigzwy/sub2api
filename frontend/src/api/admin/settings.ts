@@ -723,6 +723,10 @@ export interface SystemSettings {
 
   // Affiliate (邀请返利) feature switch
   affiliate_enabled: boolean;
+  checkin_enabled: boolean;
+  checkin_min_amount: number;
+  checkin_max_amount: number;
+  checkin_captcha_enabled: boolean;
 
   // OpenAI fast/flex policy
   openai_fast_policy_settings?: OpenAIFastPolicySettings;
@@ -1021,6 +1025,10 @@ export interface UpdateSettingsRequest {
 
   // Affiliate (邀请返利) feature switch
   affiliate_enabled?: boolean;
+  checkin_enabled?: boolean;
+  checkin_min_amount?: number;
+  checkin_max_amount?: number;
+  checkin_captcha_enabled?: boolean;
 
   // OpenAI fast/flex policy
   openai_fast_policy_settings?: OpenAIFastPolicySettings;
