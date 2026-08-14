@@ -346,6 +346,12 @@ type SystemSettings struct {
 	// Affiliate (邀请返利) feature switch
 	AffiliateEnabled bool `json:"affiliate_enabled"`
 
+	// 每日签到（活动）
+	CheckinEnabled        bool    `json:"checkin_enabled"`
+	CheckinMinAmount      float64 `json:"checkin_min_amount"`
+	CheckinMaxAmount      float64 `json:"checkin_max_amount"`
+	CheckinCaptchaEnabled bool    `json:"checkin_captcha_enabled"`
+
 	// OpenAI fast/flex policy
 	OpenAIFastPolicySettings *OpenAIFastPolicySettings `json:"openai_fast_policy_settings,omitempty"`
 
@@ -438,6 +444,11 @@ type PublicSettings struct {
 	ModelPlazaRequireAuth bool `json:"model_plaza_require_auth"`
 
 	AffiliateEnabled bool `json:"affiliate_enabled"`
+
+	CheckinEnabled        bool    `json:"checkin_enabled"`
+	CheckinMinAmount      float64 `json:"checkin_min_amount"`
+	CheckinMaxAmount      float64 `json:"checkin_max_amount"`
+	CheckinCaptchaEnabled bool    `json:"checkin_captcha_enabled"`
 
 	RiskControlEnabled bool `json:"risk_control_enabled"`
 

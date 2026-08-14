@@ -349,6 +349,12 @@ type UpdateSettingsRequest struct {
 	// Affiliate (邀请返利) feature switch
 	AffiliateEnabled *bool `json:"affiliate_enabled"`
 
+	// 每日签到（活动）
+	CheckinEnabled        *bool    `json:"checkin_enabled"`
+	CheckinMinAmount      *float64 `json:"checkin_min_amount"`
+	CheckinMaxAmount      *float64 `json:"checkin_max_amount"`
+	CheckinCaptchaEnabled *bool    `json:"checkin_captcha_enabled"`
+
 	// 风控中心功能开关
 	RiskControlEnabled *bool `json:"risk_control_enabled"`
 
@@ -574,6 +580,33 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	}
 	if affiliateRebateRate > service.AffiliateRebateRateMax {
 		affiliateRebateRate = service.AffiliateRebateRateMax
+	}
+
+	// 签到奖励区间：夹到 (0, CheckinAmountMax]，并保证 min <= max。
+	// 这里夹而不是报错，与本函数其余数值配置的处理方式保持一致；真正会导致
+	// 发钱失控的只有上界，所以上界是硬夹。
+	checkinMinAmount := previousSettings.CheckinMinAmount
+	if req.CheckinMinAmount != nil {
+		checkinMinAmount = *req.CheckinMinAmount
+	}
+	checkinMaxAmount := previousSettings.CheckinMaxAmount
+	if req.CheckinMaxAmount != nil {
+		checkinMaxAmount = *req.CheckinMaxAmount
+	}
+	if checkinMinAmount <= 0 {
+		checkinMinAmount = service.CheckinMinAmountDefault
+	}
+	if checkinMaxAmount <= 0 {
+		checkinMaxAmount = service.CheckinMaxAmountDefault
+	}
+	if checkinMinAmount > service.CheckinAmountMax {
+		checkinMinAmount = service.CheckinAmountMax
+	}
+	if checkinMaxAmount > service.CheckinAmountMax {
+		checkinMaxAmount = service.CheckinAmountMax
+	}
+	if checkinMaxAmount < checkinMinAmount {
+		checkinMaxAmount = checkinMinAmount
 	}
 	affiliateRebateFreezeHours := previousSettings.AffiliateRebateFreezeHours
 	if req.AffiliateRebateFreezeHours != nil {
@@ -1961,6 +1994,20 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.AffiliateEnabled
 		}(),
+		CheckinEnabled: func() bool {
+			if req.CheckinEnabled != nil {
+				return *req.CheckinEnabled
+			}
+			return previousSettings.CheckinEnabled
+		}(),
+		CheckinMinAmount: checkinMinAmount,
+		CheckinMaxAmount: checkinMaxAmount,
+		CheckinCaptchaEnabled: func() bool {
+			if req.CheckinCaptchaEnabled != nil {
+				return *req.CheckinCaptchaEnabled
+			}
+			return previousSettings.CheckinCaptchaEnabled
+		}(),
 		RiskControlEnabled: func() bool {
 			if req.RiskControlEnabled != nil {
 				return *req.RiskControlEnabled
@@ -2448,6 +2495,11 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		ModelPlazaDescription: updatedSettings.ModelPlazaDescription,
 
 		AffiliateEnabled: updatedSettings.AffiliateEnabled,
+
+		CheckinEnabled:        updatedSettings.CheckinEnabled,
+		CheckinMinAmount:      updatedSettings.CheckinMinAmount,
+		CheckinMaxAmount:      updatedSettings.CheckinMaxAmount,
+		CheckinCaptchaEnabled: updatedSettings.CheckinCaptchaEnabled,
 
 		RiskControlEnabled:          updatedSettings.RiskControlEnabled,
 		CyberSessionBlockEnabled:    updatedSettings.CyberSessionBlockEnabled,

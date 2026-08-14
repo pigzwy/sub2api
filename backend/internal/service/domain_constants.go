@@ -24,16 +24,26 @@ const (
 
 // Affiliate rebate settings
 const (
-	AffiliateRebateRateDefault          = 20.0
-	AffiliateRebateRateMin              = 0.0
-	AffiliateRebateRateMax              = 100.0
-	AffiliateEnabledDefault             = false // 邀请返利总开关默认关闭
-	AffiliateRebateFreezeHoursDefault   = 0     // 0 = 不冻结（向后兼容）
-	AffiliateRebateFreezeHoursMax       = 720   // 最大 30 天
+	AffiliateRebateRateDefault        = 20.0
+	AffiliateRebateRateMin            = 0.0
+	AffiliateRebateRateMax            = 100.0
+	AffiliateEnabledDefault           = false // 邀请返利总开关默认关闭
+	AffiliateRebateFreezeHoursDefault = 0     // 0 = 不冻结（向后兼容）
+	AffiliateRebateFreezeHoursMax     = 720   // 最大 30 天
+
 	AffiliateRebateDurationDaysDefault  = 0     // 0 = 永久有效
 	AffiliateRebateDurationDaysMax      = 3650  // ~10 年
 	AffiliateRebatePerInviteeCapDefault = 0.0   // 0 = 无上限
 	AdminRechargeRebateEnabledDefault   = false // 管理员充值默认不产生返利
+)
+
+// 每日签到（活动）
+const (
+	CheckinEnabledDefault        = false  // 签到总开关默认关闭
+	CheckinMinAmountDefault      = 0.1    // 单次签到奖励下限
+	CheckinMaxAmountDefault      = 0.3    // 单次签到奖励上限
+	CheckinAmountMax             = 1000.0 // 单次奖励可配置的绝对上限，避免误填天价金额
+	CheckinCaptchaEnabledDefault = false  // 签到是否要求人机验证，默认关闭
 )
 
 // Platform constants
@@ -155,24 +165,29 @@ const (
 	SettingKeyAffiliateRebateDurationDays         = "affiliate_rebate_duration_days"   // 返利有效期（天，0=永久）
 	SettingKeyAffiliateRebatePerInviteeCap        = "affiliate_rebate_per_invitee_cap" // 单人返利上限（0=无上限）
 	SettingKeyAffiliateAdminRechargeEnabled       = "affiliate_admin_recharge_enabled" // 管理员充值是否产生返利
-	SettingKeyRiskControlEnabled                  = "risk_control_enabled"             // 是否启用风控中心入口与审计链路
-	SettingKeyContentModerationConfig             = "content_moderation_config"        // 内容审计配置（JSON）
-	SettingKeyCyberSessionBlockEnabled            = "cyber_session_block_enabled"      // cyber 命中后会话级自动屏蔽总开关(默认关)
-	SettingKeyCyberSessionBlockTTLSeconds         = "cyber_session_block_ttl_seconds"  // 会话屏蔽 TTL 秒数(默认 3600)
-	SettingKeyRequestAuditEnabled                 = "request_audit_enabled"            // 是否启用请求/响应审计记录
-	SettingKeyRequestAuditRetentionHours          = "request_audit_retention_hours"    // 请求审计保留时长（小时，0=不自动清理）
-	SettingKeyRequestAuditUserScope               = "request_audit_user_scope"         // 请求审计用户范围（JSON 数组）
-	SettingKeyRequestAuditGroupScope              = "request_audit_group_scope"        // 请求审计分组范围（JSON 数组）
-	SettingKeyRequestInterceptEnabled             = "request_intercept_enabled"        // 是否启用请求内容拦截
-	SettingKeyRequestInterceptKeywords            = "request_intercept_keywords"       // 请求内容拦截关键词（每行一个）
-	SettingKeyRequestInterceptResponse            = "request_intercept_response"       // 请求内容拦截固定响应内容
-	SettingKeyRequestInterceptRules               = "request_intercept_rules"          // 请求内容完整匹配拦截规则（JSON 数组）
-	SettingKeyRequestInterceptGroupID             = "request_intercept_group_id"       // 请求内容拦截生效分组 ID
-	SettingKeyRequestInterceptGroupScope          = "request_intercept_group_scope"    // 请求内容拦截生效分组范围（JSON 数组）
-	SettingKeyLoginAgreementEnabled               = "login_agreement_enabled"          // 登录前是否要求同意条款
-	SettingKeyLoginAgreementMode                  = "login_agreement_mode"             // 条款确认展示模式：modal / checkbox
-	SettingKeyLoginAgreementUpdatedAt             = "login_agreement_updated_at"       // 条款更新日期（展示用）
-	SettingKeyLoginAgreementDocuments             = "login_agreement_documents"        // 条款文档列表（JSON，Markdown 内容）
+	// 每日签到（活动）
+	SettingKeyCheckinEnabled              = "checkin_enabled"                 // 每日签到功能开关
+	SettingKeyCheckinMinAmount            = "checkin_min_amount"              // 单次签到奖励下限
+	SettingKeyCheckinMaxAmount            = "checkin_max_amount"              // 单次签到奖励上限
+	SettingKeyCheckinCaptchaEnabled       = "checkin_captcha_enabled"         // 签到是否要求人机验证
+	SettingKeyRiskControlEnabled          = "risk_control_enabled"            // 是否启用风控中心入口与审计链路
+	SettingKeyContentModerationConfig     = "content_moderation_config"       // 内容审计配置（JSON）
+	SettingKeyCyberSessionBlockEnabled    = "cyber_session_block_enabled"     // cyber 命中后会话级自动屏蔽总开关(默认关)
+	SettingKeyCyberSessionBlockTTLSeconds = "cyber_session_block_ttl_seconds" // 会话屏蔽 TTL 秒数(默认 3600)
+	SettingKeyRequestAuditEnabled         = "request_audit_enabled"           // 是否启用请求/响应审计记录
+	SettingKeyRequestAuditRetentionHours  = "request_audit_retention_hours"   // 请求审计保留时长（小时，0=不自动清理）
+	SettingKeyRequestAuditUserScope       = "request_audit_user_scope"        // 请求审计用户范围（JSON 数组）
+	SettingKeyRequestAuditGroupScope      = "request_audit_group_scope"       // 请求审计分组范围（JSON 数组）
+	SettingKeyRequestInterceptEnabled     = "request_intercept_enabled"       // 是否启用请求内容拦截
+	SettingKeyRequestInterceptKeywords    = "request_intercept_keywords"      // 请求内容拦截关键词（每行一个）
+	SettingKeyRequestInterceptResponse    = "request_intercept_response"      // 请求内容拦截固定响应内容
+	SettingKeyRequestInterceptRules       = "request_intercept_rules"         // 请求内容完整匹配拦截规则（JSON 数组）
+	SettingKeyRequestInterceptGroupID     = "request_intercept_group_id"      // 请求内容拦截生效分组 ID
+	SettingKeyRequestInterceptGroupScope  = "request_intercept_group_scope"   // 请求内容拦截生效分组范围（JSON 数组）
+	SettingKeyLoginAgreementEnabled       = "login_agreement_enabled"         // 登录前是否要求同意条款
+	SettingKeyLoginAgreementMode          = "login_agreement_mode"            // 条款确认展示模式：modal / checkbox
+	SettingKeyLoginAgreementUpdatedAt     = "login_agreement_updated_at"      // 条款更新日期（展示用）
+	SettingKeyLoginAgreementDocuments     = "login_agreement_documents"       // 条款文档列表（JSON，Markdown 内容）
 
 	// 邮件服务设置
 	SettingKeySMTPHost     = "smtp_host"      // SMTP服务器地址

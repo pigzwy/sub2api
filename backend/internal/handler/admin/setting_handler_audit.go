@@ -588,6 +588,18 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	if before.AffiliateEnabled != after.AffiliateEnabled {
 		changed = append(changed, "affiliate_enabled")
 	}
+	if before.CheckinEnabled != after.CheckinEnabled {
+		changed = append(changed, "checkin_enabled")
+	}
+	if before.CheckinMinAmount != after.CheckinMinAmount {
+		changed = append(changed, "checkin_min_amount")
+	}
+	if before.CheckinMaxAmount != after.CheckinMaxAmount {
+		changed = append(changed, "checkin_max_amount")
+	}
+	if before.CheckinCaptchaEnabled != after.CheckinCaptchaEnabled {
+		changed = append(changed, "checkin_captcha_enabled")
+	}
 	if before.RiskControlEnabled != after.RiskControlEnabled {
 		changed = append(changed, "risk_control_enabled")
 	}

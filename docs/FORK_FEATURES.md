@@ -39,6 +39,7 @@ git log --no-merges --oneline upstream/main..request-audit  # 本地提交
 | 公开设置缓存与首屏瘦身 | ✅ | ✅ | — | — | — |
 | 管理统计自定义日期区间 | ✅ | ✅ | — | — | — |
 | 自定义菜单打开方式 | ✅ | ✅ | — | — | 复用 `custom_menu_items` |
+| 每日签到（活动） | ✅ | ✅ | ✅ `222` | — | 4 项 |
 | fork 分支镜像构建 | — | — | — | — | — |
 
 ---
@@ -290,7 +291,56 @@ GET /api/v1/settings/public/legal/:revision/:document_id
 
 ---
 
-## 8. fork 分支镜像构建
+## 8. 每日签到（活动）
+
+把原本外挂在独立项目（pay-sub2api）里的签到功能内置进来，不再为一个签到单独跑一个容器。用户每天可签到一次，获得配置区间内的随机余额奖励。
+
+**入口**：管理后台 `系统设置 → 功能开关 → 活动 → 每日签到`；用户端侧边栏「每日签到」（`/checkin`），受 `checkin_enabled` 开关控制。「活动」是本次新建的分区，邀请返利在视觉上一并归入其中，后续新增活动继续追加到该分区。
+
+**接口**
+
+```text
+GET  /api/v1/user/checkin   # 当月日历 + 累计统计 + 余额
+POST /api/v1/user/checkin   # 签到；请求体仅在开启人机验证时需要
+```
+
+两个接口注册在 `routes/user.go` 的 authenticated `/user` 组内，因而自动获得 JWT 鉴权、面板限流与审计日志。功能关闭时返回 404。
+
+**系统设置项**
+
+| 字段 | 说明 |
+|---|---|
+| `checkin_enabled` | 总开关，默认 `false` |
+| `checkin_min_amount` | 单次奖励下限，默认 `0.1` |
+| `checkin_max_amount` | 单次奖励上限，默认 `0.3` |
+| `checkin_captcha_enabled` | 签到是否要求人机验证，默认 `false` |
+
+金额在管理端保存时夹到 `(0, 1000]` 且保证 `min <= max`；读取侧解析失败会回落到默认区间。
+
+**数据库迁移**：`backend/migrations/222_user_checkin_records.sql`（新增 `user_checkin_records` 表）。
+
+**三个关键设计**
+
+1. **判重靠数据库唯一索引，不靠先查后写**。`UNIQUE(user_id, checkin_date)` 是唯一权威判重点：并发双击时两个请求都会尝试插入，只有插入成功的那一个才继续加余额，另一个拿到唯一约束冲突并被翻译成 `CHECKIN_ALREADY_DONE`。
+2. **记录与余额同事务**。参考项目里踩过的坑是「入账失败却把这天标记成已签到」，用户既没拿到钱也不能重试。这里两步在同一个 ent 事务内完成，任一失败整体回滚，于是「今天已签」与「余额已到账」永远一致。
+3. **奖励用 `crypto/rand` 而非 `math/rand`**。金额直接变成余额，可预测的随机序列意味着可以挑时机签到。取样以「分」为单位取整数随机数，避免浮点取样后四舍五入越界。
+
+**不新建 Ent schema**：`user_checkin_records` 与 `user_affiliates` 一样是纯迁移 + 裸 SQL 仓储，通过项目已启用的 `sql/execquery` feature 在 ent 事务内执行原生 SQL。这样省掉一次 `go generate ./ent` 带来的大量生成代码 diff。
+
+**验证码**：走 `AuthService.VerifyCaptcha` 而不是 `VerifyActionCaptchaIfEnabled`——后者只认腾讯/阿里，站点只配了 Turnstile 时会静默放行，那样这个开关就名不副实。前端验证码组件只在用户点击签到后才挂载，避免每个打开页面的人都被挑战一次。
+
+**涉及文件**
+
+- 后端新增：`migrations/222_user_checkin_records.sql`、`service/checkin_service.go`、`repository/checkin_repo.go`、`handler/checkin_handler.go`。
+- 后端修改（设置链路，与既有开关同一套路）：`service/domain_constants.go`、`setting_parse.go`、`setting_update.go`、`setting_public.go`、`setting_features.go`、`settings_view.go`、`handler/dto/settings.go`、`handler/setting_handler.go`、`handler/admin/setting_handler.go`、`setting_handler_update.go`、`setting_handler_audit.go`；装配 `repository/wire.go`、`service/wire.go`、`handler/wire.go`、`handler/handler.go`、`cmd/server/wire_gen.go`、`server/routes/user.go`。
+- 前端新增：`views/user/CheckinView.vue`。
+- 前端修改：`types/index.ts`、`stores/app.ts`、`utils/featureFlags.ts`、`api/user.ts`、`api/admin/settings.ts`、`router/index.ts`、`components/layout/AppSidebar.vue`、`views/admin/SettingsView.vue`、`i18n/locales/{zh,en}/{common,dashboard,admin/settings}.ts`。
+
+**测试**：`service/checkin_service_test.go`（随机金额区间/取整/退化区间/两端可达、按用户按日期判重）；`server/api_contract_test.go` 的设置契约快照同步了新字段。
+
+---
+
+## 9. fork 分支镜像构建
 
 `.github/workflows/fork-docker-build.yml`（`[FORK] Build & Push Docker Image`）是唯一的 CI 二开，上游 workflow 均未改动。
 

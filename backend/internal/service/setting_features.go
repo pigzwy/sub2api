@@ -88,6 +88,44 @@ func (s *SettingService) IsAffiliateEnabled(ctx context.Context) bool {
 	return value == "true"
 }
 
+// CheckinConfig 是签到功能的运行时配置。
+type CheckinConfig struct {
+	Enabled        bool
+	MinAmount      float64
+	MaxAmount      float64
+	CaptchaEnabled bool
+}
+
+// GetCheckinConfig 读取签到配置。
+//
+// 任何一项读取失败都按「功能关闭」处理：签到会给用户加余额，配置读不出来时
+// 宁可不发，也不要用兜底金额发出计划外的钱。
+func (s *SettingService) GetCheckinConfig(ctx context.Context) CheckinConfig {
+	enabled, err := s.settingRepo.GetValue(ctx, SettingKeyCheckinEnabled)
+	if err != nil || enabled != "true" {
+		return CheckinConfig{}
+	}
+
+	cfg := CheckinConfig{Enabled: true}
+	if raw, err := s.settingRepo.GetValue(ctx, SettingKeyCheckinMinAmount); err == nil {
+		cfg.MinAmount = parsePositiveFloatOrDefault(raw, CheckinMinAmountDefault)
+	} else {
+		cfg.MinAmount = CheckinMinAmountDefault
+	}
+	if raw, err := s.settingRepo.GetValue(ctx, SettingKeyCheckinMaxAmount); err == nil {
+		cfg.MaxAmount = parsePositiveFloatOrDefault(raw, CheckinMaxAmountDefault)
+	} else {
+		cfg.MaxAmount = CheckinMaxAmountDefault
+	}
+	if cfg.MaxAmount < cfg.MinAmount {
+		cfg.MaxAmount = cfg.MinAmount
+	}
+	if raw, err := s.settingRepo.GetValue(ctx, SettingKeyCheckinCaptchaEnabled); err == nil {
+		cfg.CaptchaEnabled = raw == "true"
+	}
+	return cfg
+}
+
 // IsAffiliateAdminRechargeEnabled reports whether admin balance
 // deposits should participate in the affiliate rebate program.
 func (s *SettingService) IsAffiliateAdminRechargeEnabled(ctx context.Context) bool {

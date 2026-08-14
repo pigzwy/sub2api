@@ -286,6 +286,11 @@ export interface PublicSettings {
   model_plaza_require_auth: boolean
   service_quota_enabled: boolean
   affiliate_enabled: boolean
+  /** 每日签到（活动）。奖励区间一并下发，用户端在签到前即可展示。 */
+  checkin_enabled: boolean
+  checkin_min_amount?: number
+  checkin_max_amount?: number
+  checkin_captcha_enabled?: boolean
   allow_user_view_error_requests?: boolean
 }
 

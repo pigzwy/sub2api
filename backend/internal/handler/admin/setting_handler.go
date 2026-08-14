@@ -397,6 +397,11 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 
 		AffiliateEnabled: settings.AffiliateEnabled,
 
+		CheckinEnabled:        settings.CheckinEnabled,
+		CheckinMinAmount:      settings.CheckinMinAmount,
+		CheckinMaxAmount:      settings.CheckinMaxAmount,
+		CheckinCaptchaEnabled: settings.CheckinCaptchaEnabled,
+
 		AccountSchedulingThresholds: settings.AccountSchedulingThresholds,
 		AllowUserViewErrorRequests:  settings.AllowUserViewErrorRequests,
 	}
