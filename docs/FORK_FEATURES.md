@@ -26,7 +26,7 @@ git diff --stat upstream/main...request-audit          # 差异规模
 git log --no-merges --oneline upstream/main..request-audit  # 本地提交
 ```
 
-`request-audit` 当前落后上游 4 个提交（`fd82dfd52`、`e29b93a1f`、`e215c98c2`、`fbfdcef81`，均为 Grok 长上下文与媒体兜底修复），尚未合并。
+`request-audit` 当前落后上游 4 个提交（`fd82dfd52`、`e29b93a1f`、`e215c98c2`、`fbfdcef81`，均为 Grok 长上下文与媒体兜底修复），**尚未合并，也暂时不需要合并**：这几个提交在 `v0.1.176` 之后、且尚未进入任何 release（`git describe upstream/main` = `v0.1.176-5-gfbfdcef81`，`fbfdcef81` 无 tag，两边 `VERSION` 都仍是 `0.1.176`）。按惯例等上游打出下一个版本号再整体合并，避免跟随未定稿的中间状态。
 
 ## 功能一览
 
