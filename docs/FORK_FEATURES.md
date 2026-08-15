@@ -338,6 +338,8 @@ POST /api/v1/user/checkin   # 签到；请求体仅在开启人机验证时需�
 - 前端新增：`views/user/CheckinView.vue`。
 - 前端修改：`types/index.ts`、`stores/app.ts`、`utils/featureFlags.ts`、`api/user.ts`、`api/admin/settings.ts`、`router/index.ts`、`components/layout/AppSidebar.vue`、`views/admin/SettingsView.vue`、`i18n/locales/{zh,en}/{common,dashboard,admin/settings}.ts`。
 
+**上游 PR 状态（2026-08-15）**：已按 [MERGE_RECORDS.md](./MERGE_RECORDS.md) 的「向上游提 PR 的基线校准」流程，从上游 `c204d33b0` 切出只含签到的分支 `feat/daily-checkin`（已推送 `origin`，**尚未提 PR**，先自用观察）。注意该分支上迁移编号为 `224`——本分支的 `222` 与上游新增的 `222_group_usage_daily_rollups.sql` 撞号，合并上游时需把本地这条一并改名。真正提 PR 前应重新 rebase 到当时的 `upstream/main` 并完整重跑验证。
+
 **测试**：`service/checkin_service_test.go`（随机金额区间/取整/退化区间/两端可达、按用户按日期判重、流水写入失败时三者一并回滚、成功路径三者齐落）；`server/api_contract_test.go` 的设置契约快照同步了新字段。
 
 ---

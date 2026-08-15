@@ -18,7 +18,7 @@
 上游正式实现 > 上游后续安全修复 > 本地旧二开 > 历史兼容代码
 ```
 
-### 当前仍需维护的独有二开（2026-08-13）
+### 当前仍需维护的独有二开（2026-08-15 更新）
 
 完整清单见 [FORK_FEATURES.md](./FORK_FEATURES.md)，含每项功能的入口、接口、配置、文件清单、测试和合并冲突高发点。概览：
 
@@ -28,9 +28,74 @@
 - Grok 视频对象存储：完成后流式转存到独立 S3 目标，并返回预签名链接。
 - 公开设置性能优化：进程内短缓存、精简首屏载荷、版本化 Logo 和法律正文按需加载。
 - Gemini 图片兼容：Gemini 图片模型可复用 OpenAI Images/异步任务入口，并接入现有对象存储转存链路。
+- 自定义菜单打开方式：每个菜单项可选 iframe 嵌入、当前标签页跳转或新标签页打开。
+- 每日签到（活动）：每天一次随机余额奖励，金额区间与人机验证可配；已另切 `feat/daily-checkin` 作为上游 PR 分支。
 - `request-audit` 分支镜像构建与独立镜像标签。
 
 已由上游接管、不再作为本分支二开维护的功能：按响应模型计费、数据库备份与对象存储（均于 2026-08-12 切换）、订阅额度滚动窗口（上游自行实现按自然日对齐的版本）。它们的历史记录已从本文件删除，避免与现状冲突；再次遇到相关需求时直接使用上游实现。后续若上游接管上述剩余功能，也按本节规则删除对应二开与记录。
+
+## 向上游提 PR 的基线校准（提 PR 前必读）
+
+上游作者反馈：上一次 PR 因为**没有校准基线**，合并起来很费劲。本节是为避免重演而定的固定流程。
+
+根因是本分支的功能提交长在 fork 的历史上，而 fork 的基线往往落后上游若干提交，且相邻代码里混着别的二开。直接把功能分支或 cherry-pick 结果推给上游，会同时带上三类污染：过期的编号与行号、别的二开代码、以及含 fork 依赖的生成文件。
+
+### 固定流程
+
+```bash
+git fetch upstream
+git branch feat/<功能名> upstream/main          # 必须从上游最新切，不是从 request-audit
+git worktree add /tmp/<功能名>-pr feat/<功能名>  # 独立工作树，不干扰主分支
+cd /tmp/<功能名>-pr
+git cherry-pick -x <功能提交...>                # 逐个挑，只挑该功能的提交
+```
+
+冲突逐个解完后，**在 PR 分支上重新执行**（不要沿用主分支的结果）：
+
+```bash
+cd backend && go generate ./cmd/server   # wire_gen.go 必须在干净基线重新生成
+go build ./... && go vet ./... && go test -tags unit ./...
+cd ../frontend && npx vue-tsc --noEmit && npx vitest run
+```
+
+### 三个必查项
+
+每次都要查，因为它们不会以冲突的形式暴露出来：
+
+1. **迁移编号是否与上游撞车**。上游在我们不知情时也在加迁移。`ls backend/migrations/*.sql | sort -t_ -k1 -n | tail -5` 对一眼，重号会让迁移 runner 的 checksum 校验直接失败。
+2. **`cmd/server/wire_gen.go` 是否混入 fork 私有依赖**。这是生成文件，cherry-pick 会把请求审计、视频存储等注入一起带过去。必须 `git checkout HEAD -- ` 还原后重新 `go generate`。
+3. **冲突块里是否裹着别的二开**。git 无法区分「本功能的代码」与「紧邻的其它二开代码」，自动合并常把后者一起并进来。解完所有冲突后全库扫一遍：
+
+```bash
+grep -rn "^<<<<<<< \|^>>>>>>> \|^=======$" --include="*.go" --include="*.ts" --include="*.vue" backend/ frontend/src/
+for f in $(git diff --name-only upstream/main..HEAD); do
+  grep -l "request_audit\|request_intercept\|video_storage\|VideoStorage" "$f" 2>/dev/null
+done
+git diff --name-only upstream/main..HEAD | grep -i "FORK_FEATURES"   # fork 私有文档不进 PR
+```
+
+### 时效性
+
+上游推进很快（2026-08-15 当天就多了 8 个提交）。PR 分支切出后若隔了一段时间才提，**提交前重新 rebase 到 upstream/main 并完整重跑一遍验证**，否则等于又回到了「基线没校准」的状态。
+
+## 2026-08-15：签到功能的上游 PR 分支与基线校准
+
+签到功能已在本分支自用（提交 `2b0e35654`、`fbe88960e`）。为将来提 PR，另按上节流程切了一个只含签到的干净分支，**当前仅推送到 `origin`，尚未向上游提 PR**——先自用观察一段时间。
+
+| 项 | 值 |
+|---|---|
+| PR 分支 | `feat/daily-checkin`（已推送 `origin`） |
+| 切出基线 | `c204d33b0`（上游 main，`v0.1.176-9`） |
+| 内容 | 2 个提交、38 个文件、+1567/-16，只含签到 |
+| 验证 | 后端 build/vet/9 包 unit 测试全绿；前端 typecheck 通过、1547 测试全绿 |
+
+前端测试数比本分支少 11 个，是 fork 私有功能的测试不在该分支内，属预期。
+
+本次校准实际拦下三个问题，都不会以冲突形式暴露：
+
+1. **迁移重号**：原用 `222`，但上游已有 `222_group_usage_daily_rollups.sql` 与 `223_group_usage_rollup_timezone.sql`，PR 分支改为 `224_user_checkin_records.sql`。**本分支仍是 `222`**，两边独立，合并上游时需注意本地 222 与上游 222 并存（迁移 runner 按文件名去重，不同名不冲突，但编号语义已错位，建议下次合并上游时把本地这条改名）。
+2. **`wire_gen.go` 混入 5 处 fork 私有依赖**（请求审计、视频存储），已在干净基线重新生成。
+3. **冲突块裹着其它二开**：`SettingsView.vue` 丢弃 216 行（请求审计 + 请求拦截两张卡片）、`domain_constants.go` 丢弃 12 个 fork setting key、`setting_parse.go` 丢弃 61 行 fork 私有辅助函数。
 
 ## 2026-08-13：清理根目录一次性中文文档
 
