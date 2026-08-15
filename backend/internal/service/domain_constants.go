@@ -105,6 +105,9 @@ const (
 	RedeemTypeSubscription     = domain.RedeemTypeSubscription
 	RedeemTypeInvitation       = domain.RedeemTypeInvitation
 	RedeemTypeAffiliateBalance = "affiliate_balance"
+	// RedeemTypeCheckin 标记每日签到发放的余额，使其出现在余额变动记录里。
+	// 它不在 SumPositiveBalanceByUser 统计的类型内，因此不会计入「累计充值」。
+	RedeemTypeCheckin = "checkin"
 )
 
 // PromoCode status constants
