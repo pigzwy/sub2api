@@ -598,6 +598,8 @@ export default {
     failed: '签到失败，请稍后重试',
     captchaFailed: '人机验证未通过，请重试',
     calendarTitle: '本月签到',
+    legendSigned: '已签到',
+    legendToday: '今天',
     disabledTitle: '签到未开启',
     disabledDesc: '管理员尚未开启每日签到，请稍后再来。',
     stats: {
@@ -682,6 +684,7 @@ export default {
     balanceAddedRedeem: '余额充值（兑换）',
     balanceAddedAffiliate: '余额充值（返利转入）',
     balanceAddedAdmin: '余额充值（管理员）',
+    balanceAddedCheckin: '每日签到奖励',
     balanceDeductedAdmin: '余额扣除（管理员）',
     concurrencyAddedRedeem: '并发增加（兑换）',
     concurrencyAddedAdmin: '并发增加（管理员）',
