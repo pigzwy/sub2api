@@ -186,6 +186,16 @@ const routes: RouteRecordRaw[] = [
     }
   },
 
+  {
+    // Studio 免登录接力(公开路由):已登录带 token 跳入,未登录 ?sso=miss 弹回 Studio 登录页
+    path: '/connect/studio',
+    name: 'ConnectStudio',
+    component: () => import('@/views/ConnectStudioView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'Connect Studio'
+    }
+  },
   // ==================== User Routes ====================
   {
     path: '/',
