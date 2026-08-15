@@ -78,6 +78,22 @@ git diff --name-only upstream/main..HEAD | grep -i "FORK_FEATURES"   # fork 私�
 
 上游推进很快（2026-08-15 当天就多了 8 个提交）。PR 分支切出后若隔了一段时间才提，**提交前重新 rebase 到 upstream/main 并完整重跑一遍验证**，否则等于又回到了「基线没校准」的状态。
 
+## 2026-08-15：合并上游 v0.1.177
+
+本次上游基线为 `baeac1f3d`（`v0.1.177`），共 17 个提交、76 个文件。**自动合并无冲突。**
+
+上游主要内容：分组用量日汇总（新增迁移 `222`、`223`）、Codex turn-state 中继与指纹收敛改为 opt-in、原生/旧版 compaction 路由分离、Grok 长上下文与媒体兜底修复、Go 版本升至 1.26.6。
+
+与二开重叠的文件只有 7 个：`backend/go.mod`、`config/config.go`、`handler/openai_gateway_handler.go`、`service/openai_gateway_service.go`、`frontend/pnpm-lock.yaml`、`i18n/locales/{zh,en}/admin/overview.ts`。其中 `openai_gateway_handler.go` 是二开侵入最深的文件（请求审计埋点与请求拦截判断都在其中），合并后逐条核对了调用顺序：审计捕获 → 安全审计 → 拦截判断，与合并前一致。
+
+**迁移编号撞车已处理**：上游新增的 `222_group_usage_daily_rollups.sql` 与本地 `222_user_checkin_records.sql` 同号。迁移 runner 按文件名排序执行、按文件名去重，两者并存不会冲突，但编号语义已乱，故把本地这条改名为 `224_user_checkin_records.sql`（与 PR 分支 `feat/daily-checkin` 一致）。
+
+> **升级注意**：已部署过旧版本的实例，`schema_migrations` 里记录的是 `222_user_checkin_records.sql`；改名后 runner 会把 `224_...` 当作新迁移**再执行一次**。该迁移全部使用 `CREATE TABLE IF NOT EXISTS` / `CREATE UNIQUE INDEX IF NOT EXISTS`，重跑无副作用，只会在 `schema_migrations` 多留一行记录。签到数据不受影响。
+
+二开功能核验（合并后逐项确认埋点仍在）：请求审计 20 处、请求拦截 138 处、视频转存 21 处、Gemini 图片 6 处、签到 17 处；二开独有文件全部存在；中英文签到文案键集完全一致（各 13 个）。
+
+验证：后端 `go build ./...`、`go vet ./...`、`go test -tags unit ./...` 全量通过；前端 typecheck 通过、构建通过、224 个测试文件 1560 个测试全绿（较合并前多 2 个，为上游新增）。
+
 ## 2026-08-15：签到功能的上游 PR 分支与基线校准
 
 签到功能已在本分支自用（提交 `2b0e35654`、`fbe88960e`）。为将来提 PR，另按上节流程切了一个只含签到的干净分支，**当前仅推送到 `origin`，尚未向上游提 PR**——先自用观察一段时间。
