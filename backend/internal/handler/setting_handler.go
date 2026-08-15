@@ -131,8 +131,6 @@ func (h *SettingHandler) writePublicSettings(c *gin.Context, settings *service.P
 		AffiliateEnabled: settings.AffiliateEnabled,
 
 		CheckinEnabled:        settings.CheckinEnabled,
-		CheckinMinAmount:      settings.CheckinMinAmount,
-		CheckinMaxAmount:      settings.CheckinMaxAmount,
 		CheckinCaptchaEnabled: settings.CheckinCaptchaEnabled,
 
 		RiskControlEnabled: settings.RiskControlEnabled,

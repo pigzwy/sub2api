@@ -36,7 +36,7 @@
 
               <div class="mt-4 border-t border-gray-100 pt-4 dark:border-dark-700">
                 <p class="text-xs text-gray-500 dark:text-dark-400">
-                  {{ t('checkin.rewardRange', { min: formatCurrency(snapshot.min_amount), max: formatCurrency(snapshot.max_amount) }) }}
+                  {{ snapshot.signed_today ? t('checkin.signedHint') : t('checkin.readyHint') }}
                 </p>
                 <button
                   class="btn btn-primary mt-3 w-full"

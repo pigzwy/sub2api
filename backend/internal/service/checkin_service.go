@@ -60,8 +60,6 @@ type CheckinSnapshot struct {
 	Today           string       `json:"today"`
 	YearMonth       string       `json:"year_month"`
 	SignedToday     bool         `json:"signed_today"`
-	MinAmount       float64      `json:"min_amount"`
-	MaxAmount       float64      `json:"max_amount"`
 	MonthSignedDays int          `json:"month_signed_days"`
 	TotalDays       int          `json:"total_days"`
 	TotalAmount     float64      `json:"total_amount"`
@@ -218,8 +216,6 @@ func (s *CheckinService) buildSnapshot(ctx context.Context, userID int64, cfg Ch
 		CaptchaEnabled:  cfg.CaptchaEnabled,
 		Today:           today.Format("2006-01-02"),
 		YearMonth:       now.Format("2006-01"),
-		MinAmount:       cfg.MinAmount,
-		MaxAmount:       cfg.MaxAmount,
 		MonthSignedDays: len(records),
 		TotalDays:       totalDays,
 		TotalAmount:     roundCheckinAmount(totalAmount),
