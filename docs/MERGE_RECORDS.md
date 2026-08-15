@@ -90,6 +90,14 @@ git diff --name-only upstream/main..HEAD | grep -i "FORK_FEATURES"   # fork 私�
 
 > **升级注意**：已部署过旧版本的实例，`schema_migrations` 里记录的是 `222_user_checkin_records.sql`；改名后 runner 会把 `224_...` 当作新迁移**再执行一次**。该迁移全部使用 `CREATE TABLE IF NOT EXISTS` / `CREATE UNIQUE INDEX IF NOT EXISTS`，重跑无副作用，只会在 `schema_migrations` 多留一行记录。签到数据不受影响。
 
+**上游遗漏，已在本分支修正**：v0.1.177 把 `backend/go.mod` 升到 1.26.6，也改了四处 workflow 的 `go version | grep -q` 断言，**但三个 Dockerfile 仍是 `golang:1.26.5-alpine`**。官方 golang 镜像带 `GOTOOLCHAIN=local`，不会自动下载更高版本工具链，于是镜像构建在 `go mod download` 直接失败：
+
+```
+go: go.mod requires go >= 1.26.6 (running go 1.26.5; GOTOOLCHAIN=local)
+```
+
+本分支已把根 `Dockerfile`、`deploy/Dockerfile`、`backend/Dockerfile` 一并升到 `golang:1.26.6-alpine`。这是上游自身的缺陷（上游镜像构建同样会失败），与二开无关；若上游后续自行修复，合并时以上游为准即可。
+
 二开功能核验（合并后逐项确认埋点仍在）：请求审计 20 处、请求拦截 138 处、视频转存 21 处、Gemini 图片 6 处、签到 17 处；二开独有文件全部存在；中英文签到文案键集完全一致（各 13 个）。
 
 验证：后端 `go build ./...`、`go vet ./...`、`go test -tags unit ./...` 全量通过；前端 typecheck 通过、构建通过、224 个测试文件 1560 个测试全绿（较合并前多 2 个，为上游新增）。

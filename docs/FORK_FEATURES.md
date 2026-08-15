@@ -411,6 +411,16 @@ docker compose up -d sub2api
    - `AppSidebar.vue`：三处 `router-link` 被改成 `<component :is="item.href ? 'a' : RouterLink">`。上游若重构侧边栏渲染或调整这几处链接属性，会直接冲突。合并时保留「外链项渲染成 `<a>`」这一语义即可，标记类名与 `data-tour` 等属性以上游为准。另注意 `NavItem` 接口新增了 `href`/`newTab` 两个可选字段，以及 `customMenuNavItem` / `navLinkProps` 两个本地函数。
    - `CustomPageView.vue`：新增 `externalUrl` 计算属性与 `followExternalTarget`，以及一个 `watch(externalUrl)`。该文件其余部分（Markdown 渲染、TOC、iframe 嵌入）均为上游实现，合并时应整体采用上游版本后再把这三块搬回。
 
+**Go 版本升级必查 Dockerfile**：上游 v0.1.177 把 `backend/go.mod` 升到 1.26.6、四处 workflow 断言也同步改了，**但漏了三个 Dockerfile**（根 `Dockerfile`、`deploy/Dockerfile`、`backend/Dockerfile`），它们仍钉在 `golang:1.26.5-alpine`。官方 golang 镜像设了 `GOTOOLCHAIN=local`，容器里的 Go 低于 go.mod 要求时不会自动下载工具链，直接报 `go.mod requires go >= 1.26.6 (running go 1.26.5; GOTOOLCHAIN=local)`，镜像构建在 `go mod download` 一步失败。本分支已在 2026-08-15 修正为 1.26.6。
+注意上游 `DEV_GUIDE.md` 的升级指引只列了 go.mod 与四处 workflow 断言，**没有提 Dockerfile**——这正是它自己翻车的原因。合并任何带 Go 版本变更的上游代码时，务必执行：
+
+```bash
+grep -rn "golang:1\.[0-9.]*-alpine" Dockerfile deploy/Dockerfile backend/Dockerfile
+grep "^go " backend/go.mod
+```
+
+两者必须一致。
+
 **文档不再是冲突点**：所有上游文档（`README*.md`、`CLA.md`、`DEV_GUIDE.md`、`docs/` 下 7 份）本地零改动，可在合并时直接采用上游版本，无需人工比对。二开说明一律写在本文件里。这条约束请在后续改动中保持——需要补充上游功能的二开行为时，写进本文件对应章节并在其中指明上游文档的哪一句不适用，而不是回头去改上游文档。
 
 ## 已由上游接管、不再维护的历史二开
