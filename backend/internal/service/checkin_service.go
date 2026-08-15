@@ -45,26 +45,17 @@ type CheckinRepository interface {
 	WithTx(ctx context.Context, fn func(txCtx context.Context) error) error
 }
 
-// CheckinDay 是月历里的一天。
-type CheckinDay struct {
-	Date   string  `json:"date"`
-	Day    int     `json:"day"`
-	Signed bool    `json:"signed"`
-	Amount float64 `json:"amount"`
-}
-
 // CheckinSnapshot 是签到页需要的全部数据。
 type CheckinSnapshot struct {
-	Enabled         bool         `json:"enabled"`
-	CaptchaEnabled  bool         `json:"captcha_enabled"`
-	Today           string       `json:"today"`
-	YearMonth       string       `json:"year_month"`
-	SignedToday     bool         `json:"signed_today"`
-	MonthSignedDays int          `json:"month_signed_days"`
-	TotalDays       int          `json:"total_days"`
-	TotalAmount     float64      `json:"total_amount"`
-	Balance         float64      `json:"balance"`
-	Days            []CheckinDay `json:"days"`
+	Enabled         bool    `json:"enabled"`
+	CaptchaEnabled  bool    `json:"captcha_enabled"`
+	Today           string  `json:"today"`
+	YearMonth       string  `json:"year_month"`
+	SignedToday     bool    `json:"signed_today"`
+	MonthSignedDays int     `json:"month_signed_days"`
+	TotalDays       int     `json:"total_days"`
+	TotalAmount     float64 `json:"total_amount"`
+	Balance         float64 `json:"balance"`
 }
 
 // CheckinResult 是一次成功签到的结果。
@@ -194,18 +185,6 @@ func (s *CheckinService) buildSnapshot(ctx context.Context, userID int64, cfg Ch
 		byDay[record.Date.Day()] = record.Amount
 	}
 
-	daysInMonth := monthEnd.AddDate(0, 0, -1).Day()
-	days := make([]CheckinDay, 0, daysInMonth)
-	for day := 1; day <= daysInMonth; day++ {
-		amount, signed := byDay[day]
-		days = append(days, CheckinDay{
-			Date:   time.Date(now.Year(), now.Month(), day, 0, 0, 0, 0, now.Location()).Format("2006-01-02"),
-			Day:    day,
-			Signed: signed,
-			Amount: amount,
-		})
-	}
-
 	totalDays, totalAmount, err := s.repo.CountAndSum(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -219,7 +198,6 @@ func (s *CheckinService) buildSnapshot(ctx context.Context, userID int64, cfg Ch
 		MonthSignedDays: len(records),
 		TotalDays:       totalDays,
 		TotalAmount:     roundCheckinAmount(totalAmount),
-		Days:            days,
 	}
 	if _, ok := byDay[today.Day()]; ok {
 		snapshot.SignedToday = true
