@@ -75,6 +75,30 @@ func (r *checkinRepository) CreditBalance(ctx context.Context, userID int64, amo
 	return nil
 }
 
+// RecordBalanceHistory 往 redeem_codes 写一条签到入账记录，使这笔余额出现在
+// 管理端的「余额变动记录」里。
+//
+// 复用 redeem_codes 而不是新建流水表，是因为余额记录页就是由该表与邀请返利流水
+// 归并而成的（admin_user.go 的 getAllUserBalanceHistory），管理员手动充值也是这么
+// 落记录的。类型用独立的 checkin：SumPositiveBalanceByUser 只统计 balance 与
+// admin_balance，所以签到不会被算进「累计充值」。
+//
+// 这里走原生 SQL 而不是 redeemCodeRepo.Create，是因为后者用的是构造时注入的
+// client、不认事务上下文；在事务里调用它会让记录游离于事务之外——回滚时余额没加
+// 而记录留下，恰好破坏本方法想要保证的闭环。
+func (r *checkinRepository) RecordBalanceHistory(ctx context.Context, userID int64, code string, amount float64, notes string) error {
+	client := clientFromContext(ctx, r.client)
+	_, err := client.ExecContext(ctx,
+		`INSERT INTO redeem_codes (code, type, value, status, used_by, used_at, notes, created_at, validity_days)
+		 VALUES ($1, $2, $3, $4, $5, NOW(), $6, NOW(), 0)`,
+		code, service.RedeemTypeCheckin, amount, service.StatusUsed, userID, notes,
+	)
+	if err != nil {
+		return fmt.Errorf("record checkin balance history: %w", err)
+	}
+	return nil
+}
+
 // ListByMonth 返回某个自然月内该用户的全部签到记录，按日期升序。
 func (r *checkinRepository) ListByMonth(ctx context.Context, userID int64, monthStart, monthEnd time.Time) ([]service.CheckinRecord, error) {
 	client := clientFromContext(ctx, r.client)

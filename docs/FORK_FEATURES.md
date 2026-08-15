@@ -322,7 +322,9 @@ POST /api/v1/user/checkin   # 签到；请求体仅在开启人机验证时需�
 **三个关键设计**
 
 1. **判重靠数据库唯一索引，不靠先查后写**。`UNIQUE(user_id, checkin_date)` 是唯一权威判重点：并发双击时两个请求都会尝试插入，只有插入成功的那一个才继续加余额，另一个拿到唯一约束冲突并被翻译成 `CHECKIN_ALREADY_DONE`。
-2. **记录与余额同事务**。参考项目里踩过的坑是「入账失败却把这天标记成已签到」，用户既没拿到钱也不能重试。这里两步在同一个 ent 事务内完成，任一失败整体回滚，于是「今天已签」与「余额已到账」永远一致。
+2. **签到记录、加余额、余额流水三者同事务**。参考项目里踩过的坑是「入账失败却把这天标记成已签到」，用户既没拿到钱也不能重试。这里三步在同一个 ent 事务内完成，任一失败整体回滚，于是「今天已签」「余额已到账」「余额记录里查得到」三者永远一致。
+   余额流水写进 `redeem_codes`（类型 `checkin`），因为管理端「余额变动记录」正是由该表与邀请返利流水归并而成，管理员手动充值也是这么落记录的。类型独立于 `balance`/`admin_balance`，因此 `SumPositiveBalanceByUser` 不会把签到算进「累计充值」——与第 3 条同一个考量。
+   流水插入走仓储内的原生 SQL 而非 `redeemCodeRepo.Create`：后者用构造时注入的 client、不认事务上下文，在事务里调用会让记录游离于事务之外，回滚时余额没加而记录留下，恰好破坏这里要保证的闭环。
 3. **奖励用 `crypto/rand` 而非 `math/rand`**。金额直接变成余额，可预测的随机序列意味着可以挑时机签到。取样以「分」为单位取整数随机数，避免浮点取样后四舍五入越界。
 
 **不新建 Ent schema**：`user_checkin_records` 与 `user_affiliates` 一样是纯迁移 + 裸 SQL 仓储，通过项目已启用的 `sql/execquery` feature 在 ent 事务内执行原生 SQL。这样省掉一次 `go generate ./ent` 带来的大量生成代码 diff。
@@ -336,7 +338,7 @@ POST /api/v1/user/checkin   # 签到；请求体仅在开启人机验证时需�
 - 前端新增：`views/user/CheckinView.vue`。
 - 前端修改：`types/index.ts`、`stores/app.ts`、`utils/featureFlags.ts`、`api/user.ts`、`api/admin/settings.ts`、`router/index.ts`、`components/layout/AppSidebar.vue`、`views/admin/SettingsView.vue`、`i18n/locales/{zh,en}/{common,dashboard,admin/settings}.ts`。
 
-**测试**：`service/checkin_service_test.go`（随机金额区间/取整/退化区间/两端可达、按用户按日期判重）；`server/api_contract_test.go` 的设置契约快照同步了新字段。
+**测试**：`service/checkin_service_test.go`（随机金额区间/取整/退化区间/两端可达、按用户按日期判重、流水写入失败时三者一并回滚、成功路径三者齐落）；`server/api_contract_test.go` 的设置契约快照同步了新字段。
 
 ---
 

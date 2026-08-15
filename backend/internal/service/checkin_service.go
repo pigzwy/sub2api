@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"math"
 	"math/big"
 	"time"
@@ -32,6 +33,8 @@ type CheckinRepository interface {
 	Insert(ctx context.Context, userID int64, date time.Time, amount float64) error
 	// CreditBalance 给用户加余额（只动 balance，不计入累计充值）。
 	CreditBalance(ctx context.Context, userID int64, amount float64) error
+	// RecordBalanceHistory 写一条余额变动记录，使签到出现在余额记录页。
+	RecordBalanceHistory(ctx context.Context, userID int64, code string, amount float64, notes string) error
 	// ListByMonth 返回 [monthStart, monthEnd) 区间内的记录，按日期升序。
 	ListByMonth(ctx context.Context, userID int64, monthStart, monthEnd time.Time) ([]CheckinRecord, error)
 	// CountAndSum 返回累计签到次数与累计金额。
@@ -132,12 +135,22 @@ func (s *CheckinService) Checkin(ctx context.Context, userID int64) (*CheckinRes
 	today := s.today()
 	amount := randomAmount(cfg.MinAmount, cfg.MaxAmount)
 
-	err := s.repo.WithTx(ctx, func(txCtx context.Context) error {
-		// 先插记录：唯一约束是并发下唯一可靠的判重点，插入失败就不会走到加余额。
+	historyCode, err := GenerateRedeemCode()
+	if err != nil {
+		return nil, fmt.Errorf("generate checkin history code: %w", err)
+	}
+
+	err = s.repo.WithTx(ctx, func(txCtx context.Context) error {
+		// 先插签到记录：唯一约束是并发下唯一可靠的判重点，插入失败就不会走到加余额。
 		if err := s.repo.Insert(txCtx, userID, today, amount); err != nil {
 			return err
 		}
-		return s.repo.CreditBalance(txCtx, userID, amount)
+		if err := s.repo.CreditBalance(txCtx, userID, amount); err != nil {
+			return err
+		}
+		// 余额变动记录与前两步同事务：三者要么都成立，要么都不成立，
+		// 不会出现「加了钱查不到记录」或「有记录但没加钱」。
+		return s.repo.RecordBalanceHistory(txCtx, userID, historyCode, amount, checkinHistoryNotes(today))
 	})
 	if err != nil {
 		return nil, err
@@ -256,4 +269,9 @@ func IsCheckinAlreadyDone(err error) bool {
 func (s *CheckinService) CaptchaRequired(ctx context.Context) bool {
 	cfg := s.config(ctx)
 	return cfg.Enabled && cfg.CaptchaEnabled
+}
+
+// checkinHistoryNotes 生成余额记录里的备注，带上签到日期便于对账。
+func checkinHistoryNotes(day time.Time) string {
+	return "daily check-in " + day.Format("2006-01-02")
 }
