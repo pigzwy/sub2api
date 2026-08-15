@@ -158,6 +158,46 @@ func (r *checkinRepository) CountAndSum(ctx context.Context, userID int64) (int,
 	return count, total, nil
 }
 
+// AggregateStats 汇总签到发放情况，供管理端查看运营支出。
+//
+// 一次查询取回三个口径：今日、本月、累计。用条件聚合而不是发三条 SQL，
+// 因为这三个数总是一起展示，分开查会让它们落在不同的时间点上。
+func (r *checkinRepository) AggregateStats(ctx context.Context, today time.Time) (service.CheckinStats, error) {
+	client := clientFromContext(ctx, r.client)
+	monthStart := time.Date(today.Year(), today.Month(), 1, 0, 0, 0, 0, today.Location())
+
+	rows, err := client.QueryContext(ctx,
+		`SELECT
+		   COALESCE(SUM(amount) FILTER (WHERE checkin_date = $1), 0)  AS today_amount,
+		   COUNT(*)             FILTER (WHERE checkin_date = $1)      AS today_users,
+		   COALESCE(SUM(amount) FILTER (WHERE checkin_date >= $2), 0) AS month_amount,
+		   COUNT(*)             FILTER (WHERE checkin_date >= $2)     AS month_checkins,
+		   COALESCE(SUM(amount), 0)                                   AS total_amount,
+		   COUNT(*)                                                   AS total_checkins
+		 FROM user_checkin_records`,
+		today.Format("2006-01-02"), monthStart.Format("2006-01-02"),
+	)
+	if err != nil {
+		return service.CheckinStats{}, fmt.Errorf("aggregate checkin stats: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var stats service.CheckinStats
+	if rows.Next() {
+		if err := rows.Scan(
+			&stats.TodayAmount, &stats.TodayUsers,
+			&stats.MonthAmount, &stats.MonthCheckins,
+			&stats.TotalAmount, &stats.TotalCheckins,
+		); err != nil {
+			return service.CheckinStats{}, fmt.Errorf("scan checkin stats: %w", err)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return service.CheckinStats{}, fmt.Errorf("iterate checkin stats: %w", err)
+	}
+	return stats, nil
+}
+
 // WithTx 在事务中执行 fn。已经处于事务中时直接复用外层事务。
 func (r *checkinRepository) WithTx(ctx context.Context, fn func(txCtx context.Context) error) error {
 	if tx := dbent.TxFromContext(ctx); tx != nil {

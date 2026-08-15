@@ -1079,6 +1079,21 @@ export async function getSettings(): Promise<SystemSettings> {
  * @param settings - Partial settings to update
  * @returns Updated settings
  */
+/** 每日签到发放汇总（管理端只读）。 */
+export interface CheckinStats {
+  today_amount: number;
+  today_users: number;
+  month_amount: number;
+  month_checkins: number;
+  total_amount: number;
+  total_checkins: number;
+}
+
+export async function getCheckinStats(): Promise<CheckinStats> {
+  const { data } = await apiClient.get<CheckinStats>("/admin/checkin/stats");
+  return data;
+}
+
 export async function updateSettings(
   settings: UpdateSettingsRequest,
 ): Promise<SystemSettings> {

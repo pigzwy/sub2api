@@ -62,6 +62,7 @@ type SettingHandler struct {
 	notificationEmailService *service.NotificationEmailService
 	totpService              *service.TotpService
 	userService              *service.UserService
+	checkinService           *service.CheckinService
 }
 
 // NewSettingHandler 创建系统设置处理器
@@ -81,6 +82,31 @@ func NewSettingHandler(settingService *service.SettingService, emailService *ser
 // the constructor signature used by existing unit tests.
 func (h *SettingHandler) SetNotificationEmailService(notificationEmailService *service.NotificationEmailService) {
 	h.notificationEmailService = notificationEmailService
+}
+
+// SetCheckinService attaches the check-in service so the settings page can show
+// how much the daily check-in has paid out, without changing the constructor
+// signature used by existing unit tests.
+func (h *SettingHandler) SetCheckinService(checkinService *service.CheckinService) {
+	h.checkinService = checkinService
+}
+
+// GetCheckinStats returns the daily check-in payout totals.
+// GET /api/v1/admin/checkin/stats
+//
+// Served even when the feature is switched off: an admin still needs to review
+// what was already paid out after turning it off.
+func (h *SettingHandler) GetCheckinStats(c *gin.Context) {
+	if h.checkinService == nil {
+		response.InternalError(c, "checkin service not configured")
+		return
+	}
+	stats, err := h.checkinService.GetStats(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, stats)
 }
 
 // SetAliyunCaptchaService attaches the Aliyun captcha credential validator without

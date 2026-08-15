@@ -64,6 +64,11 @@ export default {
         description: '面向用户的运营活动。开启后用户端会出现对应入口，关闭后入口隐藏且接口拒绝访问。',
       },
       checkin: {
+        statsToday: '今日发放',
+        statsMonth: '本月发放',
+        statsTotal: '累计发放',
+        statsUsers: '人',
+        statsTimes: '次',
         title: '每日签到',
         description: '用户每天可签到一次，获得区间内的随机余额奖励。默认关闭。',
         enabled: '启用每日签到',

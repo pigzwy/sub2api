@@ -90,6 +90,7 @@ func RegisterAdminRoutes(
 
 		// 请求审计
 		registerRequestAuditRoutes(admin, h)
+	registerCheckinRoutes(admin, h)
 
 		// 用户属性管理
 		registerUserAttributeRoutes(admin, h)
@@ -682,6 +683,12 @@ func registerUsageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		usage.POST("/cleanup-tasks", h.Admin.Usage.CreateCleanupTask)
 		usage.POST("/cleanup-tasks/:id/cancel", h.Admin.Usage.CancelCleanupTask)
 	}
+}
+
+// registerCheckinRoutes 注册每日签到的管理端只读统计。
+// 挂在设置 handler 上而不是新建 handler：这个数只在设置页那张卡片里展示。
+func registerCheckinRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	admin.GET("/checkin/stats", h.Admin.Setting.GetCheckinStats)
 }
 
 func registerRequestAuditRoutes(admin *gin.RouterGroup, h *handler.Handlers) {

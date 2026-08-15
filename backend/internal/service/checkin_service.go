@@ -41,6 +41,8 @@ type CheckinRepository interface {
 	ListByMonth(ctx context.Context, userID int64, monthStart, monthEnd time.Time) ([]CheckinRecord, error)
 	// CountAndSum 返回累计签到次数与累计金额。
 	CountAndSum(ctx context.Context, userID int64) (int, float64, error)
+	// AggregateStats 汇总今日/本月/累计的发放情况，供管理端查看。
+	AggregateStats(ctx context.Context, today time.Time) (CheckinStats, error)
 	// WithTx 在事务中执行 fn。
 	WithTx(ctx context.Context, fn func(txCtx context.Context) error) error
 }
@@ -56,6 +58,18 @@ type CheckinSnapshot struct {
 	TotalDays       int     `json:"total_days"`
 	TotalAmount     float64 `json:"total_amount"`
 	Balance         float64 `json:"balance"`
+}
+
+// CheckinStats 是管理端查看的签到发放汇总。
+//
+// 「今日人数」等于今日签到条数：唯一索引保证一个用户当天最多一条，两者等价。
+type CheckinStats struct {
+	TodayAmount   float64 `json:"today_amount"`
+	TodayUsers    int     `json:"today_users"`
+	MonthAmount   float64 `json:"month_amount"`
+	MonthCheckins int     `json:"month_checkins"`
+	TotalAmount   float64 `json:"total_amount"`
+	TotalCheckins int     `json:"total_checkins"`
 }
 
 // CheckinResult 是一次成功签到的结果。
@@ -167,6 +181,12 @@ func (s *CheckinService) Checkin(ctx context.Context, userID int64) (*CheckinRes
 		Date:     today.Format("2006-01-02"),
 		Snapshot: snapshot,
 	}, nil
+}
+
+// GetStats 返回签到发放汇总。功能关闭时也照常返回历史数据——管理员需要在
+// 关闭后仍能查账，而不是一关开关账目就消失。
+func (s *CheckinService) GetStats(ctx context.Context) (CheckinStats, error) {
+	return s.repo.AggregateStats(ctx, s.today())
 }
 
 // buildSnapshot 组装当月日历与累计统计。

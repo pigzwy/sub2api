@@ -7468,6 +7468,41 @@
               <Toggle v-model="form.checkin_enabled" />
             </div>
 
+            <!-- 发放汇总：金额区间就在下方，看到本月发了多少可以顺手调整。 -->
+            <div
+              v-if="checkinStats"
+              class="rounded-lg bg-gray-50 px-4 py-3 text-xs dark:bg-dark-800/50"
+            >
+              <div class="flex flex-wrap items-center gap-x-6 gap-y-1.5">
+                <span class="text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.features.checkin.statsToday") }}
+                  <span class="ml-1 font-semibold text-gray-900 dark:text-white">
+                    ${{ checkinStats.today_amount.toFixed(2) }}
+                  </span>
+                  <span class="ml-1 text-gray-400">
+                    / {{ checkinStats.today_users }}
+                    {{ t("admin.settings.features.checkin.statsUsers") }}
+                  </span>
+                </span>
+                <span class="text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.features.checkin.statsMonth") }}
+                  <span class="ml-1 font-semibold text-gray-900 dark:text-white">
+                    ${{ checkinStats.month_amount.toFixed(2) }}
+                  </span>
+                </span>
+                <span class="text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.features.checkin.statsTotal") }}
+                  <span class="ml-1 font-semibold text-emerald-600 dark:text-emerald-400">
+                    ${{ checkinStats.total_amount.toFixed(2) }}
+                  </span>
+                  <span class="ml-1 text-gray-400">
+                    / {{ checkinStats.total_checkins }}
+                    {{ t("admin.settings.features.checkin.statsTimes") }}
+                  </span>
+                </span>
+              </div>
+            </div>
+
             <div v-if="form.checkin_enabled" class="space-y-5">
               <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
@@ -8984,6 +9019,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { adminAPI } from "@/api";
+import { getCheckinStats, type CheckinStats } from "@/api/admin/settings";
 import {
   appendAuthSourceDefaultsToUpdateRequest,
   buildAuthSourceDefaultsState,
@@ -10956,6 +10992,18 @@ async function setAndCopyOIDCRedirectUrl() {
 }
 
 // Custom menu item management
+// 签到发放汇总（只读）。加载失败保持 null，卡片不显示这一行——
+// 它只是给管理员调金额时做参考，不该因为一次查询失败弹错误。
+const checkinStats = ref<CheckinStats | null>(null);
+
+async function loadCheckinStats() {
+  try {
+    checkinStats.value = await getCheckinStats();
+  } catch {
+    checkinStats.value = null;
+  }
+}
+
 function addMenuItem() {
   form.custom_menu_items.push({
     id: "",
@@ -12980,6 +13028,7 @@ async function handleDeleteProvider() {
 
 onMounted(() => {
   loadSettings();
+  loadCheckinStats();
   loadSubscriptionGroups();
   loadRequestAuditGroups();
   document.addEventListener("click", handleRequestAuditDocumentClick);

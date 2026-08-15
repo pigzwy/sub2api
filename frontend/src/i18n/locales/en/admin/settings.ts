@@ -64,6 +64,11 @@ export default {
         description: 'User-facing campaigns. Enabling one adds its entry to the user sidebar; disabling hides the entry and makes the API reject requests.',
       },
       checkin: {
+        statsToday: 'Paid today',
+        statsMonth: 'This month',
+        statsTotal: 'All time',
+        statsUsers: 'users',
+        statsTimes: 'check-ins',
         title: 'Daily Check-in',
         description: 'Users can check in once per day for a random balance reward within a configured range. Disabled by default.',
         enabled: 'Enable daily check-in',

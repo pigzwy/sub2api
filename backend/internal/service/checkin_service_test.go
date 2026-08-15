@@ -82,6 +82,27 @@ func (f *fakeCheckinRepo) CountAndSum(_ context.Context, userID int64) (int, flo
 	return len(f.records[userID]), total, nil
 }
 
+func (f *fakeCheckinRepo) AggregateStats(_ context.Context, today time.Time) (CheckinStats, error) {
+	var stats CheckinStats
+	todayKey := today.Format("2006-01-02")
+	monthPrefix := today.Format("2006-01")
+	for _, days := range f.records {
+		for date, amount := range days {
+			stats.TotalAmount += amount
+			stats.TotalCheckins++
+			if date == todayKey {
+				stats.TodayAmount += amount
+				stats.TodayUsers++
+			}
+			if len(date) >= 7 && date[:7] == monthPrefix {
+				stats.MonthAmount += amount
+				stats.MonthCheckins++
+			}
+		}
+	}
+	return stats, nil
+}
+
 func (f *fakeCheckinRepo) WithTx(ctx context.Context, fn func(context.Context) error) error {
 	return fn(ctx)
 }
@@ -294,4 +315,42 @@ func TestCheckin_DisabledGrantsNothing(t *testing.T) {
 	require.Zero(t, fake.credited[3])
 	require.Empty(t, fake.records[3])
 	require.Empty(t, fake.history[3])
+}
+
+// 管理端统计要把「今日/本月/累计」分开算对，否则运营看到的支出是错的。
+func TestCheckin_StatsSeparatesTodayMonthAndTotal(t *testing.T) {
+	fake := newFakeCheckinRepo()
+	svc := newEnabledCheckinService(&txFakeCheckinRepo{fakeCheckinRepo: fake})
+	now := time.Now()
+
+	// 今天：两个用户各签一次
+	require.NoError(t, fake.Insert(context.Background(), 1, now, 0.20))
+	require.NoError(t, fake.Insert(context.Background(), 2, now, 0.30))
+	// 本月早些时候：同一用户另一天
+	require.NoError(t, fake.Insert(context.Background(), 1, now.AddDate(0, 0, -1), 0.10))
+	// 上个月：不应计入本月
+	require.NoError(t, fake.Insert(context.Background(), 1, now.AddDate(0, -1, 0), 1.00))
+
+	stats, err := svc.GetStats(context.Background())
+	require.NoError(t, err)
+
+	require.InDelta(t, 0.50, stats.TodayAmount, 1e-9, "今日应只含今天两条")
+	require.Equal(t, 2, stats.TodayUsers)
+	require.InDelta(t, 1.60, stats.TotalAmount, 1e-9, "累计应含全部四条：0.20+0.30+0.10+1.00")
+	require.Equal(t, 4, stats.TotalCheckins)
+	// 上月那条不能进本月
+	require.Less(t, stats.MonthAmount, stats.TotalAmount, "本月不应等于累计（有上月数据）")
+}
+
+// 功能关闭时仍要能查账——关掉开关不该让历史支出从管理端消失。
+func TestCheckin_StatsAvailableWhenDisabled(t *testing.T) {
+	fake := newFakeCheckinRepo()
+	require.NoError(t, fake.Insert(context.Background(), 1, time.Now(), 0.25))
+
+	svc := NewCheckinService(&txFakeCheckinRepo{fakeCheckinRepo: fake}, nil,
+		NewSettingService(&fakeSettingRepo{vals: map[string]string{SettingKeyCheckinEnabled: "false"}}, nil), nil)
+
+	stats, err := svc.GetStats(context.Background())
+	require.NoError(t, err)
+	require.InDelta(t, 0.25, stats.TotalAmount, 1e-9)
 }
