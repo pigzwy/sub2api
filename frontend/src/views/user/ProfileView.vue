@@ -4,10 +4,6 @@
       data-testid="profile-shell"
       class="mx-auto max-w-[950px] space-y-6"
     >
-      <!-- 签到放在个人资料页而不是用户仪表盘：管理员的「我的账户」区没有用户
-           仪表盘入口，卡片挂在那里管理员永远看不到；/profile 两种角色都有。 -->
-      <ProfileCheckinCard @checked-in="onCheckedIn" />
-
       <ProfileInfoCard
         :user="user"
         :linuxdo-enabled="linuxdoOAuthEnabled"
@@ -60,7 +56,6 @@ import { Icon } from '@/components/icons'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import ProfileBalanceNotifyCard from '@/components/user/profile/ProfileBalanceNotifyCard.vue'
 import ProfileInfoCard from '@/components/user/profile/ProfileInfoCard.vue'
-import ProfileCheckinCard from '@/components/user/profile/ProfileCheckinCard.vue'
 import ProfilePasswordForm from '@/components/user/profile/ProfilePasswordForm.vue'
 import ProfileTotpCard from '@/components/user/profile/ProfileTotpCard.vue'
 import ProfilePasskeyCard from '@/components/user/profile/ProfilePasskeyCard.vue'
@@ -73,10 +68,6 @@ const appStore = useAppStore()
 const authStore = useAuthStore()
 const user = computed(() => authStore.user)
 
-// 签到会改余额，签完刷新用户信息让页面上的余额跟着更新。
-function onCheckedIn() {
-  void authStore.refreshUser().catch(() => {})
-}
 
 const contactInfo = ref('')
 const balanceLowNotifyEnabled = ref(false)

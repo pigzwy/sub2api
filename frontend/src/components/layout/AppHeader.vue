@@ -54,6 +54,9 @@
         <!-- Subscription Progress (for users with active subscriptions) -->
         <SubscriptionProgressMini v-if="user" />
 
+        <!-- 每日签到：放在余额左侧，未签到时带红点提示 -->
+        <HeaderCheckin v-if="user" @checked-in="onCheckedIn" />
+
         <!-- Balance Display -->
         <div
           v-if="user"
@@ -258,6 +261,7 @@ import { useAdminSettingsStore } from '@/stores/adminSettings'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMini.vue'
 import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
+import HeaderCheckin from '@/components/layout/HeaderCheckin.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
@@ -267,6 +271,11 @@ const route = useRoute()
 const { t } = useI18n()
 const appStore = useAppStore()
 const authStore = useAuthStore()
+
+// 签到会改余额，签完刷新用户信息，让头部余额立刻更新。
+function onCheckedIn() {
+  void authStore.refreshUser().catch(() => {})
+}
 const adminSettingsStore = useAdminSettingsStore()
 const onboardingStore = useOnboardingStore()
 

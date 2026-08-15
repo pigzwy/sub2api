@@ -582,7 +582,9 @@ export default {
   },
 
   checkin: {
-    summary: '{days} check-ins · {amount} earned',
+    badgeAvailable: 'Available',
+    totalDays: 'Total check-ins',
+    totalAmount: 'Total earned',
     title: 'Daily Check-in',
     action: 'Check in',
     submitting: 'Checking in…',
