@@ -208,8 +208,6 @@ export interface CheckinSnapshot {
   today: string
   year_month: string
   signed_today: boolean
-  min_amount: number
-  max_amount: number
   month_signed_days: number
   total_days: number
   total_amount: number

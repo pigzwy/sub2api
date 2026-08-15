@@ -428,10 +428,10 @@ type PublicSettings struct {
 
 	AffiliateEnabled bool `json:"affiliate_enabled"`
 
-	CheckinEnabled        bool    `json:"checkin_enabled"`
-	CheckinMinAmount      float64 `json:"checkin_min_amount"`
-	CheckinMaxAmount      float64 `json:"checkin_max_amount"`
-	CheckinCaptchaEnabled bool    `json:"checkin_captcha_enabled"`
+	// 奖励区间刻意不下发到公开设置：那是运营参数，任何访客都能读到
+	// /api/v1/settings/public，没必要让人知道单次能拿多少。
+	CheckinEnabled        bool `json:"checkin_enabled"`
+	CheckinCaptchaEnabled bool `json:"checkin_captcha_enabled"`
 
 	RiskControlEnabled bool `json:"risk_control_enabled"`
 

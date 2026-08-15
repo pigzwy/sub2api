@@ -236,8 +236,6 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyModelPlazaRequireAuth,
 		SettingKeyAffiliateEnabled,
 		SettingKeyCheckinEnabled,
-		SettingKeyCheckinMinAmount,
-		SettingKeyCheckinMaxAmount,
 		SettingKeyCheckinCaptchaEnabled,
 		SettingKeyRiskControlEnabled,
 		SettingKeyAllowUserViewErrorRequests,
@@ -369,8 +367,6 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 
 		CheckinEnabled:        settings[SettingKeyCheckinEnabled] == "true",
 		CheckinCaptchaEnabled: settings[SettingKeyCheckinCaptchaEnabled] == "true",
-		CheckinMinAmount:      parsePositiveFloatOrDefault(settings[SettingKeyCheckinMinAmount], CheckinMinAmountDefault),
-		CheckinMaxAmount:      parsePositiveFloatOrDefault(settings[SettingKeyCheckinMaxAmount], CheckinMaxAmountDefault),
 
 		RiskControlEnabled: settings[SettingKeyRiskControlEnabled] == "true",
 
@@ -614,17 +610,15 @@ type PublicSettingsInjectionPayload struct {
 	ChannelMonitorDefaultIntervalSeconds int    `json:"channel_monitor_default_interval_seconds"`
 	// ChannelMonitorHideThroughput is public so the user UI can hide RPM/TPM
 	// without waiting for API redaction alone (defense in depth).
-	ChannelMonitorHideThroughput bool    `json:"channel_monitor_hide_throughput"`
-	AvailableChannelsEnabled     bool    `json:"available_channels_enabled"`
-	ModelPlazaEnabled            bool    `json:"model_plaza_enabled"`
-	ModelPlazaRequireAuth        bool    `json:"model_plaza_require_auth"`
-	AffiliateEnabled             bool    `json:"affiliate_enabled"`
-	CheckinEnabled               bool    `json:"checkin_enabled"`
-	CheckinMinAmount             float64 `json:"checkin_min_amount"`
-	CheckinMaxAmount             float64 `json:"checkin_max_amount"`
-	CheckinCaptchaEnabled        bool    `json:"checkin_captcha_enabled"`
-	RiskControlEnabled           bool    `json:"risk_control_enabled"`
-	AllowUserViewErrorRequests   bool    `json:"allow_user_view_error_requests"`
+	ChannelMonitorHideThroughput bool `json:"channel_monitor_hide_throughput"`
+	AvailableChannelsEnabled     bool `json:"available_channels_enabled"`
+	ModelPlazaEnabled            bool `json:"model_plaza_enabled"`
+	ModelPlazaRequireAuth        bool `json:"model_plaza_require_auth"`
+	AffiliateEnabled             bool `json:"affiliate_enabled"`
+	CheckinEnabled               bool `json:"checkin_enabled"`
+	CheckinCaptchaEnabled        bool `json:"checkin_captcha_enabled"`
+	RiskControlEnabled           bool `json:"risk_control_enabled"`
+	AllowUserViewErrorRequests   bool `json:"allow_user_view_error_requests"`
 }
 
 // GetPublicSettingsForInjection returns public settings in a format suitable for HTML injection.
@@ -703,8 +697,6 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		ModelPlazaRequireAuth:                settings.ModelPlazaRequireAuth,
 		AffiliateEnabled:                     settings.AffiliateEnabled,
 		CheckinEnabled:                       settings.CheckinEnabled,
-		CheckinMinAmount:                     settings.CheckinMinAmount,
-		CheckinMaxAmount:                     settings.CheckinMaxAmount,
 		CheckinCaptchaEnabled:                settings.CheckinCaptchaEnabled,
 		RiskControlEnabled:                   settings.RiskControlEnabled,
 		AllowUserViewErrorRequests:           settings.AllowUserViewErrorRequests,
