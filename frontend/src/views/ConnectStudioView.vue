@@ -20,7 +20,7 @@
 import { onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 
-const STUDIO_URL = 'https://chat.pigcode.ai/'
+const STUDIO_URL = 'https://chat.pigcode.ai/studio'
 const AUTH_TOKEN_KEY = 'auth_token'
 
 const authStore = useAuthStore()
