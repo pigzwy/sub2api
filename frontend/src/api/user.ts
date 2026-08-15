@@ -195,13 +195,6 @@ export async function getMyPlatformQuotas(): Promise<PlatformQuotasResponse> {
 }
 
 /** 每日签到（活动）。 */
-export interface CheckinDay {
-  date: string
-  day: number
-  signed: boolean
-  amount: number
-}
-
 export interface CheckinSnapshot {
   enabled: boolean
   captcha_enabled: boolean
@@ -212,7 +205,6 @@ export interface CheckinSnapshot {
   total_days: number
   total_amount: number
   balance: number
-  days: CheckinDay[]
 }
 
 export interface CheckinResult {

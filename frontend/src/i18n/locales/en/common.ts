@@ -164,7 +164,6 @@ export default {
     usage: 'Usage',
     redeem: 'Redeem',
     affiliate: 'Affiliate Rebates',
-    checkin: 'Daily Check-in',
     affiliateManagement: 'Affiliate Rebates',
     affiliateInviteRecords: 'Invite Records',
     affiliateRebateRecords: 'Rebate Records',

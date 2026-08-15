@@ -164,7 +164,6 @@ export default {
     usage: '使用记录',
     redeem: '兑换',
     affiliate: '邀请返利',
-    checkin: '每日签到',
     affiliateManagement: '邀请返利',
     affiliateInviteRecords: '邀请记录',
     affiliateRebateRecords: '返利记录',

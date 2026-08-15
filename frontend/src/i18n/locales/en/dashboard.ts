@@ -582,8 +582,8 @@ export default {
   },
 
   checkin: {
+    summary: '{days} check-ins · {amount} earned',
     title: 'Daily Check-in',
-    description: 'Check in once a day for a random balance reward.',
     action: 'Check in',
     submitting: 'Checking in…',
     alreadySigned: 'Checked in today',
@@ -593,17 +593,6 @@ export default {
     rewardGranted: 'Checked in — you received {amount}',
     failed: 'Check-in failed, please try again later',
     captchaFailed: 'Verification failed, please try again',
-    calendarTitle: 'This month',
-    legendSigned: 'Checked in',
-    legendToday: 'Today',
-    disabledTitle: 'Check-in is off',
-    disabledDesc: 'The administrator has not enabled daily check-in yet.',
-    stats: {
-      balance: 'Balance',
-      monthDays: 'Days this month',
-      totalDays: 'Total check-ins',
-      totalAmount: 'Total earned',
-    },
   },
   affiliate: {
     title: 'Affiliate Rebates',

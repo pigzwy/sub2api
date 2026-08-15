@@ -587,8 +587,8 @@ export default {
   },
 
   checkin: {
+    summary: '累计签到 {days} 天 · 共获得 {amount}',
     title: '每日签到',
-    description: '每天签到一次，领取随机余额奖励。',
     action: '立即签到',
     submitting: '签到中…',
     alreadySigned: '今日已签到',
@@ -598,17 +598,6 @@ export default {
     rewardGranted: '签到成功，获得 {amount}',
     failed: '签到失败，请稍后重试',
     captchaFailed: '人机验证未通过，请重试',
-    calendarTitle: '本月签到',
-    legendSigned: '已签到',
-    legendToday: '今天',
-    disabledTitle: '签到未开启',
-    disabledDesc: '管理员尚未开启每日签到，请稍后再来。',
-    stats: {
-      balance: '当前余额',
-      monthDays: '本月已签',
-      totalDays: '累计签到',
-      totalAmount: '累计获得',
-    },
   },
   affiliate: {
     title: '邀请返利',
