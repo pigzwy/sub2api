@@ -230,3 +230,68 @@ func TestCheckinHistoryNotes_CarriesDate(t *testing.T) {
 	day := time.Date(2026, 8, 15, 0, 0, 0, 0, time.UTC)
 	require.Equal(t, "daily check-in 2026-08-15", checkinHistoryNotes(day))
 }
+
+func newEnabledCheckinService(repo CheckinRepository) *CheckinService {
+	settings := &fakeSettingRepo{vals: map[string]string{
+		SettingKeyCheckinEnabled:        "true",
+		SettingKeyCheckinMinAmount:      "0.10",
+		SettingKeyCheckinMaxAmount:      "0.30",
+		SettingKeyCheckinCaptchaEnabled: "false",
+	}}
+	return NewCheckinService(repo, nil, NewSettingService(settings, nil), nil)
+}
+
+// 同一天第二次签到必须被拒，且绝不能再加一次余额。这是"能一直签到"这类
+// 缺陷的正面防线：判重发生在事务第一步，失败即整体回滚。
+func TestCheckin_SecondAttemptSameDayIsRejectedAndCreditsNothing(t *testing.T) {
+	fake := newFakeCheckinRepo()
+	svc := newEnabledCheckinService(&txFakeCheckinRepo{fakeCheckinRepo: fake})
+
+	first, err := svc.Checkin(context.Background(), 7)
+	require.NoError(t, err)
+	require.Greater(t, first.Amount, 0.0)
+	creditedOnce := fake.credited[7]
+	require.Equal(t, first.Amount, creditedOnce)
+	require.Len(t, fake.history[7], 1)
+
+	// 第二次
+	second, err := svc.Checkin(context.Background(), 7)
+	require.Error(t, err)
+	require.Nil(t, second)
+	require.True(t, IsCheckinAlreadyDone(err), "重复签到必须是 CHECKIN_ALREADY_DONE，实际: %v", err)
+
+	require.Equal(t, creditedOnce, fake.credited[7], "第二次签到不得再加余额")
+	require.Len(t, fake.history[7], 1, "第二次签到不得再写余额流水")
+	require.Len(t, fake.records[7], 1, "同一天只能有一条签到记录")
+}
+
+// 连续多次尝试同样只放行一次——模拟用户狂点按钮。
+func TestCheckin_RepeatedAttemptsCreditOnlyOnce(t *testing.T) {
+	fake := newFakeCheckinRepo()
+	svc := newEnabledCheckinService(&txFakeCheckinRepo{fakeCheckinRepo: fake})
+
+	successes := 0
+	for i := 0; i < 20; i++ {
+		if _, err := svc.Checkin(context.Background(), 9); err == nil {
+			successes++
+		}
+	}
+	require.Equal(t, 1, successes, "20 次尝试只应成功 1 次")
+	require.Len(t, fake.records[9], 1)
+	require.Len(t, fake.history[9], 1)
+	require.InDelta(t, fake.credited[9], fake.records[9][time.Now().Format("2006-01-02")], 1e-9,
+		"入账金额必须等于那条签到记录的金额")
+}
+
+// 功能关闭时不得发放任何奖励。
+func TestCheckin_DisabledGrantsNothing(t *testing.T) {
+	fake := newFakeCheckinRepo()
+	svc := NewCheckinService(&txFakeCheckinRepo{fakeCheckinRepo: fake}, nil,
+		NewSettingService(&fakeSettingRepo{vals: map[string]string{SettingKeyCheckinEnabled: "false"}}, nil), nil)
+
+	_, err := svc.Checkin(context.Background(), 3)
+	require.ErrorIs(t, err, ErrCheckinDisabled)
+	require.Zero(t, fake.credited[3])
+	require.Empty(t, fake.records[3])
+	require.Empty(t, fake.history[3])
+}

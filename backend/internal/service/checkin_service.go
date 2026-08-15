@@ -203,8 +203,12 @@ func (s *CheckinService) buildSnapshot(ctx context.Context, userID int64, cfg Ch
 		snapshot.SignedToday = true
 	}
 
-	if user, err := s.userRepo.GetByID(ctx, userID); err == nil && user != nil {
-		snapshot.Balance = user.Balance
+	// 余额只是展示字段：仓储缺失或读取失败时留 0，不要让整次签到因此报错——
+	// 此时奖励可能已经入账，快照失败会让调用方误以为签到没成功。
+	if s.userRepo != nil {
+		if user, err := s.userRepo.GetByID(ctx, userID); err == nil && user != nil {
+			snapshot.Balance = user.Balance
+		}
 	}
 	return snapshot, nil
 }
