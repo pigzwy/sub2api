@@ -10,7 +10,9 @@ import (
 	"time"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
+	"go.uber.org/zap"
 )
 
 // 签到相关的业务错误。
@@ -157,8 +159,13 @@ func (s *CheckinService) Checkin(ctx context.Context, userID int64) (*CheckinRes
 	}
 
 	// 事务提交后再失效缓存，避免回滚时把陈旧值重新灌回缓存。
+	// 失效失败只记日志不返回错误：钱已经到账，缓存至多让余额显示滞后一小会儿，
+	// 不该让用户看到「签到失败」而重试（重试也会因唯一约束被判为今日已签）。
 	if s.billingCache != nil {
-		s.billingCache.InvalidateUserBalance(ctx, userID)
+		if cacheErr := s.billingCache.InvalidateUserBalance(ctx, userID); cacheErr != nil {
+			logger.L().Warn("checkin.invalidate_balance_cache_failed",
+				zap.Int64("user_id", userID), zap.Error(cacheErr))
+		}
 	}
 
 	snapshot, err := s.buildSnapshot(ctx, userID, cfg)
