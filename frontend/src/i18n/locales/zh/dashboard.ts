@@ -587,7 +587,9 @@ export default {
   },
 
   checkin: {
-    summary: '累计签到 {days} 天 · 共获得 {amount}',
+    badgeAvailable: '可签到',
+    totalDays: '累计签到',
+    totalAmount: '累计获得',
     title: '每日签到',
     action: '立即签到',
     submitting: '签到中…',
