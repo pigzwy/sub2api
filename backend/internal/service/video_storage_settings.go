@@ -229,7 +229,11 @@ func (s *VideoStorageSettingService) refreshLocked() {
 	s.storage = storage
 	s.options = VideoStorageOptions{Prefix: cfg.Prefix, MaxDownloadBytes: maxBytes}
 	s.enabled = cfg.Enabled
-	s.audioOptions = AudioStorageOptions{Prefix: cfg.AudioPrefix}
+	audioPrefix := strings.TrimSpace(cfg.AudioPrefix)
+	if audioPrefix == "" {
+		audioPrefix = defaultAudioOffloadPrefix
+	}
+	s.audioOptions = AudioStorageOptions{Prefix: audioPrefix}
 	s.audioEnabled = cfg.AudioEnabled
 	s.resolved = true
 	s.lastFailureKind, s.lastFailureAt = "", time.Time{}
@@ -492,9 +496,10 @@ func normalizeVideoStorageSettings(in *VideoStorageSettings) {
 	in.Prefix += "/"
 	in.AudioPrefix = strings.Trim(strings.TrimSpace(in.AudioPrefix), "/")
 	if in.AudioPrefix == "" {
-		in.AudioPrefix = "audio"
+		in.AudioPrefix = defaultAudioOffloadPrefix
+	} else {
+		in.AudioPrefix += "/"
 	}
-	in.AudioPrefix += "/"
 	if in.Region == "" {
 		in.Region = "auto"
 	}

@@ -31,6 +31,10 @@ const (
 
 	defaultAudioOffloadExtension = "bin"
 	defaultAudioOffloadMediaType = "application/octet-stream"
+
+	// defaultAudioOffloadPrefix covers a config.yaml that enables audio without
+	// naming a prefix; the admin console normalizes to the same value.
+	defaultAudioOffloadPrefix = "audio/"
 )
 
 // AudioObjectStorage stores a fully buffered audio response. The method set
