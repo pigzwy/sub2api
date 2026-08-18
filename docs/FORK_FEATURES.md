@@ -34,7 +34,7 @@ git log --no-merges --oneline upstream/main..request-audit  # 本地提交
 |---|---|---|---|---|---|
 | 请求审计日志 | ✅ | ✅ | ✅ `154` | — | 4 项 |
 | 请求内容拦截 | ✅ | ✅ | — | — | 6 项 |
-| Grok 视频转存对象存储 | ✅ | ✅ | — | ✅ `video_storage` | 1 项 |
+| Grok 媒体转存对象存储（视频 + 音频） | ✅ | ✅ | — | ✅ `video_storage` | 1 项 |
 | Gemini 图像走 Images 管线 | ✅ | — | — | — | — |
 | 公开设置缓存与首屏瘦身 | ✅ | ✅ | — | — | — |
 | 管理统计自定义日期区间 | ✅ | ✅ | — | — | — |
@@ -129,18 +129,25 @@ backend/internal/handler/request_intercept_response.go
 
 ---
 
-## 3. Grok 视频转存对象存储
+## 3. Grok 媒体转存对象存储（视频 + 音频）
 
-Grok 视频任务完成后，把视频分片流式上传到一套**独立于图片存储**的 S3 兼容桶；随后状态查询返回预签名 URL，内容接口 302 重定向到已存视频，不再依赖 xAI 的短时留存。
+把已完成的 Grok 媒体转存到一套**独立于图片存储**的 S3 兼容桶：
 
-**入口**：管理后台 `系统设置 → 备份 → 异步视频对象存储`。可勾选复用备份 S3 凭据，也可指向完全独立的账号。保存需通过上游已有的 TOTP step-up 校验，保存后即时生效。
+- **视频**：任务完成后分片流式上传，随后状态查询返回预签名 URL，内容接口 302 重定向到已存视频，不再依赖 xAI 的短时留存。
+- **音频（TTS）**：`/v1/tts` 响应写回客户端后，把整段音频异步归档到 `<audio_prefix>yyyy/mm/dd/<请求 ID>.<扩展名>`。
+
+**入口**：管理后台 `系统设置 → 备份 → 异步媒体对象存储`。上半是共用的存储目标（可勾选复用备份 S3 凭据，也可指向完全独立的账号），下半是视频、音频两行各自独立的开关与前缀。保存需通过上游已有的 TOTP step-up 校验，保存后即时生效。
+
+**两种模态相互独立**：只开音频时不建视频转存，只开视频时不归档音频；S3 客户端在任一开关打开时构建。旧设置 JSON 没有 audio 字段，反序列化即为“音频关闭”，无需迁移。
+
+**音频归档是旁路，宁丢不背压**：`AudioOffloadService.Submit` 是 fire-and-forget——响应早已写回、计费早已由 `estimateGrokVoiceAudioUsage` 落定，因此并发上限 4（队满直接丢弃）、goroutine 内 `context.WithoutCancel` + 60 秒超时 + panic recover，任何失败只落一条 `audio_task.offload_failed`（按种类每分钟限频）。S3 挂掉不会影响 TTS 响应内容、状态码或账单。
 
 **测试连接与失败自愈**（2026-08-18 加固）：「测试连接」执行真实探测——HeadBucket 确认桶可达（拿不准时不武断，R2 的对象级令牌常拒 HeadBucket 但可写）→ 写入 `<prefix>.connection-test` → 删除，整体 8 秒超时；失败经 `classifyS3ProbeError` 归类后由接口返回稳定 `code`（`bucket_not_found` / `access_denied` / `unreachable` / `secret_unreadable` / `incomplete`），前端据此显示中英本地化提示，未知错误回退原始信息。配置解析失败**不再缓存**：下次请求自动重试（临时故障自愈，无需重启），失败日志按种类限频每分钟一条、种类变化立即放行；已存 Secret 解密失败显式报错并拒绝用密文签名（存储的 Secret 一定经 Update 加密，解不开即真故障）。
 
 **接口**
 
 ```text
-GET  /api/v1/admin/backups/video-storage
+GET  /api/v1/admin/backups/video-storage      # media-storage 为同一 handler 的别名
 PUT  /api/v1/admin/backups/video-storage
 POST /api/v1/admin/backups/video-storage/test
 ```
@@ -159,6 +166,8 @@ video_storage:
   force_path_style: false
   presign_expiry_hours: 24
   max_download_bytes: 536870912      # 512 MiB
+  audio_enabled: false               # TTS 音频归档，独立于上面的视频开关
+  audio_prefix: "audio/"
 ```
 
 管理后台设置优先于配置文件。前端另有 `reuse_backup_s3` 字段，仅存于系统设置（`video_storage_config`），不在 config.yaml 中。
@@ -167,6 +176,7 @@ video_storage:
 
 ```text
 backend/internal/service/video_offload.go
+backend/internal/service/audio_offload.go
 backend/internal/service/video_storage_settings.go
 backend/internal/repository/video_offload_store.go
 backend/internal/repository/video_storage_probe.go
@@ -176,7 +186,8 @@ backend/internal/config/video_storage_env_test.go
 **侵入上游的文件**
 
 - `service/grok_media.go`：状态计费点触发转存，内容路径优先返回已存视频，新增 `writeGrokVideoOffloadRedirect`。
-- `service/openai_gateway_service.go`：新增 `videoOffload` 字段。
+- `service/openai_gateway_service.go`：新增 `videoOffload`、`audioOffload` 字段。
+- `service/grok_audio.go`：`ForwardGrokVoice` 在响应写回、计费落定之后插 5 行钩子，仅 `tts` 成功响应触发归档；不碰计费与响应内容。
 - `repository/image_storage_s3.go`：`S3ImageStorage` 新增 `UploadVideo`（多段上传）与 `PresignVideo`，实现 `VideoObjectStorage`。
 - `service/backup_service.go`：新增 `RegisterS3ConfigInvalidator`，备份 S3 凭据变更时联动重建依赖客户端。
 - `service/image_storage_settings.go`：注册失效回调，`resolveLocked` 重构。
@@ -187,7 +198,7 @@ backend/internal/config/video_storage_env_test.go
 
 **运行时数据**：转存记录与去重锁存在 Redis（`grok_video_offload:record:v2:`），无数据库迁移。预签名 URL 强制 https。
 
-**测试**：`service/video_offload_test.go`、`service/video_storage_settings_test.go`（含探测分类透传、失败重试、解密失败闭合）、`repository/video_offload_store_test.go`、`repository/video_storage_probe_test.go`（错误归类表测）、`config/video_storage_env_test.go`、`service/grok_media_content_test.go`；前端 `views/admin/__tests__/BackupView.spec.ts` 补了加载调用的 mock。
+**测试**：`service/video_offload_test.go`、`service/video_storage_settings_test.go`（含探测分类透传、失败重试、解密失败闭合）、`service/audio_offload_test.go`（key 形态、限流丢弃、失败吞掉）、`service/video_storage_settings_audio_test.go`（新字段 round-trip、旧 JSON 兼容、音频独立开关）、`service/grok_audio_offload_test.go`（S3 故障时响应与 AudioUsage 不变）、`repository/video_offload_store_test.go`、`repository/video_storage_probe_test.go`（错误归类表测）、`config/video_storage_env_test.go`、`service/grok_media_content_test.go`；前端 `views/admin/__tests__/BackupView.spec.ts` 补了加载调用的 mock。
 
 ---
 
@@ -385,13 +396,14 @@ docker compose up -d sub2api
 
 ---
 
-## 视频转存与异步图片对象存储的补充说明
+## 媒体转存与异步图片对象存储的补充说明
 
-上游 `docs/ASYNC_IMAGE_TASKS.md` 描述的是异步图片任务与 `image_storage`。本分支在其基础上增加了**独立的视频对象存储**，两者互不影响：
+上游 `docs/ASYNC_IMAGE_TASKS.md` 描述的是异步图片任务与 `image_storage`。本分支在其基础上增加了**独立的媒体对象存储**（视频 + TTS 音频），与图片存储互不影响：
 
-- 要接入 S3 之外的图片厂商，实现 `service.ImageStorage`（`Save(ctx, key, contentType, data) (url, error)`）即可；**视频转存另需实现 `service.VideoObjectStorage`**（`UploadVideo`，接收 `io.Reader`；外加 `PresignVideo`）。
+- 要接入 S3 之外的图片厂商，实现 `service.ImageStorage`（`Save(ctx, key, contentType, data) (url, error)`）即可；**视频转存另需实现 `service.VideoObjectStorage`**（`UploadVideo`，接收 `io.Reader`；外加 `PresignVideo`），**音频归档需实现 `service.AudioObjectStorage`**（方法集与 `ImageStorage` 相同，故 `*S3ImageStorage` 天然满足）。
 - 已完成的 Grok 视频使用独立的 `video_storage` 开关与 S3 目标，配置见本文件第 3 节。
-- 触发时机：xAI 侧完成状态值为 `done`，第一次成功的 `GET /v1/videos/generations/{request_id}` 状态轮询会把上游视频以分片方式流式写入 `<prefix>` 下，然后在完成 JSON 里补上新的 `video_url` 与 `url_expires_at`。内容接口在该记录存在时重定向到新签发的预签名 URL；上传失败则保持原有的状态与内容透传行为不变。
+- 音频触发时机：`/v1/tts` 上游返回 <400 时，响应写回客户端后异步归档；`/stt`、`custom-voices`、realtime 一律不归档。
+- 视频触发时机：xAI 侧完成状态值为 `done`，第一次成功的 `GET /v1/videos/generations/{request_id}` 状态轮询会把上游视频以分片方式流式写入 `<prefix>` 下，然后在完成 JSON 里补上新的 `video_url` 与 `url_expires_at`。内容接口在该记录存在时重定向到新签发的预签名 URL；上传失败则保持原有的状态与内容透传行为不变。
 - 异步图片任务的平台支持范围本分支已扩展：除 OpenAI 与 Grok 外，**gemini 分组也可使用**（见本文件第 4 节）。上游文档中「Only OpenAI and Grok groups are supported」的表述对本分支不适用。
 
 ---
