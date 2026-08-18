@@ -4,7 +4,10 @@ package service
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -156,4 +159,126 @@ func TestVideoStorageReuseBackupRebuildsAfterBackupCredentialUpdate(t *testing.T
 	require.Len(t, *built, 2, "backup credential updates must rebuild the video client immediately")
 	require.Equal(t, "new-ak", (*built)[1].AccessKeyID)
 	require.Equal(t, "new-sk", (*built)[1].SecretAccessKey)
+}
+
+// probingVideoObjectStorage lets TestConnection tests dictate the probe result.
+type probingVideoObjectStorage struct {
+	recordingVideoObjectStorage
+	prefixes []string
+	err      error
+}
+
+func (p *probingVideoObjectStorage) ProbeVideoStorage(_ context.Context, prefix string) error {
+	p.prefixes = append(p.prefixes, prefix)
+	return p.err
+}
+
+func TestVideoStorageResolveFailureIsRetriedWithoutRestart(t *testing.T) {
+	repo := newStubSettingRepo()
+	encryptor := reversibleEncryptor{}
+	backup := NewBackupService(repo, &config.Config{
+		Totp: config.TotpConfig{EncryptionKeyConfigured: true},
+	}, encryptor, nil, nil)
+	fail := true
+	calls := 0
+	factory := func(_ context.Context, _ *config.VideoStorageConfig) (VideoObjectStorage, error) {
+		calls++
+		if fail {
+			return nil, errors.New("endpoint temporarily down")
+		}
+		return &recordingVideoObjectStorage{}, nil
+	}
+	svc := NewVideoStorageSettingService(repo, encryptor, backup, factory, config.VideoStorageConfig{
+		Enabled: true, Endpoint: "https://video.r2.example", Region: "auto",
+		Bucket: "yaml-video", AccessKeyID: "ak", SecretAccessKey: "sk", Prefix: "videos/",
+	})
+
+	_, _, enabled := svc.resolve()
+	require.False(t, enabled)
+
+	// The endpoint comes back; no Invalidate, no restart.
+	fail = false
+	_, _, enabled = svc.resolve()
+	require.True(t, enabled, "a transient factory failure must not pin offload to disabled")
+
+	// Success is cached: another resolve must not rebuild the client.
+	_, _, enabled = svc.resolve()
+	require.True(t, enabled)
+	require.Equal(t, 2, calls)
+}
+
+func TestVideoStorageResolveFailureLogsAreThrottled(t *testing.T) {
+	svc, _, _ := newVideoStorageFixture(t, config.VideoStorageConfig{})
+	at := time.Unix(1700000000, 0)
+	svc.now = func() time.Time { return at }
+
+	require.True(t, svc.shouldLogFailure("client_build"), "first failure must log")
+	require.False(t, svc.shouldLogFailure("client_build"), "repeat within the interval is throttled")
+	at = at.Add(videoStorageFailureLogInterval + time.Second)
+	require.True(t, svc.shouldLogFailure("client_build"), "logging resumes once the interval passes")
+	require.True(t, svc.shouldLogFailure("settings_load"), "a different failure kind logs immediately")
+}
+
+func TestVideoStorageStoredSecretDecryptFailureFailsClosed(t *testing.T) {
+	svc, repo, built := newVideoStorageFixture(t, config.VideoStorageConfig{})
+	ctx := context.Background()
+	_, err := svc.Update(ctx, VideoStorageSettings{
+		Enabled: true, Bucket: "videos", Endpoint: "https://video.r2.example",
+		AccessKeyID: "ak", SecretAccessKey: "video-secret",
+	})
+	require.NoError(t, err)
+
+	// Simulate a rotated or wrong encryption key: the ciphertext no longer decrypts.
+	raw, err := repo.GetValue(ctx, settingKeyVideoStorageConfig)
+	require.NoError(t, err)
+	require.NoError(t, repo.Set(ctx, settingKeyVideoStorageConfig,
+		strings.ReplaceAll(raw, "enc:video-secret", "corrupted")))
+	svc.Invalidate()
+
+	_, _, enabled := svc.resolve()
+	require.False(t, enabled, "an unreadable secret must disable offload, not sign with ciphertext")
+	require.Empty(t, *built, "the factory must never see the undecryptable value")
+
+	err = svc.TestConnection(ctx, VideoStorageSettings{
+		Enabled: true, Bucket: "videos", Endpoint: "https://video.r2.example", AccessKeyID: "ak",
+	})
+	require.ErrorIs(t, err, ErrVideoStorageSecretUnreadable)
+}
+
+func TestVideoStorageTestConnectionRunsARealProbe(t *testing.T) {
+	repo := newStubSettingRepo()
+	encryptor := reversibleEncryptor{}
+	backup := NewBackupService(repo, &config.Config{
+		Totp: config.TotpConfig{EncryptionKeyConfigured: true},
+	}, encryptor, nil, nil)
+	probe := &probingVideoObjectStorage{}
+	var built []config.VideoStorageConfig
+	factory := func(_ context.Context, cfg *config.VideoStorageConfig) (VideoObjectStorage, error) {
+		built = append(built, *cfg)
+		return probe, nil
+	}
+	svc := NewVideoStorageSettingService(repo, encryptor, backup, factory, config.VideoStorageConfig{})
+	ctx := context.Background()
+
+	in := VideoStorageSettings{
+		Enabled: true, Bucket: "videos", Endpoint: "https://video.r2.example",
+		AccessKeyID: "ak", SecretAccessKey: "typed-secret",
+	}
+	require.NoError(t, svc.TestConnection(ctx, in))
+	require.Equal(t, []string{"videos/"}, probe.prefixes, "the probe must write under the normalized prefix")
+	// The typed secret is plaintext from the admin: it must reach the client
+	// verbatim instead of failing a decrypt it never went through.
+	require.Equal(t, "typed-secret", built[0].SecretAccessKey)
+
+	probe.err = fmt.Errorf("%w: boom", ErrVideoStorageAccessDenied)
+	require.ErrorIs(t, svc.TestConnection(ctx, in), ErrVideoStorageAccessDenied)
+}
+
+func TestVideoStorageTestConnectionRefusesUnprobeableStorage(t *testing.T) {
+	svc, _, _ := newVideoStorageFixture(t, config.VideoStorageConfig{})
+	err := svc.TestConnection(context.Background(), VideoStorageSettings{
+		Enabled: true, Bucket: "videos", Endpoint: "https://video.r2.example",
+		AccessKeyID: "ak", SecretAccessKey: "sk",
+	})
+	require.ErrorIs(t, err, ErrVideoStorageNotProbeable)
 }

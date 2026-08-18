@@ -126,7 +126,14 @@ export default {
         presignExpiryHours: '预签名链接有效期（小时）',
         maxDownloadBytes: '视频转存上限（字节）',
         maxDownloadBytesHint: '超过此大小的视频保留原透传路径。默认 536870912（512 MiB）。',
-        saved: '异步视频对象存储配置已保存'
+        saved: '异步视频对象存储配置已保存',
+        testErrors: {
+          bucket_not_found: '存储桶不存在：请核对桶名与端点地址（R2 需先在控制台创建好桶）',
+          access_denied: '凭据无效或权限不足：请检查 Access Key / Secret 及其对该桶的读写权限',
+          unreachable: '端点无法连接：请检查端点地址是否正确、网络是否可达',
+          secret_unreadable: '已保存的 Secret 无法解密：请重新填写 Secret Access Key 后再保存',
+          incomplete: '配置不完整：存储桶、Access Key ID、Secret Access Key 均为必填'
+        }
       },
       schedule: {
         title: '定时备份',

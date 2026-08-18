@@ -90,7 +90,7 @@ func RegisterAdminRoutes(
 
 		// 请求审计
 		registerRequestAuditRoutes(admin, h)
-	registerCheckinRoutes(admin, h)
+		registerCheckinRoutes(admin, h)
 
 		// 用户属性管理
 		registerUserAttributeRoutes(admin, h)

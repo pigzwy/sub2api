@@ -126,7 +126,14 @@ export default {
         presignExpiryHours: 'Presigned link TTL (hours)',
         maxDownloadBytes: 'Video transfer limit (bytes)',
         maxDownloadBytesHint: 'Completed videos larger than this stay on the original passthrough path. Default: 536870912 (512 MiB).',
-        saved: 'Async video object storage saved'
+        saved: 'Async video object storage saved',
+        testErrors: {
+          bucket_not_found: 'Bucket not found: check the bucket name and endpoint (on R2 the bucket must be created first)',
+          access_denied: 'Invalid credentials or insufficient permission: check the access key / secret and its read-write access to this bucket',
+          unreachable: 'Endpoint unreachable: check the endpoint URL and network connectivity',
+          secret_unreadable: 'The stored secret cannot be decrypted: re-enter the Secret Access Key and save again',
+          incomplete: 'Incomplete configuration: bucket, Access Key ID and Secret Access Key are all required'
+        }
       },
       schedule: {
         title: 'Scheduled Backup',
