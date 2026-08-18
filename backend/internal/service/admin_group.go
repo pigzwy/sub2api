@@ -500,6 +500,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		SupportedModelScopes:            input.SupportedModelScopes,
 		AllowMessagesDispatch:           input.AllowMessagesDispatch,
 		AllowLive:                       input.AllowLive,
+		AllowRealtime:                   input.AllowRealtime,
 		RequireOAuthOnly:                input.RequireOAuthOnly,
 		RequirePrivacySet:               input.RequirePrivacySet,
 		DefaultMappedModel:              input.DefaultMappedModel,
@@ -512,6 +513,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	sanitizeGroupMessagesDispatchFields(group)
 	if group.Platform != PlatformOpenAI {
 		group.AllowLive = false
+		group.AllowRealtime = false
 	}
 	sanitizeGroupReasoningEffortPolicy(group)
 	if err := s.groupRepo.Create(ctx, group); err != nil {
@@ -857,6 +859,9 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	if input.AllowLive != nil {
 		group.AllowLive = *input.AllowLive
 	}
+	if input.AllowRealtime != nil {
+		group.AllowRealtime = *input.AllowRealtime
+	}
 	if input.RequireOAuthOnly != nil {
 		group.RequireOAuthOnly = *input.RequireOAuthOnly
 	}
@@ -892,6 +897,7 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	sanitizeGroupMessagesDispatchFields(group)
 	if group.Platform != PlatformOpenAI {
 		group.AllowLive = false
+		group.AllowRealtime = false
 	}
 	sanitizeGroupReasoningEffortPolicy(group)
 

@@ -1785,7 +1785,8 @@ const openAIEndpointCapabilityOptions = computed<
   Array<{ value: OpenAIEndpointCapability; label: string }>
 >(() => [
   { value: 'chat_completions', label: openAITextEndpointCapabilityLabel.value },
-  { value: 'embeddings', label: t('admin.accounts.openai.capabilityEmbeddings') }
+  { value: 'embeddings', label: t('admin.accounts.openai.capabilityEmbeddings') },
+  { value: 'realtime', label: t('admin.accounts.openai.capabilityRealtime') }
 ])
 const openAITextGenerationCapabilityEnabled = computed(() =>
   openAIEndpointCapabilities.value.includes('chat_completions')
@@ -1794,10 +1795,15 @@ const openAIResponsesModeApplicable = computed(
   () => !enableOpenAIEndpointCapabilities.value || openAITextGenerationCapabilityEnabled.value
 )
 
+// realtime 是显式开通能力：默认集合里没有它，未勾选时保存会回落为默认两项。
+const openAIDefaultEndpointCapabilities: OpenAIEndpointCapability[] = ['chat_completions', 'embeddings']
+const isDefaultOpenAIEndpointCapabilitySelection = (values: OpenAIEndpointCapability[]) =>
+  values.length === openAIDefaultEndpointCapabilities.length &&
+  openAIDefaultEndpointCapabilities.every((value) => values.includes(value))
 const normalizeOpenAIEndpointCapabilities = (values: OpenAIEndpointCapability[]) => {
-  const allowed: OpenAIEndpointCapability[] = ['chat_completions', 'embeddings']
+  const allowed: OpenAIEndpointCapability[] = ['chat_completions', 'embeddings', 'realtime']
   const selected = allowed.filter((value) => values.includes(value))
-  return selected.length > 0 ? selected : allowed
+  return selected.length > 0 ? selected : [...openAIDefaultEndpointCapabilities]
 }
 
 const toggleOpenAIEndpointCapability = (
@@ -1994,10 +2000,10 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
   }
 
   if (applyOpenAIEndpointCapabilities) {
-    credentials.openai_capabilities =
-      openAIEndpointCapabilities.value.length === 2
-        ? null
-        : [...openAIEndpointCapabilities.value]
+    const capabilities = normalizeOpenAIEndpointCapabilities(openAIEndpointCapabilities.value)
+    credentials.openai_capabilities = isDefaultOpenAIEndpointCapabilitySelection(capabilities)
+      ? null
+      : capabilities
     credentialsChanged = true
   }
 

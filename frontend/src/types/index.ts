@@ -614,6 +614,8 @@ export interface Group {
   allow_messages_dispatch?: boolean
   // OpenAI Live 接口开关
   allow_live: boolean
+  // OpenAI Realtime 语音接口开关（/v1/realtime）
+  allow_realtime: boolean
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
   require_oauth_only: boolean
@@ -824,6 +826,7 @@ export interface CreateGroupRequest {
   models_list_config?: ModelsListConfig
   allow_messages_dispatch?: boolean
   allow_live?: boolean
+  allow_realtime?: boolean
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
   model_routing?: Record<string, number[]> | null
@@ -886,6 +889,7 @@ export interface UpdateGroupRequest {
   models_list_config?: ModelsListConfig
   allow_messages_dispatch?: boolean
   allow_live?: boolean
+  allow_realtime?: boolean
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
   model_routing?: Record<string, number[]> | null
@@ -1410,7 +1414,7 @@ export interface CodexUsageSnapshot {
 
 export type OpenAICompactMode = 'auto' | 'force_on' | 'force_off'
 export type OpenAIResponsesMode = 'auto' | 'force_responses' | 'force_chat_completions'
-export type OpenAIEndpointCapability = 'chat_completions' | 'embeddings'
+export type OpenAIEndpointCapability = 'chat_completions' | 'embeddings' | 'realtime'
 
 export interface OpenAICompactState {
   openai_compact_mode?: OpenAICompactMode

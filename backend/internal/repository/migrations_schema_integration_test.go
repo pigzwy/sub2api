@@ -58,6 +58,15 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 	// groups: OpenAI Live 默认关闭，管理员显式开启后才可访问。
 	requireColumn(t, tx, "groups", "allow_live", "boolean", 0, false)
 
+	// groups: OpenAI Realtime 语音默认关闭，管理员显式开启后才可访问。
+	requireColumn(t, tx, "groups", "allow_realtime", "boolean", 0, false)
+
+	// usage_logs: Realtime 语音 audio token 明细列。
+	requireColumn(t, tx, "usage_logs", "audio_input_tokens", "integer", 0, false)
+	requireColumn(t, tx, "usage_logs", "audio_input_cost", "numeric", 0, false)
+	requireColumn(t, tx, "usage_logs", "audio_output_tokens", "integer", 0, false)
+	requireColumn(t, tx, "usage_logs", "audio_output_cost", "numeric", 0, false)
+
 	// api_keys: key length should be 128
 	requireColumn(t, tx, "api_keys", "key", "character varying", 128, false)
 

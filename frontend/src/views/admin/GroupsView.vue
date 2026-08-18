@@ -1612,6 +1612,29 @@
           <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
             {{ t("admin.groups.openaiLive.hint") }}
           </p>
+          <div class="flex items-center justify-between mt-4">
+            <label class="text-sm text-gray-600 dark:text-gray-400">{{
+              t("admin.groups.openaiRealtime.allow")
+            }}</label>
+            <button
+              type="button"
+              @click="toggleRealtime('create')"
+              class="relative inline-flex h-6 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+              :class="
+                createForm.allow_realtime
+                  ? 'bg-primary-500'
+                  : 'bg-gray-300 dark:bg-dark-600'
+              "
+            >
+              <span
+                class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                :class="createForm.allow_realtime ? 'translate-x-6' : 'translate-x-1'"
+              />
+            </button>
+          </div>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            {{ t("admin.groups.openaiRealtime.hint") }}
+          </p>
         </div>
 
         <!-- OpenAI Messages 调度配置（仅 openai 平台） -->
@@ -3333,6 +3356,29 @@
           </div>
           <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
             {{ t("admin.groups.openaiLive.hint") }}
+          </p>
+          <div class="flex items-center justify-between mt-4">
+            <label class="text-sm text-gray-600 dark:text-gray-400">{{
+              t("admin.groups.openaiRealtime.allow")
+            }}</label>
+            <button
+              type="button"
+              @click="toggleRealtime('edit')"
+              class="relative inline-flex h-6 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+              :class="
+                editForm.allow_realtime
+                  ? 'bg-primary-500'
+                  : 'bg-gray-300 dark:bg-dark-600'
+              "
+            >
+              <span
+                class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                :class="editForm.allow_realtime ? 'translate-x-6' : 'translate-x-1'"
+              />
+            </button>
+          </div>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            {{ t("admin.groups.openaiRealtime.hint") }}
           </p>
         </div>
 
@@ -5090,6 +5136,7 @@ const createForm = reactive({
   // OpenAI Messages 调度配置（仅 openai 平台使用）
   allow_messages_dispatch: false,
   allow_live: false,
+  allow_realtime: false,
   opus_mapped_model: createMessagesDispatchDefaults.opus_mapped_model,
   sonnet_mapped_model: createMessagesDispatchDefaults.sonnet_mapped_model,
   haiku_mapped_model: createMessagesDispatchDefaults.haiku_mapped_model,
@@ -5451,6 +5498,7 @@ const editForm = reactive({
   // OpenAI Messages 调度配置（仅 openai 平台使用）
   allow_messages_dispatch: false,
   allow_live: false,
+  allow_realtime: false,
   default_mapped_model: '',
   opus_mapped_model: editMessagesDispatchDefaults.opus_mapped_model,
   sonnet_mapped_model: editMessagesDispatchDefaults.sonnet_mapped_model,
@@ -5686,6 +5734,12 @@ const cancelUnsupportedLive = () => {
   pendingLiveForm.value = null;
 };
 
+// Realtime 无需服务端能力探测，直接开关。
+const toggleRealtime = (target: "create" | "edit") => {
+  const form = target === "create" ? createForm : editForm;
+  form.allow_realtime = !form.allow_realtime;
+};
+
 const loadGroups = async () => {
   if (abortController) {
     abortController.abort();
@@ -5903,6 +5957,7 @@ const closeCreateModal = () => {
   createForm.fallback_group_id_on_invalid_request = null;
   resetMessagesDispatchFormState(createForm);
   createForm.allow_live = false;
+  createForm.allow_realtime = false;
   createForm.require_oauth_only = false;
   createForm.require_privacy_set = false;
   createForm.supported_model_scopes = ["claude", "gemini_text", "gemini_image"];
@@ -6160,6 +6215,7 @@ const handleEdit = async (group: AdminGroup) => {
     group.allow_messages_dispatch ||
     messagesDispatchFormState.allow_messages_dispatch;
   editForm.allow_live = group.allow_live ?? false;
+  editForm.allow_realtime = group.allow_realtime ?? false;
   editForm.opus_mapped_model = messagesDispatchFormState.opus_mapped_model;
   editForm.sonnet_mapped_model = messagesDispatchFormState.sonnet_mapped_model;
   editForm.haiku_mapped_model = messagesDispatchFormState.haiku_mapped_model;
@@ -6227,6 +6283,7 @@ const closeEditModal = () => {
   editForm.audio_stt_price_per_hour = null;
   resetMessagesDispatchFormState(editForm);
   editForm.allow_live = false;
+  editForm.allow_realtime = false;
   resetModelsListState(editModelsListState);
 };
 
@@ -6664,6 +6721,7 @@ watch(
     if (newVal !== "openai") {
       resetMessagesDispatchFormState(createForm);
       createForm.allow_live = false;
+      createForm.allow_realtime = false;
     }
     if (!isProfitControlPlatform(newVal)) {
       createForm.profit_control_enabled = false;
@@ -6712,6 +6770,7 @@ watch(
     if (newVal !== "openai") {
       resetMessagesDispatchFormState(editForm);
       editForm.allow_live = false;
+      editForm.allow_realtime = false;
     }
     if (!isProfitControlPlatform(newVal)) {
       editForm.profit_control_enabled = false;
@@ -6762,6 +6821,7 @@ watch(
     if (newVal !== 'openai') {
       editForm.allow_messages_dispatch = false
       editForm.allow_live = false
+      editForm.allow_realtime = false
       editForm.default_mapped_model = ''
     }
   }
