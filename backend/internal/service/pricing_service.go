@@ -123,11 +123,11 @@ type LiteLLMModelPricing struct {
 	LiteLLMProvider                     string  `json:"litellm_provider"`
 	Mode                                string  `json:"mode"`
 	SupportsPromptCaching               bool    `json:"supports_prompt_caching"`
-	OutputCostPerImage                  float64 `json:"output_cost_per_image"`       // 图片生成模型每张图片价格
-	OutputCostPerImageToken             float64 `json:"output_cost_per_image_token"` // 图片输出 token 价格
-	InputCostPerImageToken              float64 `json:"input_cost_per_image_token"`  // 图片输入 token 价格（如 gpt-image-2 图片编辑）
-	InputCostPerAudioToken              float64 `json:"input_cost_per_audio_token"`  // 音频输入 token 价格（realtime 语音）
-	OutputCostPerAudioToken             float64 `json:"output_cost_per_audio_token"` // 音频输出 token 价格
+	OutputCostPerImage                  float64 `json:"output_cost_per_image"`                 // 图片生成模型每张图片价格
+	OutputCostPerImageToken             float64 `json:"output_cost_per_image_token"`           // 图片输出 token 价格
+	InputCostPerImageToken              float64 `json:"input_cost_per_image_token"`            // 图片输入 token 价格（如 gpt-image-2 图片编辑）
+	InputCostPerAudioToken              float64 `json:"input_cost_per_audio_token"`            // 音频输入 token 价格（realtime 语音）
+	OutputCostPerAudioToken             float64 `json:"output_cost_per_audio_token"`           // 音频输出 token 价格
 	CacheReadInputAudioTokenCost        float64 `json:"cache_read_input_audio_token_cost"`     // 音频缓存读取 token 价格
 	CacheCreationInputAudioTokenCost    float64 `json:"cache_creation_input_audio_token_cost"` // 音频缓存创建 token 价格（部分 realtime 条目以此表示缓存音频价）
 
