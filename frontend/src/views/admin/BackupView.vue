@@ -129,36 +129,30 @@
         </div>
       </div>
 
-      <!-- Async video object storage -->
+      <!-- Async media object storage: Grok video + TTS audio share one target -->
       <div class="card p-6">
-        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 class="text-base font-semibold text-gray-900 dark:text-white">
-              {{ t('admin.backup.videoStorage.title') }}
-            </h3>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {{ t('admin.backup.videoStorage.description') }}
-            </p>
-          </div>
-          <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-            <input v-model="videoStorageForm.enabled" type="checkbox" />
-            <span>{{ t('admin.backup.videoStorage.enabled') }}</span>
-          </label>
+        <div class="mb-4">
+          <h3 class="text-base font-semibold text-gray-900 dark:text-white">
+            {{ t('admin.backup.mediaStorage.title') }}
+          </h3>
+          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            {{ t('admin.backup.mediaStorage.description') }}
+          </p>
         </div>
 
-        <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+        <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+          {{ t('admin.backup.mediaStorage.target') }}
+        </h4>
+
+        <label class="mt-2 inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
           <input v-model="videoStorageForm.reuse_backup_s3" type="checkbox" />
-          <span>{{ t('admin.backup.videoStorage.reuseBackupS3') }}</span>
+          <span>{{ t('admin.backup.mediaStorage.reuseBackupS3') }}</span>
         </label>
 
         <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.videoStorage.bucket') }}</label>
-            <input v-model="videoStorageForm.bucket" class="input w-full" :placeholder="videoStorageForm.reuse_backup_s3 ? t('admin.backup.videoStorage.bucketInherited') : ''" />
-          </div>
-          <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.videoStorage.prefix') }}</label>
-            <input v-model="videoStorageForm.prefix" class="input w-full" placeholder="videos/" />
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.mediaStorage.bucket') }}</label>
+            <input v-model="videoStorageForm.bucket" class="input w-full" :placeholder="videoStorageForm.reuse_backup_s3 ? t('admin.backup.mediaStorage.bucketInherited') : ''" />
           </div>
 
           <template v-if="!videoStorageForm.reuse_backup_s3">
@@ -183,19 +177,49 @@
               <span>{{ t('admin.backup.s3.forcePathStyle') }}</span>
             </label>
           </template>
+        </div>
 
-          <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.videoStorage.presignExpiryHours') }}</label>
-            <input v-model.number="videoStorageForm.presign_expiry_hours" type="number" min="1" class="input w-full" />
+        <div class="mt-5 space-y-3">
+          <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+            <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+              <input v-model="videoStorageForm.enabled" type="checkbox" />
+              <span>{{ t('admin.backup.mediaStorage.videoEnabled') }}</span>
+            </label>
+            <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div>
+                <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.mediaStorage.videoPrefix') }}</label>
+                <input v-model="videoStorageForm.prefix" class="input w-full" placeholder="videos/" />
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.mediaStorage.maxDownloadBytes') }}</label>
+                <input v-model.number="videoStorageForm.max_download_bytes" type="number" min="1" class="input w-full" />
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.mediaStorage.presignExpiryHours') }}</label>
+                <input v-model.number="videoStorageForm.presign_expiry_hours" type="number" min="1" class="input w-full" />
+              </div>
+            </div>
+            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.mediaStorage.maxDownloadBytesHint') }}</p>
           </div>
-          <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.videoStorage.maxDownloadBytes') }}</label>
-            <input v-model.number="videoStorageForm.max_download_bytes" type="number" min="1" class="input w-full" />
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.videoStorage.maxDownloadBytesHint') }}</p>
+
+          <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+            <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+              <input v-model="videoStorageForm.audio_enabled" type="checkbox" />
+              <span>{{ t('admin.backup.mediaStorage.audioEnabled') }}</span>
+            </label>
+            <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div>
+                <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.mediaStorage.audioPrefix') }}</label>
+                <input v-model="videoStorageForm.audio_prefix" class="input w-full" placeholder="audio/" />
+              </div>
+            </div>
+            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.mediaStorage.audioHint') }}</p>
           </div>
         </div>
 
-        <div class="mt-4 flex flex-wrap gap-2">
+        <p class="mt-4 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.mediaStorage.testHint') }}</p>
+
+        <div class="mt-3 flex flex-wrap gap-2">
           <button type="button" class="btn btn-secondary btn-sm" :disabled="testingVideoStorage" @click="testVideoStorage">
             {{ testingVideoStorage ? t('common.loading') : t('admin.backup.s3.testConnection') }}
           </button>
@@ -552,6 +576,8 @@ const videoStorageForm = ref<VideoStorageConfig>({
   access_key_id: '',
   secret_access_key: '',
   force_path_style: false,
+  audio_enabled: false,
+  audio_prefix: 'audio/',
 })
 const videoStorageSecretConfigured = ref(false)
 const savingVideoStorage = ref(false)
@@ -750,6 +776,8 @@ async function loadVideoStorageConfig() {
       prefix: config.prefix || 'videos/',
       region: config.region || 'auto',
       max_download_bytes: config.max_download_bytes || 536870912,
+      audio_enabled: config.audio_enabled ?? false,
+      audio_prefix: config.audio_prefix || 'audio/',
       secret_access_key: '',
     }
     videoStorageSecretConfigured.value = secret_configured
@@ -762,7 +790,7 @@ async function saveVideoStorageConfig() {
   savingVideoStorage.value = true
   try {
     await backupStepUp.run(() => adminAPI.backup.updateVideoStorageConfig(videoStorageForm.value))
-    appStore.showSuccess(t('admin.backup.videoStorage.saved'))
+    appStore.showSuccess(t('admin.backup.mediaStorage.saved'))
     await loadVideoStorageConfig()
   } catch (error) {
     if (isStepUpCancelled(error)) {
@@ -783,7 +811,7 @@ async function testVideoStorage() {
       appStore.showSuccess(result.message || t('admin.backup.s3.testSuccess'))
     } else {
       // 后端把探测失败分成稳定的 code，能翻译就给本地化提示，否则回退原始信息。
-      const errorKey = `admin.backup.videoStorage.testErrors.${result.code}`
+      const errorKey = `admin.backup.mediaStorage.testErrors.${result.code}`
       appStore.showError(
         result.code && te(errorKey) ? t(errorKey) : result.message || t('admin.backup.s3.testFailed'),
       )

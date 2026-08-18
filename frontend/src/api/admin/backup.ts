@@ -100,8 +100,10 @@ export interface ImageStorageConfig {
   force_path_style: boolean
 }
 
-// Completed video object storage. This has a separate switch and S3 target from
-// async image storage, while retaining the option to reuse backup credentials.
+// Completed media object storage (Grok video + TTS audio). This has a separate
+// switch and S3 target from async image storage, while retaining the option to
+// reuse backup credentials. Video and audio share the target but each has its
+// own switch and key prefix.
 export interface VideoStorageConfig {
   enabled: boolean
   reuse_backup_s3: boolean
@@ -114,6 +116,8 @@ export interface VideoStorageConfig {
   access_key_id: string
   secret_access_key?: string
   force_path_style: boolean
+  audio_enabled: boolean
+  audio_prefix: string
 }
 
 export interface VideoStorageConfigResponse {

@@ -666,8 +666,8 @@ func ProvideVideoStorageSettingService(
 	factory VideoStorageFactory,
 	cfg *config.Config,
 ) *VideoStorageSettingService {
-	if cfg.VideoStorage.Enabled && !cfg.VideoStorage.Active() {
-		logger.L().Warn("video_storage.enabled is true in config but object storage is not fully configured; configure it in the admin UI or complete the config file",
+	if cfg.VideoStorage.AnyModalityEnabled() && !cfg.VideoStorage.IsConfigured() {
+		logger.L().Warn("video_storage is enabled in config but object storage is not fully configured; configure it in the admin UI or complete the config file",
 			zap.Strings("missing_keys", cfg.VideoStorage.MissingCredentialKeys()))
 	}
 	return NewVideoStorageSettingService(settingRepo, encryptor, backup, factory, cfg.VideoStorage)
@@ -675,6 +675,13 @@ func ProvideVideoStorageSettingService(
 
 func ProvideVideoOffloadService(store VideoOffloadStore, settings *VideoStorageSettingService) *VideoOffloadService {
 	return NewVideoOffloadService(store, settings.Resolver())
+}
+
+// ProvideAudioOffloadService shares the media storage client with video offload;
+// audio has its own switch and prefix and needs no Redis bookkeeping because
+// nothing later reads the archived object back.
+func ProvideAudioOffloadService(settings *VideoStorageSettingService) *AudioOffloadService {
+	return NewAudioOffloadService(settings.ResolveAudio)
 }
 
 // ProvideOpenAIGatewayService keeps the public constructor stable for tests and
@@ -703,6 +710,7 @@ func ProvideOpenAIGatewayService(
 	settingService *SettingService,
 	userPlatformQuotaRepo UserPlatformQuotaRepository,
 	videoOffload *VideoOffloadService,
+	audioOffload *AudioOffloadService,
 ) *OpenAIGatewayService {
 	svc := NewOpenAIGatewayService(
 		accountRepo,
@@ -729,6 +737,7 @@ func ProvideOpenAIGatewayService(
 		userPlatformQuotaRepo,
 	)
 	svc.videoOffload = videoOffload
+	svc.audioOffload = audioOffload
 	return svc
 }
 
@@ -890,6 +899,7 @@ var ProviderSet = wire.NewSet(
 	ProvideImageTaskService,
 	ProvideVideoStorageSettingService,
 	ProvideVideoOffloadService,
+	ProvideAudioOffloadService,
 	ProvideBatchImageModelPricingResolver,
 	NewBatchImagePublicService,
 	NewBatchImageDownloadService,

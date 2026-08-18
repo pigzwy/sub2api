@@ -115,6 +115,31 @@ export default {
         presignExpiryHours: '预签名链接有效期（小时）',
         saved: '异步生图对象存储配置已保存'
       },
+      mediaStorage: {
+        title: '异步媒体对象存储',
+        description: '把已完成的 Grok 视频与 TTS 音频转存到独立对象存储。存储目标共用，视频与音频各自独立开关；保存后立即生效，无需重启。',
+        target: '存储目标',
+        reuseBackupS3: '复用上方备份的 S3 配置（只用不同的存储桶/前缀）',
+        bucket: '存储桶',
+        bucketInherited: '留空则沿用备份存储桶',
+        videoEnabled: '启用视频转存',
+        videoPrefix: '视频 Key 前缀',
+        presignExpiryHours: '预签名链接有效期（小时）',
+        maxDownloadBytes: '视频转存上限（字节）',
+        maxDownloadBytesHint: '超过此大小的视频保留原透传路径。默认 536870912（512 MiB）。',
+        audioEnabled: '启用音频转存（TTS）',
+        audioPrefix: '音频 Key 前缀',
+        audioHint: '开启后 /v1/tts 返回的音频会异步归档为 <前缀>年/月/日/<请求 ID>.<扩展名>。归档失败只记日志，不影响接口响应与计费。',
+        testHint: '「测试连接」会在视频前缀下写入并删除一个测试对象，真实校验存储桶与读写权限。',
+        saved: '异步媒体对象存储配置已保存',
+        testErrors: {
+          bucket_not_found: '存储桶不存在：请核对桶名与端点地址（R2 需先在控制台创建好桶）',
+          access_denied: '凭据无效或权限不足：请检查 Access Key / Secret 及其对该桶的读写权限',
+          unreachable: '端点无法连接：请检查端点地址是否正确、网络是否可达',
+          secret_unreadable: '已保存的 Secret 无法解密：请重新填写 Secret Access Key 后再保存',
+          incomplete: '配置不完整：存储桶、Access Key ID、Secret Access Key 均为必填'
+        }
+      },
       videoStorage: {
         title: '异步视频对象存储',
         description: '开启后，已完成的 Grok 视频会流式转存到独立对象存储。保存后立即生效，无需重启。',

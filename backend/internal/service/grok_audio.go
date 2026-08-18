@@ -105,6 +105,12 @@ func (s *OpenAIGatewayService) ForwardGrokVoice(ctx context.Context, c *gin.Cont
 	writeGrokMediaResponse(c, resp, data, s.responseHeaderFilter)
 	audioUsage := estimateGrokVoiceAudioUsage(baseEndpoint, body, contentType, data, time.Since(started))
 	upstreamID := firstNonEmpty(resp.Header.Get("x-request-id"), resp.Header.Get("xai-request-id"))
+	// Fork: archive completed TTS audio to object storage. The response is
+	// already written and audioUsage is already settled, so this is a pure side
+	// channel — it never touches billing, headers, or the response body.
+	if baseEndpoint == "tts" && resp.StatusCode < http.StatusBadRequest && s.audioOffload != nil {
+		s.audioOffload.Submit(ctx, upstreamID, resp.Header.Get("Content-Type"), data)
+	}
 	return &OpenAIForwardResult{
 		// Forced durable money-event id so usage_billing_dedup cannot collapse under a reused client id.
 		RequestID:     StableGrokAudioBillingRequestID(upstreamID),

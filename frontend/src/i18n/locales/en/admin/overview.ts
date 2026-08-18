@@ -115,6 +115,31 @@ export default {
         presignExpiryHours: 'Presigned link TTL (hours)',
         saved: 'Async image object storage saved'
       },
+      mediaStorage: {
+        title: 'Async media object storage',
+        description: 'Archives completed Grok videos and TTS audio to independent object storage. Both share one storage target and have their own switch. Changes take effect on save without a restart.',
+        target: 'Storage target',
+        reuseBackupS3: 'Reuse the backup S3 configuration above (different bucket/prefix only)',
+        bucket: 'Bucket',
+        bucketInherited: 'Leave empty to use the backup bucket',
+        videoEnabled: 'Enable video offload',
+        videoPrefix: 'Video key prefix',
+        presignExpiryHours: 'Presigned link TTL (hours)',
+        maxDownloadBytes: 'Video transfer limit (bytes)',
+        maxDownloadBytesHint: 'Completed videos larger than this stay on the original passthrough path. Default: 536870912 (512 MiB).',
+        audioEnabled: 'Enable audio offload (TTS)',
+        audioPrefix: 'Audio key prefix',
+        audioHint: 'Audio returned by /v1/tts is archived asynchronously as <prefix>yyyy/mm/dd/<request id>.<ext>. A failed archive is logged only: the API response and billing are unaffected.',
+        testHint: '"Test connection" writes and deletes a probe object under the video prefix to verify the bucket and its read-write permission for real.',
+        saved: 'Async media object storage saved',
+        testErrors: {
+          bucket_not_found: 'Bucket not found: check the bucket name and endpoint (on R2 the bucket must be created first)',
+          access_denied: 'Invalid credentials or insufficient permission: check the access key / secret and its read-write access to this bucket',
+          unreachable: 'Endpoint unreachable: check the endpoint URL and network connectivity',
+          secret_unreadable: 'The stored secret cannot be decrypted: re-enter the Secret Access Key and save again',
+          incomplete: 'Incomplete configuration: bucket, Access Key ID and Secret Access Key are all required'
+        }
+      },
       videoStorage: {
         title: 'Async video object storage',
         description: 'Streams completed Grok videos to independent object storage. Changes take effect on save without a restart.',
