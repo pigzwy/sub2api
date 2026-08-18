@@ -290,6 +290,11 @@ func AllowLive(v bool) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldAllowLive, v))
 }
 
+// AllowRealtime applies equality check predicate on the "allow_realtime" field. It's identical to AllowRealtimeEQ.
+func AllowRealtime(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldAllowRealtime, v))
+}
+
 // RequireOauthOnly applies equality check predicate on the "require_oauth_only" field. It's identical to RequireOauthOnlyEQ.
 func RequireOauthOnly(v bool) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldRequireOauthOnly, v))
@@ -2268,6 +2273,16 @@ func AllowLiveEQ(v bool) predicate.Group {
 // AllowLiveNEQ applies the NEQ predicate on the "allow_live" field.
 func AllowLiveNEQ(v bool) predicate.Group {
 	return predicate.Group(sql.FieldNEQ(FieldAllowLive, v))
+}
+
+// AllowRealtimeEQ applies the EQ predicate on the "allow_realtime" field.
+func AllowRealtimeEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldAllowRealtime, v))
+}
+
+// AllowRealtimeNEQ applies the NEQ predicate on the "allow_realtime" field.
+func AllowRealtimeNEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldAllowRealtime, v))
 }
 
 // RequireOauthOnlyEQ applies the EQ predicate on the "require_oauth_only" field.
