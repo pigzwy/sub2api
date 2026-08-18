@@ -54,7 +54,7 @@
         </div>
       </div>
 
-      <!-- Object storage: images, videos and TTS audio in one card -->
+      <!-- Object storage: one credential set, one bucket + prefix per media type -->
       <div class="card p-6">
         <div class="mb-4">
           <h3 class="text-base font-semibold text-gray-900 dark:text-white">
@@ -66,7 +66,7 @@
         </div>
 
         <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
-          {{ t('admin.backup.objectStorage.target') }}
+          {{ t('admin.backup.objectStorage.credentials') }}
         </h4>
 
         <label class="mt-2 inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
@@ -74,34 +74,27 @@
           <span>{{ t('admin.backup.objectStorage.reuseBackupS3') }}</span>
         </label>
 
-        <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div v-if="!videoStorageForm.reuse_backup_s3" class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.objectStorage.bucket') }}</label>
-            <input v-model="videoStorageForm.bucket" class="input w-full" :placeholder="videoStorageForm.reuse_backup_s3 ? t('admin.backup.objectStorage.bucketInherited') : ''" />
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.endpoint') }}</label>
+            <input v-model="videoStorageForm.endpoint" class="input w-full" placeholder="https://<account_id>.r2.cloudflarestorage.com" />
           </div>
-
-          <template v-if="!videoStorageForm.reuse_backup_s3">
-            <div>
-              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.endpoint') }}</label>
-              <input v-model="videoStorageForm.endpoint" class="input w-full" placeholder="https://<account_id>.r2.cloudflarestorage.com" />
-            </div>
-            <div>
-              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.region') }}</label>
-              <input v-model="videoStorageForm.region" class="input w-full" placeholder="auto" />
-            </div>
-            <div>
-              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.accessKeyId') }}</label>
-              <input v-model="videoStorageForm.access_key_id" class="input w-full" />
-            </div>
-            <div>
-              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.secretAccessKey') }}</label>
-              <input v-model="videoStorageForm.secret_access_key" type="password" class="input w-full" :placeholder="sharedSecretConfigured ? t('admin.backup.s3.secretConfigured') : ''" />
-            </div>
-            <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 md:col-span-2">
-              <input v-model="videoStorageForm.force_path_style" type="checkbox" />
-              <span>{{ t('admin.backup.s3.forcePathStyle') }}</span>
-            </label>
-          </template>
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.region') }}</label>
+            <input v-model="videoStorageForm.region" class="input w-full" placeholder="auto" />
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.accessKeyId') }}</label>
+            <input v-model="videoStorageForm.access_key_id" class="input w-full" />
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.secretAccessKey') }}</label>
+            <input v-model="videoStorageForm.secret_access_key" type="password" class="input w-full" :placeholder="sharedSecretConfigured ? t('admin.backup.s3.secretConfigured') : ''" />
+          </div>
+          <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 md:col-span-2">
+            <input v-model="videoStorageForm.force_path_style" type="checkbox" />
+            <span>{{ t('admin.backup.s3.forcePathStyle') }}</span>
+          </label>
         </div>
 
         <h4 class="mt-6 text-sm font-semibold text-gray-700 dark:text-gray-300">
@@ -115,7 +108,11 @@
               <input v-model="imageStorageForm.enabled" type="checkbox" />
               <span>{{ t('admin.backup.objectStorage.imageEnabled') }}</span>
             </label>
-            <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
+              <div>
+                <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.objectStorage.bucket') }}</label>
+                <input v-model="imageStorageForm.bucket" class="input w-full" :placeholder="imageStorageForm.reuse_backup_s3 ? t('admin.backup.objectStorage.bucketInherited') : ''" />
+              </div>
               <div>
                 <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.objectStorage.imagePrefix') }}</label>
                 <input v-model="imageStorageForm.prefix" class="input w-full" placeholder="images/" />
@@ -130,44 +127,40 @@
               </div>
             </div>
 
-            <label class="mt-3 inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-              <input v-model="imageUsesOwnTarget" type="checkbox" />
-              <span>{{ t('admin.backup.objectStorage.imageOwnTarget') }}</span>
+            <label class="mt-3 inline-flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+              <input v-model="imageUsesOwnCredentials" type="checkbox" />
+              <span>{{ t('admin.backup.objectStorage.imageOwnCredentials') }}</span>
             </label>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.objectStorage.imageOwnTargetHint') }}</p>
+            <p v-if="!imageUsesOwnCredentials" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.backup.objectStorage.imageOwnCredentialsHint') }}
+            </p>
 
-            <div v-if="imageUsesOwnTarget" class="mt-3 border-t border-gray-200 pt-3 dark:border-gray-700">
+            <div v-if="imageUsesOwnCredentials" class="mt-3 border-t border-gray-200 pt-3 dark:border-gray-700">
               <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                 <input v-model="imageStorageForm.reuse_backup_s3" type="checkbox" />
                 <span>{{ t('admin.backup.objectStorage.reuseBackupS3') }}</span>
               </label>
-              <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div v-if="!imageStorageForm.reuse_backup_s3" class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div>
-                  <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.objectStorage.bucket') }}</label>
-                  <input v-model="imageStorageForm.bucket" class="input w-full" :placeholder="imageStorageForm.reuse_backup_s3 ? t('admin.backup.objectStorage.bucketInherited') : ''" />
+                  <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.endpoint') }}</label>
+                  <input v-model="imageStorageForm.endpoint" class="input w-full" placeholder="https://<account_id>.r2.cloudflarestorage.com" />
                 </div>
-                <template v-if="!imageStorageForm.reuse_backup_s3">
-                  <div>
-                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.endpoint') }}</label>
-                    <input v-model="imageStorageForm.endpoint" class="input w-full" placeholder="https://<account_id>.r2.cloudflarestorage.com" />
-                  </div>
-                  <div>
-                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.region') }}</label>
-                    <input v-model="imageStorageForm.region" class="input w-full" placeholder="auto" />
-                  </div>
-                  <div>
-                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.accessKeyId') }}</label>
-                    <input v-model="imageStorageForm.access_key_id" class="input w-full" />
-                  </div>
-                  <div>
-                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.secretAccessKey') }}</label>
-                    <input v-model="imageStorageForm.secret_access_key" type="password" class="input w-full" :placeholder="imageStorageSecretConfigured ? t('admin.backup.s3.secretConfigured') : ''" />
-                  </div>
-                  <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 md:col-span-2">
-                    <input v-model="imageStorageForm.force_path_style" type="checkbox" />
-                    <span>{{ t('admin.backup.s3.forcePathStyle') }}</span>
-                  </label>
-                </template>
+                <div>
+                  <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.region') }}</label>
+                  <input v-model="imageStorageForm.region" class="input w-full" placeholder="auto" />
+                </div>
+                <div>
+                  <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.accessKeyId') }}</label>
+                  <input v-model="imageStorageForm.access_key_id" class="input w-full" />
+                </div>
+                <div>
+                  <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.secretAccessKey') }}</label>
+                  <input v-model="imageStorageForm.secret_access_key" type="password" class="input w-full" :placeholder="imageStorageSecretConfigured ? t('admin.backup.s3.secretConfigured') : ''" />
+                </div>
+                <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 md:col-span-2">
+                  <input v-model="imageStorageForm.force_path_style" type="checkbox" />
+                  <span>{{ t('admin.backup.s3.forcePathStyle') }}</span>
+                </label>
               </div>
               <button type="button" class="btn btn-secondary btn-sm mt-3" :disabled="testingImageStorage" @click="testImageStorage">
                 {{ testingImageStorage ? t('common.loading') : t('admin.backup.objectStorage.testImage') }}
@@ -181,7 +174,11 @@
               <input v-model="videoStorageForm.enabled" type="checkbox" />
               <span>{{ t('admin.backup.objectStorage.videoEnabled') }}</span>
             </label>
-            <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
+              <div>
+                <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.objectStorage.bucket') }}</label>
+                <input v-model="videoStorageForm.bucket" class="input w-full" :placeholder="videoStorageForm.reuse_backup_s3 ? t('admin.backup.objectStorage.bucketInherited') : ''" />
+              </div>
               <div>
                 <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.objectStorage.videoPrefix') }}</label>
                 <input v-model="videoStorageForm.prefix" class="input w-full" placeholder="videos/" />
@@ -198,19 +195,20 @@
             <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.objectStorage.videoMaxDownloadBytesHint') }}</p>
           </div>
 
-          <!-- Audio -->
+          <!-- Audio: shares video_storage_config, so it has a prefix but no bucket of its own -->
           <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
             <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
               <input v-model="videoStorageForm.audio_enabled" type="checkbox" />
               <span>{{ t('admin.backup.objectStorage.audioEnabled') }}</span>
             </label>
-            <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
               <div>
                 <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.objectStorage.audioPrefix') }}</label>
                 <input v-model="videoStorageForm.audio_prefix" class="input w-full" placeholder="audio/" />
               </div>
             </div>
-            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.objectStorage.audioHint') }}</p>
+            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.objectStorage.audioBucketHint') }}</p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.objectStorage.audioHint') }}</p>
           </div>
         </div>
 
@@ -510,7 +508,7 @@ import type {
   VideoStorageConfig,
 } from '@/api/admin/backup'
 import { useStepUp, isStepUpBlocked, isStepUpCancelled, stepUpBlockReason } from '@/composables/useStepUp'
-import { applyStorageTarget, imageNeedsOwnTarget } from './backupObjectStorage'
+import { applyStorageCredentials, imageNeedsOwnCredentials } from './backupObjectStorage'
 import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 
 const { t, te } = useI18n()
@@ -560,10 +558,10 @@ const imageStorageForm = ref<ImageStorageConfig>({
 })
 const imageStorageSecretConfigured = ref(false)
 const testingImageStorage = ref(false)
-// Images keep their own upstream settings key. This is on only when they point
-// at a different bucket than videos/audio, which is also the safe default when
-// the two stored configs disagree.
-const imageUsesOwnTarget = ref(false)
+// Buckets are per media type, so this is only about credentials: it turns on
+// when images live in a different S3 account than videos/audio, which is also
+// the safe default when the two stored configs disagree.
+const imageUsesOwnCredentials = ref(false)
 
 const videoStorageForm = ref<VideoStorageConfig>({
   enabled: false,
@@ -589,7 +587,7 @@ const savingObjectStorage = ref(false)
 // one side without credentials.
 const sharedSecretConfigured = computed(
   () => videoStorageSecretConfigured.value
-    && (imageUsesOwnTarget.value || imageStorageSecretConfigured.value),
+    && (imageUsesOwnCredentials.value || imageStorageSecretConfigured.value),
 )
 
 // Schedule config
@@ -797,7 +795,7 @@ async function loadVideoStorageConfig() {
 
 async function loadObjectStorageConfigs() {
   await Promise.all([loadImageStorageConfig(), loadVideoStorageConfig()])
-  imageUsesOwnTarget.value = imageNeedsOwnTarget(
+  imageUsesOwnCredentials.value = imageNeedsOwnCredentials(
     imageStorageForm.value,
     imageStorageSecretConfigured.value,
     videoStorageForm.value,
@@ -808,11 +806,11 @@ async function saveObjectStorageConfig() {
   savingObjectStorage.value = true
   try {
     // Two settings keys stay behind the one card, so nothing had to migrate:
-    // when images follow the shared target we just copy the visible target
-    // fields onto their payload before writing.
-    const imagePayload = imageUsesOwnTarget.value
+    // when images follow the shared credentials we copy those fields onto their
+    // payload before writing. The image bucket and prefix are never touched.
+    const imagePayload = imageUsesOwnCredentials.value
       ? imageStorageForm.value
-      : applyStorageTarget(imageStorageForm.value, videoStorageForm.value)
+      : applyStorageCredentials(imageStorageForm.value, videoStorageForm.value)
     await backupStepUp.run(async () => {
       await adminAPI.backup.updateImageStorageConfig(imagePayload)
       await adminAPI.backup.updateVideoStorageConfig(videoStorageForm.value)
