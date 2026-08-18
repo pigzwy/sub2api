@@ -85,6 +85,12 @@ type VideoStorageSettings struct {
 	AccessKeyID     string `json:"access_key_id"`
 	SecretAccessKey string `json:"secret_access_key,omitempty"` //nolint:revive // field name follows AWS convention
 	ForcePathStyle  bool   `json:"force_path_style"`
+
+	// Audio (TTS) archiving reuses the target above with its own switch and
+	// prefix. Settings saved before this existed decode both as zero values,
+	// which means "audio off" — no migration needed.
+	AudioEnabled bool   `json:"audio_enabled"`
+	AudioPrefix  string `json:"audio_prefix"`
 }
 
 // VideoStorageSettingService persists, masks, and hot-reloads video storage settings.
@@ -97,11 +103,13 @@ type VideoStorageSettingService struct {
 
 	now func() time.Time
 
-	mu       sync.Mutex
-	resolved bool
-	storage  VideoObjectStorage
-	options  VideoStorageOptions
-	enabled  bool
+	mu           sync.Mutex
+	resolved     bool
+	storage      VideoObjectStorage
+	options      VideoStorageOptions
+	enabled      bool
+	audioOptions AudioStorageOptions
+	audioEnabled bool
 
 	// Guarded by mu, used only for throttling repeated failure logs.
 	lastFailureKind string
@@ -143,41 +151,76 @@ func (s *VideoStorageSettingService) resolve() (VideoObjectStorage, VideoStorage
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.resolved {
-		return s.storage, s.options, s.enabled
+	s.refreshLocked()
+	if !s.enabled || s.storage == nil {
+		return nil, VideoStorageOptions{}, false
 	}
+	return s.storage, s.options, true
+}
 
-	// Only a settled answer is cached. Caching failures used to pin
-	// enabled=false for the rest of the process lifetime, so a transient
-	// database or endpoint problem stayed "off" until the next restart even
-	// after the underlying cause was gone.
+// ResolveAudio returns the same media client for TTS archiving. Audio has its
+// own switch, so it stays available even when video offload is turned off.
+func (s *VideoStorageSettingService) ResolveAudio() (AudioObjectStorage, AudioStorageOptions, bool) {
+	if s == nil {
+		return nil, AudioStorageOptions{}, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.refreshLocked()
+	if !s.audioEnabled || s.storage == nil {
+		return nil, AudioStorageOptions{}, false
+	}
+	// Production always builds *repository.S3ImageStorage, which stores bytes
+	// as well as streams. A client that cannot is treated as switched off
+	// rather than silently dropping every recording.
+	saver, ok := s.storage.(AudioObjectStorage)
+	if !ok {
+		if s.shouldLogFailure("audio_client_unsupported") {
+			logger.L().Error("video_storage.audio_client_unsupported; audio offload stays disabled")
+		}
+		return nil, AudioStorageOptions{}, false
+	}
+	return saver, s.audioOptions, true
+}
+
+// refreshLocked rebuilds the cached client when needed. Callers hold mu.
+//
+// Only a settled answer is cached. Caching failures used to pin the feature off
+// for the rest of the process lifetime, so a transient database or endpoint
+// problem stayed off until the next restart even after the cause was gone.
+func (s *VideoStorageSettingService) refreshLocked() {
+	if s.resolved {
+		return
+	}
 	s.storage, s.options, s.enabled = nil, VideoStorageOptions{}, false
+	s.audioOptions, s.audioEnabled = AudioStorageOptions{}, false
+
 	cfg, err := s.effectiveConfig(context.Background())
 	if err != nil {
 		if s.shouldLogFailure("settings_load") {
-			logger.L().Warn("video_storage.settings_load_failed; video offload stays disabled", zap.Error(err))
+			logger.L().Warn("video_storage.settings_load_failed; media offload stays disabled", zap.Error(err))
 		}
-		return nil, VideoStorageOptions{}, false
+		return
 	}
-	if !cfg.Enabled {
+	if !cfg.AnyModalityEnabled() {
 		// Deliberately off is an answer, not a failure: Update and backup
 		// credential changes both invalidate this cache.
 		s.resolved = true
-		return nil, VideoStorageOptions{}, false
+		return
 	}
 	if !cfg.IsConfigured() {
 		if s.shouldLogFailure("incomplete") {
-			logger.L().Warn("video_storage is enabled but not fully configured; video offload stays disabled",
+			logger.L().Warn("video_storage is enabled but not fully configured; media offload stays disabled",
 				zap.Strings("missing_keys", cfg.MissingCredentialKeys()))
 		}
-		return nil, VideoStorageOptions{}, false
+		return
 	}
 	storage, err := s.factory(context.Background(), cfg)
 	if err != nil {
 		if s.shouldLogFailure("client_build") {
-			logger.L().Error("video_storage.client_build_failed; video offload stays disabled", zap.Error(err))
+			logger.L().Error("video_storage.client_build_failed; media offload stays disabled", zap.Error(err))
 		}
-		return nil, VideoStorageOptions{}, false
+		return
 	}
 	maxBytes := cfg.MaxDownloadByte
 	if maxBytes <= 0 {
@@ -185,10 +228,11 @@ func (s *VideoStorageSettingService) resolve() (VideoObjectStorage, VideoStorage
 	}
 	s.storage = storage
 	s.options = VideoStorageOptions{Prefix: cfg.Prefix, MaxDownloadBytes: maxBytes}
-	s.enabled = true
+	s.enabled = cfg.Enabled
+	s.audioOptions = AudioStorageOptions{Prefix: cfg.AudioPrefix}
+	s.audioEnabled = cfg.AudioEnabled
 	s.resolved = true
 	s.lastFailureKind, s.lastFailureAt = "", time.Time{}
-	return s.storage, s.options, true
 }
 
 // shouldLogFailure reports whether this failure deserves a log line. Callers
@@ -220,6 +264,8 @@ func (s *VideoStorageSettingService) Invalidate() {
 	s.storage = nil
 	s.options = VideoStorageOptions{}
 	s.enabled = false
+	s.audioOptions = AudioStorageOptions{}
+	s.audioEnabled = false
 	// Let the next failure log immediately: an admin who just saved needs to
 	// see whether the new settings still fail.
 	s.lastFailureKind, s.lastFailureAt = "", time.Time{}
@@ -359,6 +405,8 @@ func (s *VideoStorageSettingService) toConfig(
 		AccessKeyID:     in.AccessKeyID,
 		SecretAccessKey: in.SecretAccessKey,
 		ForcePathStyle:  in.ForcePathStyle,
+		AudioEnabled:    in.AudioEnabled,
+		AudioPrefix:     in.AudioPrefix,
 	}
 	if in.ReuseBackupS3 {
 		backupCfg, err := s.backupCredentials(ctx)
@@ -426,6 +474,8 @@ func videoSettingsFromConfig(cfg config.VideoStorageConfig) *VideoStorageSetting
 		AccessKeyID:      cfg.AccessKeyID,
 		SecretAccessKey:  cfg.SecretAccessKey,
 		ForcePathStyle:   cfg.ForcePathStyle,
+		AudioEnabled:     cfg.AudioEnabled,
+		AudioPrefix:      cfg.AudioPrefix,
 	}
 }
 
@@ -440,6 +490,11 @@ func normalizeVideoStorageSettings(in *VideoStorageSettings) {
 		in.Prefix = "videos"
 	}
 	in.Prefix += "/"
+	in.AudioPrefix = strings.Trim(strings.TrimSpace(in.AudioPrefix), "/")
+	if in.AudioPrefix == "" {
+		in.AudioPrefix = "audio"
+	}
+	in.AudioPrefix += "/"
 	if in.Region == "" {
 		in.Region = "auto"
 	}

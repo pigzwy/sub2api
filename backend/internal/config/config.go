@@ -263,6 +263,11 @@ type VideoStorageConfig struct {
 	ForcePathStyle  bool   `mapstructure:"force_path_style"`
 	PresignExpiry   int    `mapstructure:"presign_expiry_hours"`
 	MaxDownloadByte int64  `mapstructure:"max_download_bytes"`
+
+	// Audio (TTS) archiving shares this bucket and credentials but has its own
+	// switch and key prefix, so either modality can run alone.
+	AudioEnabled bool   `mapstructure:"audio_enabled"`
+	AudioPrefix  string `mapstructure:"audio_prefix"`
 }
 
 // IsConfigured reports whether the independent video target has all required credentials.
@@ -273,6 +278,12 @@ func (c *VideoStorageConfig) IsConfigured() bool {
 // Active reports whether completed-video offload is enabled and configured.
 func (c *VideoStorageConfig) Active() bool {
 	return c.Enabled && c.IsConfigured()
+}
+
+// AnyModalityEnabled reports whether video or audio archiving is switched on.
+// The S3 client is built whenever either is, so audio can run without video.
+func (c *VideoStorageConfig) AnyModalityEnabled() bool {
+	return c.Enabled || c.AudioEnabled
 }
 
 // MissingCredentialKeys returns the video_storage keys that still need values.
