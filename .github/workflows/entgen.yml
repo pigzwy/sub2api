@@ -5,6 +5,9 @@ name: Ent Codegen
 # 有 diff 就把生成代码提交回该分支，然后编译 + 单测兜底。
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feat/openai-realtime-voice
 
 permissions:
   contents: write
