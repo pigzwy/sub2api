@@ -135,6 +135,8 @@ Grok 视频任务完成后，把视频分片流式上传到一套**独立于图�
 
 **入口**：管理后台 `系统设置 → 备份 → 异步视频对象存储`。可勾选复用备份 S3 凭据，也可指向完全独立的账号。保存需通过上游已有的 TOTP step-up 校验，保存后即时生效。
 
+**测试连接与失败自愈**（2026-08-18 加固）：「测试连接」执行真实探测——HeadBucket 确认桶可达（拿不准时不武断，R2 的对象级令牌常拒 HeadBucket 但可写）→ 写入 `<prefix>.connection-test` → 删除，整体 8 秒超时；失败经 `classifyS3ProbeError` 归类后由接口返回稳定 `code`（`bucket_not_found` / `access_denied` / `unreachable` / `secret_unreadable` / `incomplete`），前端据此显示中英本地化提示，未知错误回退原始信息。配置解析失败**不再缓存**：下次请求自动重试（临时故障自愈，无需重启），失败日志按种类限频每分钟一条、种类变化立即放行；已存 Secret 解密失败显式报错并拒绝用密文签名（存储的 Secret 一定经 Update 加密，解不开即真故障）。
+
 **接口**
 
 ```text
@@ -167,6 +169,7 @@ video_storage:
 backend/internal/service/video_offload.go
 backend/internal/service/video_storage_settings.go
 backend/internal/repository/video_offload_store.go
+backend/internal/repository/video_storage_probe.go
 backend/internal/config/video_storage_env_test.go
 ```
 
@@ -184,7 +187,7 @@ backend/internal/config/video_storage_env_test.go
 
 **运行时数据**：转存记录与去重锁存在 Redis（`grok_video_offload:record:v2:`），无数据库迁移。预签名 URL 强制 https。
 
-**测试**：`service/video_offload_test.go`、`service/video_storage_settings_test.go`、`repository/video_offload_store_test.go`、`config/video_storage_env_test.go`、`service/grok_media_content_test.go`；前端 `views/admin/__tests__/BackupView.spec.ts` 补了加载调用的 mock。
+**测试**：`service/video_offload_test.go`、`service/video_storage_settings_test.go`（含探测分类透传、失败重试、解密失败闭合）、`repository/video_offload_store_test.go`、`repository/video_storage_probe_test.go`（错误归类表测）、`config/video_storage_env_test.go`、`service/grok_media_content_test.go`；前端 `views/admin/__tests__/BackupView.spec.ts` 补了加载调用的 mock。
 
 ---
 
