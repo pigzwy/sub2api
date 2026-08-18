@@ -136,7 +136,11 @@ backend/internal/handler/request_intercept_response.go
 - **视频**：任务完成后分片流式上传，随后状态查询返回预签名 URL，内容接口 302 重定向到已存视频，不再依赖 xAI 的短时留存。
 - **音频（TTS）**：`/v1/tts` 响应写回客户端后，把整段音频异步归档到 `<audio_prefix>yyyy/mm/dd/<请求 ID>.<扩展名>`。
 
-**入口**：管理后台 `系统设置 → 备份 → 异步媒体对象存储`。上半是共用的存储目标（可勾选复用备份 S3 凭据，也可指向完全独立的账号），下半是视频、音频两行各自独立的开关与前缀。保存需通过上游已有的 TOTP step-up 校验，保存后即时生效。
+**入口**：管理后台 `系统设置 → 备份 → 对象存储`。上游原本的「异步生图对象存储」卡与二开的媒体卡已在前端合并成**一张卡**：顶部一套共用存储目标（可勾选复用备份 S3 凭据，也可指向完全独立的账号），下面是图片 / 视频 / 音频三个类型块，各自独立开关与 Key 前缀。保存需通过上游已有的 TOTP step-up 校验，保存后即时生效。
+
+**合并只在前端，后端零改动零迁移**：图片仍然走上游的 `image_storage_config` + `ImageStorageSettingService`，视频/音频走二开的 `video_storage_config`。一次保存往两个既有接口各写一次；共用模式下把可见的存储目标字段（桶 / endpoint / region / AK / force_path_style / 新填的 Secret）复制进图片那份配置。这样图片始终跟随上游演进，我们只维护 UI。
+
+**图片可指向另一个桶**：加载时用 `frontend/src/views/admin/backupObjectStorage.ts` 的 `imageNeedsOwnTarget` 判断——Secret 从不回传，只能比对可见字段，因此判定刻意保守：任何一项对不上就展开图片自己的目标块，绝不悄悄把已有部署的图片改指到别的桶。全新安装（图片配置为空）直接跟随共用目标。
 
 **两种模态相互独立**：只开音频时不建视频转存，只开视频时不归档音频；S3 客户端在任一开关打开时构建。旧设置 JSON 没有 audio 字段，反序列化即为“音频关闭”，无需迁移。
 
@@ -175,6 +179,7 @@ video_storage:
 **新增文件**
 
 ```text
+frontend/src/views/admin/backupObjectStorage.ts
 backend/internal/service/video_offload.go
 backend/internal/service/audio_offload.go
 backend/internal/service/video_storage_settings.go
@@ -194,11 +199,12 @@ backend/internal/config/video_storage_env_test.go
 - `handler/admin/backup_handler.go`、`server/routes/admin.go`：三个配置接口。
 - 装配：`repository/wire.go`、`service/wire.go`、`cmd/server/wire_gen.go`。
 - 依赖：`backend/go.mod`、`go.sum` 新增 `aws-sdk-go-v2/feature/s3/manager`。
-- 前端：`api/admin/backup.ts`、`views/admin/BackupView.vue`、`i18n/locales/{zh,en}/admin/overview.ts`。
+- 前端：`api/admin/backup.ts`、`views/admin/BackupView.vue`（上游图片卡被合进同一张卡）、`i18n/locales/{zh,en}/admin/overview.ts`。
+- 根 `Makefile`：`FRONTEND_CRITICAL_VITEST` 追加 `backupObjectStorage.spec.ts`（不加 CI 不会跑这个用例）。
 
 **运行时数据**：转存记录与去重锁存在 Redis（`grok_video_offload:record:v2:`），无数据库迁移。预签名 URL 强制 https。
 
-**测试**：`service/video_offload_test.go`、`service/video_storage_settings_test.go`（含探测分类透传、失败重试、解密失败闭合）、`service/audio_offload_test.go`（key 形态、限流丢弃、失败吞掉）、`service/video_storage_settings_audio_test.go`（新字段 round-trip、旧 JSON 兼容、音频独立开关）、`service/grok_audio_offload_test.go`（S3 故障时响应与 AudioUsage 不变）、`repository/video_offload_store_test.go`、`repository/video_storage_probe_test.go`（错误归类表测）、`config/video_storage_env_test.go`、`service/grok_media_content_test.go`；前端 `views/admin/__tests__/BackupView.spec.ts` 补了加载调用的 mock。
+**测试**：`service/video_offload_test.go`、`service/video_storage_settings_test.go`（含探测分类透传、失败重试、解密失败闭合）、`service/audio_offload_test.go`（key 形态、限流丢弃、失败吞掉）、`service/video_storage_settings_audio_test.go`（新字段 round-trip、旧 JSON 兼容、音频独立开关）、`service/grok_audio_offload_test.go`（S3 故障时响应与 AudioUsage 不变）、`repository/video_offload_store_test.go`、`repository/video_storage_probe_test.go`（错误归类表测）、`config/video_storage_env_test.go`、`service/grok_media_content_test.go`；前端 `views/admin/__tests__/backupObjectStorage.spec.ts`（共用目标判定与字段复制）、`views/admin/__tests__/BackupView.spec.ts` 补了加载调用的 mock。
 
 ---
 

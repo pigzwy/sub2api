@@ -54,105 +54,30 @@
         </div>
       </div>
 
-      <!-- Async image object storage -->
-      <div class="card p-6">
-        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 class="text-base font-semibold text-gray-900 dark:text-white">
-              {{ t('admin.backup.imageStorage.title') }}
-            </h3>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {{ t('admin.backup.imageStorage.description') }}
-            </p>
-          </div>
-          <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-            <input v-model="imageStorageForm.enabled" type="checkbox" />
-            <span>{{ t('admin.backup.imageStorage.enabled') }}</span>
-          </label>
-        </div>
-
-        <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-          <input v-model="imageStorageForm.reuse_backup_s3" type="checkbox" />
-          <span>{{ t('admin.backup.imageStorage.reuseBackupS3') }}</span>
-        </label>
-
-        <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-          <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.imageStorage.bucket') }}</label>
-            <input v-model="imageStorageForm.bucket" class="input w-full" :placeholder="imageStorageForm.reuse_backup_s3 ? t('admin.backup.imageStorage.bucketInherited') : ''" />
-          </div>
-          <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.imageStorage.prefix') }}</label>
-            <input v-model="imageStorageForm.prefix" class="input w-full" placeholder="images/" />
-          </div>
-
-          <template v-if="!imageStorageForm.reuse_backup_s3">
-            <div>
-              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.endpoint') }}</label>
-              <input v-model="imageStorageForm.endpoint" class="input w-full" placeholder="https://<account_id>.r2.cloudflarestorage.com" />
-            </div>
-            <div>
-              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.region') }}</label>
-              <input v-model="imageStorageForm.region" class="input w-full" placeholder="auto" />
-            </div>
-            <div>
-              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.accessKeyId') }}</label>
-              <input v-model="imageStorageForm.access_key_id" class="input w-full" />
-            </div>
-            <div>
-              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.secretAccessKey') }}</label>
-              <input v-model="imageStorageForm.secret_access_key" type="password" class="input w-full" :placeholder="imageStorageSecretConfigured ? t('admin.backup.s3.secretConfigured') : ''" />
-            </div>
-            <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 md:col-span-2">
-              <input v-model="imageStorageForm.force_path_style" type="checkbox" />
-              <span>{{ t('admin.backup.s3.forcePathStyle') }}</span>
-            </label>
-          </template>
-
-          <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.imageStorage.publicBaseUrl') }}</label>
-            <input v-model="imageStorageForm.public_base_url" class="input w-full" :placeholder="t('admin.backup.imageStorage.publicBaseUrlPlaceholder')" />
-          </div>
-          <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.imageStorage.presignExpiryHours') }}</label>
-            <input v-model.number="imageStorageForm.presign_expiry_hours" type="number" min="1" class="input w-full" />
-          </div>
-        </div>
-
-        <div class="mt-4 flex flex-wrap gap-2">
-          <button type="button" class="btn btn-secondary btn-sm" :disabled="testingImageStorage" @click="testImageStorage">
-            {{ testingImageStorage ? t('common.loading') : t('admin.backup.s3.testConnection') }}
-          </button>
-          <button type="button" class="btn btn-primary btn-sm" :disabled="savingImageStorage" @click="saveImageStorageConfig">
-            {{ savingImageStorage ? t('common.loading') : t('common.save') }}
-          </button>
-        </div>
-      </div>
-
-      <!-- Async media object storage: Grok video + TTS audio share one target -->
+      <!-- Object storage: images, videos and TTS audio in one card -->
       <div class="card p-6">
         <div class="mb-4">
           <h3 class="text-base font-semibold text-gray-900 dark:text-white">
-            {{ t('admin.backup.mediaStorage.title') }}
+            {{ t('admin.backup.objectStorage.title') }}
           </h3>
           <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {{ t('admin.backup.mediaStorage.description') }}
+            {{ t('admin.backup.objectStorage.description') }}
           </p>
         </div>
 
         <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
-          {{ t('admin.backup.mediaStorage.target') }}
+          {{ t('admin.backup.objectStorage.target') }}
         </h4>
 
         <label class="mt-2 inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
           <input v-model="videoStorageForm.reuse_backup_s3" type="checkbox" />
-          <span>{{ t('admin.backup.mediaStorage.reuseBackupS3') }}</span>
+          <span>{{ t('admin.backup.objectStorage.reuseBackupS3') }}</span>
         </label>
 
         <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.mediaStorage.bucket') }}</label>
-            <input v-model="videoStorageForm.bucket" class="input w-full" :placeholder="videoStorageForm.reuse_backup_s3 ? t('admin.backup.mediaStorage.bucketInherited') : ''" />
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.objectStorage.bucket') }}</label>
+            <input v-model="videoStorageForm.bucket" class="input w-full" :placeholder="videoStorageForm.reuse_backup_s3 ? t('admin.backup.objectStorage.bucketInherited') : ''" />
           </div>
 
           <template v-if="!videoStorageForm.reuse_backup_s3">
@@ -170,7 +95,7 @@
             </div>
             <div>
               <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.secretAccessKey') }}</label>
-              <input v-model="videoStorageForm.secret_access_key" type="password" class="input w-full" :placeholder="videoStorageSecretConfigured ? t('admin.backup.s3.secretConfigured') : ''" />
+              <input v-model="videoStorageForm.secret_access_key" type="password" class="input w-full" :placeholder="sharedSecretConfigured ? t('admin.backup.s3.secretConfigured') : ''" />
             </div>
             <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 md:col-span-2">
               <input v-model="videoStorageForm.force_path_style" type="checkbox" />
@@ -179,52 +104,124 @@
           </template>
         </div>
 
-        <div class="mt-5 space-y-3">
+        <h4 class="mt-6 text-sm font-semibold text-gray-700 dark:text-gray-300">
+          {{ t('admin.backup.objectStorage.types') }}
+        </h4>
+
+        <div class="mt-2 space-y-3">
+          <!-- Images: upstream's image_storage_config, rendered here unchanged -->
+          <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+            <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+              <input v-model="imageStorageForm.enabled" type="checkbox" />
+              <span>{{ t('admin.backup.objectStorage.imageEnabled') }}</span>
+            </label>
+            <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div>
+                <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.objectStorage.imagePrefix') }}</label>
+                <input v-model="imageStorageForm.prefix" class="input w-full" placeholder="images/" />
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.objectStorage.imagePublicBaseUrl') }}</label>
+                <input v-model="imageStorageForm.public_base_url" class="input w-full" :placeholder="t('admin.backup.objectStorage.imagePublicBaseUrlPlaceholder')" />
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.objectStorage.imagePresignExpiryHours') }}</label>
+                <input v-model.number="imageStorageForm.presign_expiry_hours" type="number" min="1" class="input w-full" />
+              </div>
+            </div>
+
+            <label class="mt-3 inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input v-model="imageUsesOwnTarget" type="checkbox" />
+              <span>{{ t('admin.backup.objectStorage.imageOwnTarget') }}</span>
+            </label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.objectStorage.imageOwnTargetHint') }}</p>
+
+            <div v-if="imageUsesOwnTarget" class="mt-3 border-t border-gray-200 pt-3 dark:border-gray-700">
+              <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <input v-model="imageStorageForm.reuse_backup_s3" type="checkbox" />
+                <span>{{ t('admin.backup.objectStorage.reuseBackupS3') }}</span>
+              </label>
+              <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div>
+                  <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.objectStorage.bucket') }}</label>
+                  <input v-model="imageStorageForm.bucket" class="input w-full" :placeholder="imageStorageForm.reuse_backup_s3 ? t('admin.backup.objectStorage.bucketInherited') : ''" />
+                </div>
+                <template v-if="!imageStorageForm.reuse_backup_s3">
+                  <div>
+                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.endpoint') }}</label>
+                    <input v-model="imageStorageForm.endpoint" class="input w-full" placeholder="https://<account_id>.r2.cloudflarestorage.com" />
+                  </div>
+                  <div>
+                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.region') }}</label>
+                    <input v-model="imageStorageForm.region" class="input w-full" placeholder="auto" />
+                  </div>
+                  <div>
+                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.accessKeyId') }}</label>
+                    <input v-model="imageStorageForm.access_key_id" class="input w-full" />
+                  </div>
+                  <div>
+                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.secretAccessKey') }}</label>
+                    <input v-model="imageStorageForm.secret_access_key" type="password" class="input w-full" :placeholder="imageStorageSecretConfigured ? t('admin.backup.s3.secretConfigured') : ''" />
+                  </div>
+                  <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 md:col-span-2">
+                    <input v-model="imageStorageForm.force_path_style" type="checkbox" />
+                    <span>{{ t('admin.backup.s3.forcePathStyle') }}</span>
+                  </label>
+                </template>
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm mt-3" :disabled="testingImageStorage" @click="testImageStorage">
+                {{ testingImageStorage ? t('common.loading') : t('admin.backup.objectStorage.testImage') }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Videos -->
           <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
             <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
               <input v-model="videoStorageForm.enabled" type="checkbox" />
-              <span>{{ t('admin.backup.mediaStorage.videoEnabled') }}</span>
+              <span>{{ t('admin.backup.objectStorage.videoEnabled') }}</span>
             </label>
             <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
               <div>
-                <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.mediaStorage.videoPrefix') }}</label>
+                <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.objectStorage.videoPrefix') }}</label>
                 <input v-model="videoStorageForm.prefix" class="input w-full" placeholder="videos/" />
               </div>
               <div>
-                <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.mediaStorage.maxDownloadBytes') }}</label>
+                <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.objectStorage.videoMaxDownloadBytes') }}</label>
                 <input v-model.number="videoStorageForm.max_download_bytes" type="number" min="1" class="input w-full" />
               </div>
               <div>
-                <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.mediaStorage.presignExpiryHours') }}</label>
+                <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.objectStorage.videoPresignExpiryHours') }}</label>
                 <input v-model.number="videoStorageForm.presign_expiry_hours" type="number" min="1" class="input w-full" />
               </div>
             </div>
-            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.mediaStorage.maxDownloadBytesHint') }}</p>
+            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.objectStorage.videoMaxDownloadBytesHint') }}</p>
           </div>
 
+          <!-- Audio -->
           <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
             <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
               <input v-model="videoStorageForm.audio_enabled" type="checkbox" />
-              <span>{{ t('admin.backup.mediaStorage.audioEnabled') }}</span>
+              <span>{{ t('admin.backup.objectStorage.audioEnabled') }}</span>
             </label>
             <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
               <div>
-                <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.mediaStorage.audioPrefix') }}</label>
+                <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.objectStorage.audioPrefix') }}</label>
                 <input v-model="videoStorageForm.audio_prefix" class="input w-full" placeholder="audio/" />
               </div>
             </div>
-            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.mediaStorage.audioHint') }}</p>
+            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.objectStorage.audioHint') }}</p>
           </div>
         </div>
 
-        <p class="mt-4 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.mediaStorage.testHint') }}</p>
+        <p class="mt-4 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.objectStorage.testHint') }}</p>
 
         <div class="mt-3 flex flex-wrap gap-2">
           <button type="button" class="btn btn-secondary btn-sm" :disabled="testingVideoStorage" @click="testVideoStorage">
-            {{ testingVideoStorage ? t('common.loading') : t('admin.backup.s3.testConnection') }}
+            {{ testingVideoStorage ? t('common.loading') : t('admin.backup.objectStorage.testShared') }}
           </button>
-          <button type="button" class="btn btn-primary btn-sm" :disabled="savingVideoStorage" @click="saveVideoStorageConfig">
-            {{ savingVideoStorage ? t('common.loading') : t('common.save') }}
+          <button type="button" class="btn btn-primary btn-sm" :disabled="savingObjectStorage" @click="saveObjectStorageConfig">
+            {{ savingObjectStorage ? t('common.loading') : t('common.save') }}
           </button>
         </div>
       </div>
@@ -513,6 +510,7 @@ import type {
   VideoStorageConfig,
 } from '@/api/admin/backup'
 import { useStepUp, isStepUpBlocked, isStepUpCancelled, stepUpBlockReason } from '@/composables/useStepUp'
+import { applyStorageTarget, imageNeedsOwnTarget } from './backupObjectStorage'
 import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 
 const { t, te } = useI18n()
@@ -561,8 +559,11 @@ const imageStorageForm = ref<ImageStorageConfig>({
   force_path_style: false,
 })
 const imageStorageSecretConfigured = ref(false)
-const savingImageStorage = ref(false)
 const testingImageStorage = ref(false)
+// Images keep their own upstream settings key. This is on only when they point
+// at a different bucket than videos/audio, which is also the safe default when
+// the two stored configs disagree.
+const imageUsesOwnTarget = ref(false)
 
 const videoStorageForm = ref<VideoStorageConfig>({
   enabled: false,
@@ -580,8 +581,16 @@ const videoStorageForm = ref<VideoStorageConfig>({
   audio_prefix: 'audio/',
 })
 const videoStorageSecretConfigured = ref(false)
-const savingVideoStorage = ref(false)
 const testingVideoStorage = ref(false)
+const savingObjectStorage = ref(false)
+
+// The shared target only counts as "secret already stored" when every config
+// using it holds one; otherwise the admin must retype it, or saving would leave
+// one side without credentials.
+const sharedSecretConfigured = computed(
+  () => videoStorageSecretConfigured.value
+    && (imageUsesOwnTarget.value || imageStorageSecretConfigured.value),
+)
 
 // Schedule config
 const scheduleForm = ref<BackupScheduleConfig>({
@@ -786,20 +795,38 @@ async function loadVideoStorageConfig() {
   }
 }
 
-async function saveVideoStorageConfig() {
-  savingVideoStorage.value = true
+async function loadObjectStorageConfigs() {
+  await Promise.all([loadImageStorageConfig(), loadVideoStorageConfig()])
+  imageUsesOwnTarget.value = imageNeedsOwnTarget(
+    imageStorageForm.value,
+    imageStorageSecretConfigured.value,
+    videoStorageForm.value,
+  )
+}
+
+async function saveObjectStorageConfig() {
+  savingObjectStorage.value = true
   try {
-    await backupStepUp.run(() => adminAPI.backup.updateVideoStorageConfig(videoStorageForm.value))
-    appStore.showSuccess(t('admin.backup.mediaStorage.saved'))
-    await loadVideoStorageConfig()
+    // Two settings keys stay behind the one card, so nothing had to migrate:
+    // when images follow the shared target we just copy the visible target
+    // fields onto their payload before writing.
+    const imagePayload = imageUsesOwnTarget.value
+      ? imageStorageForm.value
+      : applyStorageTarget(imageStorageForm.value, videoStorageForm.value)
+    await backupStepUp.run(async () => {
+      await adminAPI.backup.updateImageStorageConfig(imagePayload)
+      await adminAPI.backup.updateVideoStorageConfig(videoStorageForm.value)
+    })
+    appStore.showSuccess(t('admin.backup.objectStorage.saved'))
+    await loadObjectStorageConfigs()
   } catch (error) {
     if (isStepUpCancelled(error)) {
-      savingVideoStorage.value = false
+      savingObjectStorage.value = false
       return
     }
     appStore.showError((error as { message?: string })?.message || t('errors.networkError'))
   } finally {
-    savingVideoStorage.value = false
+    savingObjectStorage.value = false
   }
 }
 
@@ -811,7 +838,7 @@ async function testVideoStorage() {
       appStore.showSuccess(result.message || t('admin.backup.s3.testSuccess'))
     } else {
       // 后端把探测失败分成稳定的 code，能翻译就给本地化提示，否则回退原始信息。
-      const errorKey = `admin.backup.mediaStorage.testErrors.${result.code}`
+      const errorKey = `admin.backup.objectStorage.testErrors.${result.code}`
       appStore.showError(
         result.code && te(errorKey) ? t(errorKey) : result.message || t('admin.backup.s3.testFailed'),
       )
@@ -820,23 +847,6 @@ async function testVideoStorage() {
     appStore.showError((error as { message?: string })?.message || t('errors.networkError'))
   } finally {
     testingVideoStorage.value = false
-  }
-}
-
-async function saveImageStorageConfig() {
-  savingImageStorage.value = true
-  try {
-    await backupStepUp.run(() => adminAPI.backup.updateImageStorageConfig(imageStorageForm.value))
-    appStore.showSuccess(t('admin.backup.imageStorage.saved'))
-    await loadImageStorageConfig()
-  } catch (error) {
-    if (isStepUpCancelled(error)) {
-      savingImageStorage.value = false
-      return
-    }
-    appStore.showError((error as { message?: string })?.message || t('errors.networkError'))
-  } finally {
-    savingImageStorage.value = false
   }
 }
 
@@ -1026,7 +1036,7 @@ function formatDate(value?: string): string {
 
 onMounted(async () => {
   document.addEventListener('visibilitychange', handleVisibilityChange)
-  await Promise.all([loadS3Config(), loadImageStorageConfig(), loadVideoStorageConfig(), loadSchedule(), loadBackups()])
+  await Promise.all([loadS3Config(), loadObjectStorageConfigs(), loadSchedule(), loadBackups()])
 
   // 如果有正在 running 的备份，恢复轮询
   const runningBackup = backups.value.find(r => r.status === 'running')
