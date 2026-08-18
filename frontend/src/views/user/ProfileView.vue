@@ -68,7 +68,6 @@ const appStore = useAppStore()
 const authStore = useAuthStore()
 const user = computed(() => authStore.user)
 
-
 const contactInfo = ref('')
 const balanceLowNotifyEnabled = ref(false)
 const systemDefaultThreshold = ref(0)

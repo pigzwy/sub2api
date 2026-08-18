@@ -40,6 +40,7 @@ git log --no-merges --oneline upstream/main..request-audit  # 本地提交
 | 管理统计自定义日期区间 | ✅ | ✅ | — | — | — |
 | 自定义菜单打开方式 | ✅ | ✅ | — | — | 复用 `custom_menu_items` |
 | 每日签到（活动） | ✅ | ✅ | ✅ `224` | — | 4 项 |
+| Studio 创作台免登录接力 | — | ✅ | — | — | — |
 | fork 分支镜像构建 | — | — | — | — | — |
 
 ---
@@ -198,6 +199,7 @@ backend/internal/config/video_storage_env_test.go
 - `service/image_storage_settings.go`：注册失效回调，`resolveLocked` 重构。
 - `handler/admin/backup_handler.go`、`server/routes/admin.go`：三个配置接口。
 - 装配：`repository/wire.go`、`service/wire.go`、`cmd/server/wire_gen.go`。
+- `internal/config/config.go`：新增 `VideoStorageConfig`（含 `audio_enabled` / `audio_prefix`）与对应 viper 默认值；缺默认值时同名环境变量会被静默忽略（`TestConfigKeysAreEnvReachable` 会拦下）。
 - 依赖：`backend/go.mod`、`go.sum` 新增 `aws-sdk-go-v2/feature/s3/manager`。
 - 前端：`api/admin/backup.ts`、`views/admin/BackupView.vue`（上游图片卡被合进同一张卡）、`i18n/locales/{zh,en}/admin/overview.ts`。
 - 根 `Makefile`：`FRONTEND_CRITICAL_VITEST` 追加 `backupObjectStorage.spec.ts`（不加 CI 不会跑这个用例）。
@@ -355,12 +357,12 @@ POST /api/v1/user/checkin   # 签到；请求体仅在开启人机验证时需�
 
 **涉及文件**
 
-- 后端新增：`migrations/222_user_checkin_records.sql`、`service/checkin_service.go`、`repository/checkin_repo.go`、`handler/checkin_handler.go`。
+- 后端新增：`migrations/224_user_checkin_records.sql`、`service/checkin_service.go`、`repository/checkin_repo.go`、`handler/checkin_handler.go`。
 - 后端修改（设置链路，与既有开关同一套路）：`service/domain_constants.go`、`setting_parse.go`、`setting_update.go`、`setting_public.go`、`setting_features.go`、`settings_view.go`、`handler/dto/settings.go`、`handler/setting_handler.go`、`handler/admin/setting_handler.go`、`setting_handler_update.go`、`setting_handler_audit.go`；装配 `repository/wire.go`、`service/wire.go`、`handler/wire.go`、`handler/handler.go`、`cmd/server/wire_gen.go`、`server/routes/user.go`。
-- 前端新增：`views/user/CheckinView.vue`。
-- 前端修改：`types/index.ts`、`stores/app.ts`、`utils/featureFlags.ts`、`api/user.ts`、`api/admin/settings.ts`、`router/index.ts`、`components/layout/AppSidebar.vue`、`views/admin/SettingsView.vue`、`i18n/locales/{zh,en}/{common,dashboard,admin/settings}.ts`。
+- 前端新增：`components/layout/HeaderCheckin.vue`（签到入口后来从独立页面改成顶栏面板，原 `views/user/CheckinView.vue` 已删除）。
+- 前端修改：`components/layout/AppHeader.vue`（挂载签到面板，签到后刷新余额）、`components/admin/user/UserBalanceHistoryModal.vue` 与 `views/user/RedeemView.vue`（余额流水识别 `checkin` 类型；签到发放的兑换码是内部随机串，不向用户展示）、`types/index.ts`、`stores/app.ts`、`utils/featureFlags.ts`、`api/user.ts`、`api/admin/settings.ts`、`router/index.ts`、`components/layout/AppSidebar.vue`、`views/admin/SettingsView.vue`、`i18n/locales/{zh,en}/{common,dashboard,admin/settings}.ts`。
 
-**上游 PR 状态（2026-08-15）**：已按 [MERGE_RECORDS.md](./MERGE_RECORDS.md) 的「向上游提 PR 的基线校准」流程，从上游 `c204d33b0` 切出只含签到的分支 `feat/daily-checkin`（已推送 `origin`，**尚未提 PR**，先自用观察）。注意该分支上迁移编号为 `224`——本分支的 `222` 与上游新增的 `222_group_usage_daily_rollups.sql` 撞号，合并上游时需把本地这条一并改名。真正提 PR 前应重新 rebase 到当时的 `upstream/main` 并完整重跑验证。
+**上游 PR 状态（2026-08-15）**：已按 [MERGE_RECORDS.md](./MERGE_RECORDS.md) 的「向上游提 PR 的基线校准」流程，从上游 `c204d33b0` 切出只含签到的分支 `feat/daily-checkin`（已推送 `origin`，**尚未提 PR**，先自用观察）。本分支的迁移已改名为 `224_user_checkin_records.sql`（原 `222` 与上游 `222_group_usage_daily_rollups.sql` 撞号）。上游 v0.1.178 又新增了 `224_user_platform_quotas_add_cn_providers.sql`，同号不冲突——`migrations_runner.go` 的 `schema_migrations` 以**文件名**为键，上游自身也有三个 `028_*`，两条改的又是不同的表。真正提 PR 前应重新 rebase 到当时的 `upstream/main` 并完整重跑验证。
 
 **测试**：`service/checkin_service_test.go`（随机金额区间/取整/退化区间/两端可达、按用户按日期判重、流水写入失败时三者一并回滚、成功路径三者齐落）；`server/api_contract_test.go` 的设置契约快照同步了新字段。
 
@@ -402,6 +404,20 @@ docker compose up -d sub2api
 
 ---
 
+## 10. Studio 创作台免登录接力
+
+公开路由 `/connect/studio`，把本站会话接力给外部的 Studio（创作台）站点，实现「已登录 sub2 即秒进创作台」。
+
+**行为**：已登录时带当前 access token 跳到 `https://chat.pigcode.ai/studio?token=<token>`（Studio 侧的 `?token=` 入口会落盘并复验）；未登录时带 `?sso=miss` 弹回 Studio 自己的账号密码登录页，**不劫持到本站登录页**。网关菜单 iframe、独立 tab、官网首页入口统一指向本路由；Studio 侧无会话时也会跳来探测。
+
+**为什么是公开路由**：挂 `requiresAuth` 会让未登录用户被本站登录页拦住，破坏「弹回 Studio 登录页」的语义，所以 `meta.requiresAuth: false`，由页面自己判断有没有 token。token 从 `authStore.token` 取，store 尚未初始化时回落读 `localStorage` 的 `auth_token`。
+
+**注意**：`STUDIO_URL` 是写死的常量，换域名要改代码；token 通过 URL query 传递，会进入浏览器历史与 Studio 侧的访问日志。
+
+**涉及文件**：前端新增 `views/ConnectStudioView.vue`；修改 `router/index.ts`（新增 `ConnectStudio` 路由）。无后端改动、无迁移、无设置项。
+
+---
+
 ## 媒体转存与异步图片对象存储的补充说明
 
 上游 `docs/ASYNC_IMAGE_TASKS.md` 描述的是异步图片任务与 `image_storage`。本分支在其基础上增加了**独立的媒体对象存储**（视频 + TTS 音频），与图片存储互不影响：
@@ -420,6 +436,8 @@ docker compose up -d sub2api
 
 - **文档**：二开文档只有 `docs/MERGE_RECORDS.md` 与 `docs/FORK_FEATURES.md`（本文件）两份。**所有上游文档保持与上游逐字一致，零本地改动**——原先加在 `DEV_GUIDE.md` 与 `docs/ASYNC_IMAGE_TASKS.md` 里的二开章节已于 2026-08-13 全部迁入本文件，以消除这两处合并冲突面。根目录曾有三份一次性产出的中文文档（Claude Code OAuth 独立网关规格、Cloudflare 防护方案与源码审计），同日删除，需要时从 git 历史取回，见 [MERGE_RECORDS.md](./MERGE_RECORDS.md) 对应条目。
 - **订阅每日窗口测试残留**：`service/subscription_window_test.go`（本地新增）、`subscription_assign_idempotency_test.go`、`user_subscription_daily_quota_test.go` 的 stub 起点调整，以及 `subscription_service.go` 的一行注释翻译。**业务逻辑与上游完全一致**，属于历史二开被上游取代后剩下的测试侧残留，可在下次合并时考虑清理。
+- **`frontend/package.json`**：`pnpm.overrides` 比上游多一条 `nanoid@<3.3.18` 安全下限约束。不影响功能，但会让 `pnpm-lock.yaml` 与上游长期不同。
+- **根 `Makefile`**：`FRONTEND_CRITICAL_VITEST` 追加了 `backupObjectStorage.spec.ts`。CI 的 frontend job 只跑这个白名单，不登记等于用例不会被执行。
 - **`paseo.json`**：内容为 `{}` 的工具占位文件。
 
 ## 上游合并冲突高发点
