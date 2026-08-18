@@ -2222,6 +2222,8 @@ func setDefaults() {
 	viper.SetDefault("video_storage.bucket", "")
 	viper.SetDefault("video_storage.access_key_id", "")
 	viper.SetDefault("video_storage.secret_access_key", "")
+	viper.SetDefault("video_storage.audio_enabled", false)
+	viper.SetDefault("video_storage.audio_prefix", "audio/")
 
 	// Ops (vNext)
 	viper.SetDefault("ops.enabled", true)

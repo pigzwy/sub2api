@@ -1322,7 +1322,7 @@ image_storage:
   max_download_bytes: 33554432
 
 # =============================================================================
-# Video Storage (已完成 Grok 视频对象存储，独立于 image_storage)
+# Video Storage (已完成 Grok 媒体对象存储：视频 + TTS 音频，独立于 image_storage)
 # =============================================================================
 video_storage:
   enabled: false
@@ -1335,3 +1335,6 @@ video_storage:
   force_path_style: false
   presign_expiry_hours: 24
   max_download_bytes: 536870912
+  # TTS 音频归档，独立于上面的视频开关；两者共用同一个桶与凭证。
+  audio_enabled: false
+  audio_prefix: "audio/"
