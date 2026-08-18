@@ -491,7 +491,7 @@ import type {
 import { useStepUp, isStepUpBlocked, isStepUpCancelled, stepUpBlockReason } from '@/composables/useStepUp'
 import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 const appStore = useAppStore()
 const backupStepUp = useStepUp()
 
@@ -782,7 +782,11 @@ async function testVideoStorage() {
     if (result.ok) {
       appStore.showSuccess(result.message || t('admin.backup.s3.testSuccess'))
     } else {
-      appStore.showError(result.message || t('admin.backup.s3.testFailed'))
+      // 后端把探测失败分成稳定的 code，能翻译就给本地化提示，否则回退原始信息。
+      const errorKey = `admin.backup.videoStorage.testErrors.${result.code}`
+      appStore.showError(
+        result.code && te(errorKey) ? t(errorKey) : result.message || t('admin.backup.s3.testFailed'),
+      )
     }
   } catch (error) {
     appStore.showError((error as { message?: string })?.message || t('errors.networkError'))

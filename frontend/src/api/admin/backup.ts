@@ -61,6 +61,8 @@ export interface CreateBackupRequest {
 export interface TestS3Response {
   ok: boolean
   message: string
+  /** 机器可读的失败分类（视频存储探测返回），前端据此本地化提示。 */
+  code?: string
 }
 
 // S3 Config

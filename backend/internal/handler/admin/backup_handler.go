@@ -1,6 +1,8 @@
 package admin
 
 import (
+	"errors"
+
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -294,8 +296,30 @@ func (h *BackupHandler) TestVideoStorageConnection(c *gin.Context) {
 		return
 	}
 	if err := h.videoStorage.TestConnection(c.Request.Context(), req); err != nil {
-		response.Success(c, gin.H{"ok": false, "message": err.Error()})
+		response.Success(c, gin.H{
+			"ok":      false,
+			"code":    classifyVideoStorageTestError(err),
+			"message": err.Error(),
+		})
 		return
 	}
 	response.Success(c, gin.H{"ok": true, "message": "connection successful"})
+}
+
+// classifyVideoStorageTestError maps probe failures onto stable codes the admin
+// UI can localize; an empty code makes the UI fall back to the raw message.
+func classifyVideoStorageTestError(err error) string {
+	switch {
+	case errors.Is(err, service.ErrVideoStorageBucketNotFound):
+		return "bucket_not_found"
+	case errors.Is(err, service.ErrVideoStorageAccessDenied):
+		return "access_denied"
+	case errors.Is(err, service.ErrVideoStorageUnreachable):
+		return "unreachable"
+	case errors.Is(err, service.ErrVideoStorageSecretUnreadable):
+		return "secret_unreadable"
+	case errors.Is(err, service.ErrVideoStorageIncomplete):
+		return "incomplete"
+	}
+	return ""
 }
