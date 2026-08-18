@@ -122,6 +122,7 @@ func (h *SettingHandler) writePublicSettings(c *gin.Context, settings *service.P
 		ChannelMonitorMode:                   settings.ChannelMonitorMode,
 		ChannelMonitorDefaultIntervalSeconds: settings.ChannelMonitorDefaultIntervalSeconds,
 		ChannelMonitorHideThroughput:         settings.ChannelMonitorHideThroughput,
+		ChannelMonitorShowQuota:              settings.ChannelMonitorShowQuota,
 
 		AvailableChannelsEnabled: settings.AvailableChannelsEnabled,
 
