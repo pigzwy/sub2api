@@ -95,7 +95,27 @@ func (h *OpenAIGatewayHandler) OpenAIRealtime(c *gin.Context) {
 		false,
 	)
 	if err != nil || selection == nil || selection.Account == nil {
-		h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "No available realtime accounts")
+		// 503 带机器可读归因码：配置态（能力未勾选/无账号）与瞬时态分开，
+		// 下游据 error.code 精确翻译，避免把配置问题提示成"稍后再试"。
+		reason := h.gatewayService.DiagnoseOpenAIRealtimeUnavailable(c.Request.Context(), apiKey.GroupID)
+		message := "No available realtime accounts"
+		switch reason {
+		case service.OpenAIRealtimeUnavailableCapabilityMissing:
+			message = "No realtime-capable accounts in this group: enable the Realtime voice (/v1/realtime) endpoint capability on an API-Key account"
+		case service.OpenAIRealtimeUnavailableNoAPIKeyAccounts:
+			message = "Realtime requires an API-Key account; this group has no schedulable API-Key accounts"
+		case service.OpenAIRealtimeUnavailableNoAccounts:
+			message = "No schedulable accounts in this group"
+		}
+		if reason != service.OpenAIRealtimeUnavailableTransient {
+			// 配置态拒绝计入本地功能门禁，不进上游 SLA/错误率。
+			service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+		}
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": gin.H{
+			"type":    "api_error",
+			"code":    reason,
+			"message": message,
+		}})
 		return
 	}
 
