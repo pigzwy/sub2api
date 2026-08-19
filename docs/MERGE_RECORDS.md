@@ -18,7 +18,7 @@
 上游正式实现 > 上游后续安全修复 > 本地旧二开 > 历史兼容代码
 ```
 
-### 当前仍需维护的独有二开（2026-08-15 更新）
+### 当前仍需维护的独有二开（2026-08-19 更新）
 
 完整清单见 [FORK_FEATURES.md](./FORK_FEATURES.md)，含每项功能的入口、接口、配置、文件清单、测试和合并冲突高发点。概览：
 
@@ -30,6 +30,7 @@
 - Gemini 图片兼容：Gemini 图片模型可复用 OpenAI Images/异步任务入口，并接入现有对象存储转存链路。
 - 自定义菜单打开方式：每个菜单项可选 iframe 嵌入、当前标签页跳转或新标签页打开。
 - 每日签到（活动）：每天一次随机余额奖励，金额区间与人机验证可配；已另切 `feat/daily-checkin` 作为上游 PR 分支。
+- OpenAI Realtime 语音网关：`/v1/realtime` 平台分流与 WS 直通、逐回合 token 计费、audio 计费维度、分组开关与账号能力、语音型号入默认模型表、账号 Realtime 连通性测试。
 - `request-audit` 分支镜像构建与独立镜像标签。
 
 已由上游接管、不再作为本分支二开维护的功能：按响应模型计费、数据库备份与对象存储（均于 2026-08-12 切换）、订阅额度滚动窗口（上游自行实现按自然日对齐的版本）。它们的历史记录已从本文件删除，避免与现状冲突；再次遇到相关需求时直接使用上游实现。后续若上游接管上述剩余功能，也按本节规则删除对应二开与记录。
@@ -77,6 +78,17 @@ git diff --name-only upstream/main..HEAD | grep -i "FORK_FEATURES"   # fork 私�
 ### 时效性
 
 上游推进很快（2026-08-15 当天就多了 8 个提交）。PR 分支切出后若隔了一段时间才提，**提交前重新 rebase 到 upstream/main 并完整重跑一遍验证**，否则等于又回到了「基线没校准」的状态。
+
+## 2026-08-19：OpenAI Realtime 语音网关与语音运营工具
+
+两轮特性分支，均按「本机不构建」约定在 GitHub Actions 完成 ent codegen / 构建 / 测试后合入 `request-audit`：
+
+- `feat/openai-realtime-voice` → 合并 `84519d1f6`：`GET /v1/realtime` 按分组平台分流（grok 沿用上游按分钟计费不动，openai 新增 WS 直通）、`groups.allow_realtime` 开关（迁移 `227`，含鉴权缓存投影与 `GetByKeyForAuth` 列投影）、账号 `realtime` 能力（apikey-only 显式勾选）、audio token 计费维度全链路（迁移 `228`，usage_logs 追加式列序 + 守护测试适配 63 列）、逐回合 `response.done` 落账（`request_id=openai_realtime:<response.id>`）、价格表补 `gpt-realtime-2.1`、新增 `.github/workflows/entgen.yml`（CI 生成 ent 代码并以 `[skip ci]` 回推）。
+- `feat/realtime-admin-tooling` → 合并 `64db9a319`：语音型号进默认模型表（openai：`gpt-realtime` / `-2.1` / `-mini`；xai：`grok-voice-latest`。只加分组候选不够——`/v1/models` 自定义清单的兜底 source 来自 `DefaultModels`，不在表内会被过滤）、OpenAI 账号「实时语音 Realtime」测试模式（对照既有 Grok realtime 探测：`session.created` 判可用、`error` 事件判失败、零 token 消耗）。
+
+功能详情、文件清单与冲突高发点见 [FORK_FEATURES.md](./FORK_FEATURES.md) 第 11 节。对接方 Pig Studio 工作台语音页同步上线（其仓库 main：`7f4ad7e` 语音功能、`fc6324e` 裸端口 WS 直连逃生口），网关接口契约双侧钉死并有测试锁定。
+
+**过程中发现的既有问题（与本功能无关，待单独处理）**：`TestGroupUsageRollupTrigger*` 两个集成测试在东八区凌晨 0–8 点窗口（UTC 16–24）必然失败——rollup 触发器在「上海已过午夜而 UTC 未过」时不推进水位；此前 CI 均在白天时段运行故从未暴露，同一提交出窗口重跑即绿。
 
 ## 2026-08-15：合并上游 v0.1.177
 

@@ -8,14 +8,12 @@
 
 | 项 | 值 |
 |---|---|
-| 统计日期 | 2026-08-13 |
-| 上游基线 | `baeac1f3d`（`v0.1.177`，已合并入本分支） |
-| 分支共同祖先 | `baeac1f3d`（`v0.1.177`） |
-| 差异规模 | 129 个文件，+16296 / -163 行 |
-| 其中后端 | 92 个文件，+13908 / -85 行 |
-| 其中前端及其它 | 37 个文件，+2388 / -78 行 |
-
-（前端及其它一项较早前统计明显下降，是因为根目录三份一次性中文文档已删除、上游文档的二开段落已迁入本文件。）
+| 统计日期 | 2026-08-19 |
+| 上游基线 | `49504adc9`（`v0.1.178`，已合并入本分支） |
+| 分支共同祖先 | `49504adc9`（`v0.1.178`） |
+| 差异规模 | 206 个文件，+21774 / -317 行 |
+| 其中后端 | 147 个文件，+17908 / -149 行 |
+| 其中前端及其它 | 59 个文件，+3866 / -168 行 |
 
 重新核对清单：
 
@@ -26,7 +24,7 @@ git diff --stat upstream/main...request-audit          # 差异规模
 git log --no-merges --oneline upstream/main..request-audit  # 本地提交
 ```
 
-`request-audit` 当前落后上游 4 个提交（`fd82dfd52`、`e29b93a1f`、`e215c98c2`、`fbfdcef81`，均为 Grok 长上下文与媒体兜底修复），**尚未合并，也暂时不需要合并**：这几个提交在 `v0.1.176` 之后、且尚未进入任何 release（`git describe upstream/main` = `v0.1.176-5-gfbfdcef81`，`fbfdcef81` 无 tag，两边 `VERSION` 都仍是 `0.1.176`）。按惯例等上游打出下一个版本号再整体合并，避免跟随未定稿的中间状态。
+`request-audit` 当前落后上游 31 个提交（`git describe upstream/main` = `v0.1.178-31-g6a945b3ca`），均在 `v0.1.178` 之后、尚未进入任何 release。按惯例等上游打出下一个版本号再整体合并，避免跟随未定稿的中间状态。
 
 ## 功能一览
 
@@ -42,6 +40,7 @@ git log --no-merges --oneline upstream/main..request-audit  # 本地提交
 | 每日签到（活动） | ✅ | ✅ | ✅ `224` | — | 4 项 |
 | Studio 创作台免登录接力 | — | ✅ | — | — | — |
 | fork 分支镜像构建 | — | — | — | — | — |
+| OpenAI Realtime 语音网关（含语音运营工具） | ✅ | ✅ | ✅ `227`、`228` | — | — |
 
 ---
 
@@ -422,6 +421,80 @@ docker compose up -d sub2api
 
 ---
 
+## 11. OpenAI Realtime 语音网关（/v1/realtime 直通 + 语音运营工具）
+
+把 OpenAI 公开 Realtime 语音接入网关：`GET /v1/realtime` 按分组平台分流——grok 分组沿用上游的 xAI 语音直通（按分钟计费，未改动），**openai 分组新增 WS 直通**，事件双向原样透传，按每个 `response.done` 的 token 用量逐回合计费，连接时长不收费。配套补齐运营链路：分组开关、账号能力、audio token 计费维度、语音型号进默认模型表、账号 Realtime 连通性测试。对接方为 Pig Studio 工作台语音页（2026-08-19 上线，两轮特性分支合并 `84519d1f6` 与 `64db9a319`，过程见 MERGE_RECORDS.md 同日条目）。
+
+**入口**
+
+- 分组编辑（openai 平台）：「OpenAI Live」区块下新增**允许访问 Realtime 语音（/v1/realtime）**开关（`groups.allow_realtime`，默认关；非 openai 平台保存时强制清零，与 `allow_live` 同门禁）。
+- 账号编辑（openai + API Key）：「端点能力」新增 **Realtime 语音（/v1/realtime）**。显式开通制：`credentials.openai_capabilities` 未配置或未含 `realtime` 的账号**不参与**语音调度；OAuth/Codex 订阅号一律不支持（没有公开 realtime WS 通道）。
+- 账号测试（openai）：测试模式新增**实时语音 Realtime（WS /v1/realtime）**——真实拨号 `{base_url}/v1/realtime?model=…`，收到 `session.created` 判定该密钥可用所选模型；收到 `error` 事件（模型不存在/无权限）按失败上报原文；零 token 消耗。模型下拉自动收敛为 `gpt-realtime*`。仅 API-Key 账号。
+- 分组「模型列表配置」候选：openai 增 `gpt-realtime-2.1` / `gpt-realtime` / `gpt-realtime-mini`，grok 增 `grok-voice-latest`。**必须进默认模型表，只加候选不够**：`/v1/models` 自定义清单的兜底 source 来自 `DefaultModels`，不在表内的型号即使被勾选也会被过滤掉。grok 分组带账号时 `/v1/models` 经默认映射键自动含语音型号，可不配清单。
+
+**接口**
+
+```text
+GET /v1/realtime?model=gpt-realtime-2.1     # WS upgrade；另有无前缀别名 /realtime
+Authorization: Bearer sk-...                 # 仅支持请求头；不支持 WS 子协议鉴权
+```
+
+- 协议：OpenAI Realtime GA 事件协议双向 JSON 直通，**无白名单、无改写**；`session.update` 全量透传（voice / turn_detection / transcription / instructions / max_output_tokens / tools）。上行帧必须是合法 JSON，坏帧断连。
+- 模型以 query 为准（网关拼上游 URL 时强制覆盖 model），一个连接一个模型；`session.update` 里改 model 会透传但计费仍按 query 模型。
+- 升级前 HTTP 错误：426 缺 Upgrade 头；401 无效 key；403 分组未开开关；404 平台不支持；402/429 余额配额（带 `Retry-After`）；429 用户并发（`users.concurrency`，跨全部请求类型共享）；503 分组内没有勾选 realtime 能力的 API-Key 账号。升级后上游故障：WS close 1011。
+- 上游选择：账号 `base_url` 为空直连 `wss://api.openai.com/v1/realtime`；配置 `base_url` 即对接第三方 OpenAI 兼容中转（与 Responses 转发同一套 `validateUpstreamBaseURL` + `buildOpenAIEndpointURL` 约定，https→wss 换 scheme）。
+
+**计费**
+
+- 每个 `response.done` 落一条 usage：`request_id = openai_realtime:<response.id>`；`OpenAIWSMode` 置位使 RecordUsage 直接采用该 id 作幂等键，避免同会话多回合被请求级 id 去重合并成一条。
+- token 口径与 RecordUsage 互斥拆桶对齐：`input_tokens` 为含缓存总量；`AudioInputTokens` 记非缓存音频子集、`AudioCacheReadTokens` 记缓存音频子集、`AudioOutputTokens` 记音频输出子集（`OpenAIUsage` 新增三字段）。
+- 计费管道新增 audio 维度（完全照 image 先例）：`LiteLLMModelPricing` / `LiteLLMRawEntry` 解析 `input/output_cost_per_audio_token` 与 `cache_read/creation_input_audio_token_cost`（read 缺档回退 creation 档——`gpt-realtime` 条目用后者表达缓存音频价，litellm 数据怪癖）；`ModelPricing` 增三个音频单价（为 0 时回退文本价，杜绝 $0 计费）；`UsageTokens` / `CostBreakdown` / `computeTokenBreakdown` 音频拆项；分组倍率照常叠加。
+- `usage_logs` 新增 `audio_input_tokens` / `audio_input_cost` / `audio_output_tokens` / `audio_output_cost`：audio 从 input/output 桶拆出、费用从 input/output_cost 拆出，`total_cost` 口径不变。
+- 价格表补 `gpt-realtime-2.1` 条目（沿用 `gpt-realtime-2` 官方价：文本 $4/$16、音频 $32/$64、缓存 $0.4，均为每百万 token）。
+- Grok 语音计费不变：按连接分钟 × 分组 `audio_realtime_price_per_min`（默认 $0.05）× 倍率，观察到音频事件才计费。
+
+**迁移**：`227_add_group_allow_realtime.sql`、`228_usage_log_audio_tokens.sql`。usage_logs 加列采用**追加式列序**：四列固定位于 `session_id` 与 `created_at` 之间，`usage_log_session_id_unit_test.go` 守护测试锁 63 列布局，后续加列必须同步该测试与 `usage_log_repo_insert.go` 顶部注释列出的全部调用点。
+
+**新增文件**
+
+```text
+backend/internal/handler/openai_realtime.go (+_test)
+backend/internal/service/openai_realtime.go (+_test)
+backend/internal/service/billing_service_audio_test.go
+backend/internal/service/account_test_service_openai_realtime_test.go
+backend/migrations/227_add_group_allow_realtime.sql
+backend/migrations/228_usage_log_audio_tokens.sql
+.github/workflows/entgen.yml
+```
+
+`entgen.yml`：本机不跑构建的约定下，`ent/schema` 变更推分支后由 CI 执行 `go generate ./ent`，有 diff 自动以 `[skip ci]` 提交回分支，再跑 build + 全量单测。`workflow_dispatch` 对不在默认分支上的 workflow 无法注册，故用分支 push 触发（分支名过滤，复用时改 `branches` 列表）。
+
+**侵入上游的文件**
+
+- 路由：`server/routes/gateway.go` 两处 `GET /realtime` 闭包改为按 `getGroupPlatform` 分流（grok / openai / 404）。
+- 能力：`service/account.go` 新增 `OpenAIEndpointCapabilityRealtime` 常量与 `SupportsOpenAIEndpointCapability` 的 case（apikey-only + 显式勾选；未加 case 的新能力会命中 `default: return false` 被全量排除）。
+- 计费：`service/billing_service.go`、`service/pricing_service.go`、`service/openai_gateway_service.go`（`OpenAIUsage`）、`service/openai_gateway_usage.go`、`service/usage_log.go`。
+- usage_logs 列序全家：`repository/usage_log_repo_insert.go`（argTypes / prepare args / 8 个列清单 / 2 处 `$N` 占位符尾）、`usage_log_repo_query.go`（select 常量 + scan）、`usage_log_session_id_unit_test.go`、`usage_log_repo_request_type_test.go`。
+- 分组开关全链路：`ent/schema/group.go`（生成代码由 entgen workflow 产出）、`service/group.go`、`repository/group_repo.go`、`repository/api_key_repo.go`（**`GetByKeyForAuth` 的分组字段投影，漏加会在真实流量上静默为 false**）、`service/api_key_auth_cache.go` + `_impl.go`（快照双向投影）、`service/admin_group.go` + `admin_group_duplicate.go`、`service/admin_service.go`、`handler/admin/group_handler.go`、`handler/dto/types.go` + `mappers.go`（用户侧 `/api/v1/groups/available` 也会带出 `allow_realtime`，与 `allow_live` 同暴露面）。
+- 账号测试：`service/openai_compact_probe.go`（mode 常量与归一化）、`service/account_test_service.go`（realtime 分支 + `testOpenAIRealtime`，复用 `grokWSDialer` 注入点与 `openAIWSHandshakeError` 错误展开）。
+- 默认模型表：`pkg/openai/constants.go`、`pkg/xai/models.go`（注意 grok 默认账号映射会自动为语音型号生成恒等键与 `xai/`、`x-ai/`、`grok/` 前缀别名）。
+- 价格资源：`resources/model-pricing/model_prices_and_context_window.json`（`gpt-realtime-2.1` 条目）。
+- 前端：`views/admin/GroupsView.vue`（Realtime 开关：create/edit 模板 + 默认值/重置/编辑回填/三处平台 watcher）、`components/account/{Create,Edit,BulkEdit}AccountModal.vue`（能力勾选；「默认集则删键」的判定从 `length === 2` 改为显式默认集比对，防止 `{chat, realtime}` 组合被误删）、`components/admin/account/AccountTestModal.vue`（realtime 测试模式 + 模型下拉收敛 + 切换重置 watch）、`types/index.ts`、`i18n/locales/{zh,en}/admin/{accounts,overview}.ts`。
+- 测试夹具：`server/api_contract_test.go`（`groups/available` 契约补 `allow_realtime`）、`repository/migrations_schema_integration_test.go`（新列断言）、`service/admin_service_group_test.go`（非 openai 平台清零断言）。
+
+**测试**：`service/openai_realtime_test.go`（usage 抽取含缓存音频扣减、URL 构造直连/中转/带 v1 后缀、计费 request_id、能力门禁四象限）、`service/billing_service_audio_test.go`（音频拆项、倍率、缺价回退文本价、无音频时行为不变）、`service/account_test_service_openai_realtime_test.go`（拨号 URL/鉴权、base_url 中转、error 事件判失败、OAuth 拒绝、握手 401 展开、模式归一化）、`handler/openai_realtime_test.go`（分组门禁）。注意 service 层账号测试文件需 `//go:build unit` 标签（helper 定义在带标签的 grok 测试文件里）。
+
+**对接方**：Pig Studio 工作台语音页——浏览器 → Studio Nitro 后端（持分组密钥，纯转发）→ 本网关。Studio 侧配置 `MEDIA_GROUP_VOICE_OPENAI` / `MEDIA_GROUP_VOICE_GROK`（分组 id）。接口契约（仅请求头鉴权、全量透传、query 定模型、错误码语义、计费口径、并发语义）已双侧钉死并有测试锁定。
+
+**已知边界**
+
+- composite 复合分组不支持 realtime：composite 解析中间件跳过 GET 请求（模型在 query 而非 body），且两个 realtime handler 检查原始分组平台。要支持需中间件从 `?model=` 解析 + handler 改用有效平台，未列入当前范围。
+- 音频内容不经文本安全审计（现有审计链只覆盖文本）；`session.update` 文本可审但当前与 grok 直通保持一致未挂钩。
+- Live（WebRTC/Codex 订阅号通道）与本功能无关，仍为零计费（上游 TODO，`service/openai_live.go` 内注释）。
+- `gpt-realtime-2.1` 价格按 `gpt-realtime-2` 官方价填写，如上游价格表后续收录该型号，以上游同步为准。
+
+---
+
 ## 媒体转存与异步图片对象存储的补充说明
 
 上游 `docs/ASYNC_IMAGE_TASKS.md` 描述的是异步图片任务与 `image_storage`。本分支在其基础上增加了**独立的媒体对象存储**（视频 + TTS 音频），与图片存储互不影响：
@@ -452,7 +525,8 @@ docker compose up -d sub2api
 2. **设置链路 7 文件**：`service/domain_constants.go`、`setting_parse.go`、`setting_update.go`、`settings_view.go`、`handler/dto/settings.go`、`handler/admin/setting_handler.go`、`setting_handler_update.go` —— 同时承载请求审计、请求拦截，以及自定义菜单打开方式（`dto/settings.go` 的 `CustomMenuItem.OpenMode` 与 `setting_handler_update.go` 的取值校验）。
 3. **网关热路径**：`gateway_handler.go`、`gateway_handler_chat_completions.go`、`gateway_handler_responses.go`、`openai_chat_completions.go`、`openai_gateway_handler.go` —— 审计埋点与拦截判断都插在这里。
 4. **前端大文件**：`views/admin/SettingsView.vue`（+487 行，承载审计、拦截两组配置与自定义菜单打开方式下拉框）、`views/admin/BackupView.vue`（+145）、`views/admin/UsageView.vue`（+41）。
-5. **导航与自定义页面**：`components/layout/AppSidebar.vue`（+65/-22）、`views/user/CustomPageView.vue`（+41）—— 自定义菜单打开方式引入。**这两个是上游高频改动的布局文件，且本地改动是「改写既有结构」而非「追加新块」**，冲突概率高于上面几处按块追加的改动：
+5. **Realtime 语音链路**（2026-08-19 引入）：`routes/gateway.go` 两处 `/realtime` 闭包（上游若改 grok 语音路由必撞，保住 openai 分支即可）；`service/account.go` 的能力 switch（上游新增能力时保留 `realtime` case，否则语音调度全量失效）；`usage_log_repo_insert/query.go` 列序（上游加列时维持「audio 四列在 `session_id` 与 `created_at` 之间」，守护测试 `usage_log_session_id_unit_test.go` 会拦）；`pkg/openai/constants.go` 与 `pkg/xai/models.go` 默认模型表（上游刷新模型清单时保留语音条目，否则候选与 `/v1/models` 同时回退消失）；`billing_service.go` 的 `computeTokenBreakdown`（上游改计费拆分时需保 audio 分支与回退语义）；前端 `AccountTestModal.vue`、`GroupsView.vue`、三个账号弹窗。
+6. **导航与自定义页面**：`components/layout/AppSidebar.vue`（+65/-22）、`views/user/CustomPageView.vue`（+41）—— 自定义菜单打开方式引入。**这两个是上游高频改动的布局文件，且本地改动是「改写既有结构」而非「追加新块」**，冲突概率高于上面几处按块追加的改动：
    - `AppSidebar.vue`：三处 `router-link` 被改成 `<component :is="item.href ? 'a' : RouterLink">`。上游若重构侧边栏渲染或调整这几处链接属性，会直接冲突。合并时保留「外链项渲染成 `<a>`」这一语义即可，标记类名与 `data-tour` 等属性以上游为准。另注意 `NavItem` 接口新增了 `href`/`newTab` 两个可选字段，以及 `customMenuNavItem` / `navLinkProps` 两个本地函数。
    - `CustomPageView.vue`：新增 `externalUrl` 计算属性与 `followExternalTarget`，以及一个 `watch(externalUrl)`。该文件其余部分（Markdown 渲染、TOC、iframe 嵌入）均为上游实现，合并时应整体采用上游版本后再把这三块搬回。
 
@@ -490,6 +564,12 @@ go test ./...
 # 前端
 pnpm --dir frontend run build
 pnpm --dir frontend exec vitest run src/views/admin/__tests__/BackupView.spec.ts
+
+# Realtime 语音链路（后端）
+cd backend
+go test -tags unit ./internal/service/ ./internal/handler/ -run 'Realtime|Audio'
 ```
+
+注意：本仓库约定**不在本机跑构建/测试**（机器性能受限），以上命令由 GitHub Actions 执行（push 触发 CI；`ent/schema` 变更走 `.github/workflows/entgen.yml` 生成回推）。
 
 2026-08-13 在上游基线 `fbfdcef81` 上的实测结果：`go build ./...` 通过；`service`、`handler`、`server/routes`、`repository` 四个包的 unit 标签测试全部通过。
