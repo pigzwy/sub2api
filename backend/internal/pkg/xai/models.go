@@ -99,6 +99,8 @@ var defaultModels = []Model{
 	{ID: DefaultImagineVideoModel, Object: "model", Type: "model", OwnedBy: "xai", DisplayName: "Grok Imagine Video"},
 	{ID: DefaultImagineVideo15Model, Object: "model", Type: "model", OwnedBy: "xai", DisplayName: "Grok Imagine Video 1.5 Preview"},
 	{ID: DefaultImagineVideo15LegacyModel, Object: "model", Type: "model", OwnedBy: "xai", DisplayName: "Grok Imagine Video 1.5 Legacy"},
+	// Voice（独立 /v1/realtime WS，通过网关直通；不参与文本 Responses 路由）
+	{ID: "grok-voice-latest", Object: "model", Type: "model", OwnedBy: "xai", DisplayName: "Grok Voice"},
 }
 
 // grokTextResponsesModelAliases is the source of truth for Grok text models

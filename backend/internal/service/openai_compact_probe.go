@@ -13,12 +13,17 @@ const (
 	// AccountTestModeCompact drives the remote-compaction probe test
 	// (native v2: streaming /responses with a compaction_trigger input item).
 	AccountTestModeCompact = "compact"
+	// AccountTestModeRealtime drives the /v1/realtime WebSocket connectivity
+	// probe（仅 API-Key 账号，见 testOpenAIRealtime）。
+	AccountTestModeRealtime = "realtime"
 )
 
 func normalizeAccountTestMode(mode string) string {
 	switch strings.ToLower(strings.TrimSpace(mode)) {
 	case AccountTestModeCompact:
 		return AccountTestModeCompact
+	case AccountTestModeRealtime:
+		return AccountTestModeRealtime
 	default:
 		return AccountTestModeDefault
 	}

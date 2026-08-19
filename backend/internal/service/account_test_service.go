@@ -603,6 +603,16 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 	ctx := c.Request.Context()
 	mode = normalizeAccountTestMode(mode)
 
+	// Realtime 是独立 WS 探测：默认模型与文本测试不同，且不走 /responses。
+	if mode == AccountTestModeRealtime {
+		realtimeModel := strings.TrimSpace(modelID)
+		if realtimeModel == "" {
+			realtimeModel = defaultOpenAIRealtimeTestModel
+		}
+		realtimeModel = account.GetMappedModel(realtimeModel)
+		return s.testOpenAIRealtime(c, ctx, account, realtimeModel)
+	}
+
 	// Default to openai.DefaultTestModel for OpenAI testing
 	testModelID := modelID
 	if testModelID == "" {
@@ -1709,6 +1719,127 @@ func (s *AccountTestService) testGrokRealtime(c *gin.Context, ctx context.Contex
 			Type: "content",
 			Text: fmt.Sprintf("realtime first event: type=%s payload=%s\n", eventType, preview),
 		})
+	} else {
+		s.sendEvent(c, TestEvent{
+			Type: "content",
+			Text: "realtime handshake succeeded (no server event within 3s; still connectivity OK)\n",
+		})
+	}
+
+	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+	return nil
+}
+
+// defaultOpenAIRealtimeTestModel 与网关 /v1/realtime 的默认模型保持一致。
+const defaultOpenAIRealtimeTestModel = "gpt-realtime"
+
+// testOpenAIRealtime dials the OpenAI Realtime WebSocket
+// ({base_url}/v1/realtime?model=...) to verify auth + endpoint + 模型可用性，
+// 与 testGrokRealtime 同构。仅 API-Key 账号（OAuth/Codex 订阅号没有公开
+// realtime WS 通道，与网关调度约束一致）。判定：握手成功即连通；
+// 首个事件为 session.created 时明确判模型可用，为 error 事件（如模型不存在/
+// 无权限）时按失败上报——这正是"该密钥能不能用这个语音模型"的验证点。
+func (s *AccountTestService) testOpenAIRealtime(c *gin.Context, ctx context.Context, account *Account, model string) error {
+	credentialAccount := account
+	if account.IsCredentialShadow() {
+		resolved, err := resolveCredentialAccount(ctx, s.accountRepo, account)
+		if err != nil {
+			return s.sendErrorAndEnd(c, err.Error())
+		}
+		credentialAccount = resolved
+	}
+	if credentialAccount.Type != AccountTypeAPIKey {
+		return s.sendErrorAndEnd(c, "Realtime test requires an API-Key account (OAuth/Codex accounts cannot use /v1/realtime)")
+	}
+	apiKey := credentialAccount.GetOpenAIApiKey()
+	if apiKey == "" {
+		return s.sendErrorAndEnd(c, "No API key available")
+	}
+
+	baseURL := credentialAccount.GetOpenAIBaseURL()
+	if baseURL == "" {
+		baseURL = "https://api.openai.com"
+	}
+	normalizedBaseURL, err := s.validateUpstreamBaseURL(baseURL)
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid base URL: %s", err.Error()))
+	}
+	u, err := url.Parse(buildOpenAIEndpointURL(normalizedBaseURL, "/v1/realtime"))
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid OpenAI Realtime URL: %s", err.Error()))
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "https":
+		u.Scheme = "wss"
+	case "http":
+		u.Scheme = "ws"
+	case "wss", "ws":
+		// already websocket
+	default:
+		return s.sendErrorAndEnd(c, "Invalid OpenAI Realtime URL scheme")
+	}
+	q := u.Query()
+	q.Set("model", model)
+	u.RawQuery = q.Encode()
+	wsURL := u.String()
+
+	s.prepareGrokTestSSE(c)
+	s.sendEvent(c, TestEvent{Type: "test_start", Model: model})
+	s.sendEvent(c, TestEvent{Type: "status", Text: "Dialing wss /v1/realtime (connectivity probe)..."})
+	s.sendEvent(c, TestEvent{Type: "content", Text: fmt.Sprintf("realtime target: %s\n", redactGrokRealtimeURLForLog(wsURL))})
+
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer "+apiKey)
+	account.ApplyHeaderOverrides(headers)
+
+	dialer := s.grokWSDialer
+	if dialer == nil {
+		dialer = newDefaultOpenAIWSClientDialer()
+	}
+
+	dialCtx, cancel := context.WithTimeout(ctx, grokRealtimeProbeTimeout)
+	defer cancel()
+
+	conn, status, _, dialErr := dialer.Dial(dialCtx, wsURL, headers, s.grokTestProxyURL(account))
+	if dialErr != nil {
+		detail := dialErr.Error()
+		var hs *openAIWSHandshakeError
+		if errors.As(dialErr, &hs) && len(hs.Body) > 0 {
+			body := strings.TrimSpace(string(hs.Body))
+			if len(body) > 300 {
+				body = body[:300] + "..."
+			}
+			detail = fmt.Sprintf("%s body=%s", detail, body)
+		}
+		if status > 0 {
+			return s.sendErrorAndEnd(c, fmt.Sprintf("OpenAI Realtime WS handshake failed (HTTP %d): %s", status, detail))
+		}
+		return s.sendErrorAndEnd(c, fmt.Sprintf("OpenAI Realtime WS dial failed: %s", detail))
+	}
+	defer func() { _ = conn.Close() }()
+
+	s.sendEvent(c, TestEvent{Type: "content", Text: "realtime ws handshake ok\n"})
+
+	// OpenAI 建连后会先推 session.created；error 事件按失败上报。
+	readCtx, readCancel := context.WithTimeout(ctx, 3*time.Second)
+	defer readCancel()
+	if msg, readErr := conn.ReadMessage(readCtx); readErr == nil && len(msg) > 0 {
+		eventType := strings.TrimSpace(gjson.GetBytes(msg, "type").String())
+		preview := strings.TrimSpace(string(msg))
+		if len(preview) > 240 {
+			preview = preview[:240] + "..."
+		}
+		switch eventType {
+		case "error":
+			return s.sendErrorAndEnd(c, fmt.Sprintf("OpenAI Realtime returned error event: %s", preview))
+		case "session.created":
+			s.sendEvent(c, TestEvent{Type: "content", Text: fmt.Sprintf("realtime session created (model authorized): %s\n", preview)})
+		default:
+			if eventType == "" {
+				eventType = "unknown"
+			}
+			s.sendEvent(c, TestEvent{Type: "content", Text: fmt.Sprintf("realtime first event: type=%s payload=%s\n", eventType, preview)})
+		}
 	} else {
 		s.sendEvent(c, TestEvent{
 			Type: "content",
