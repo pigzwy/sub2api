@@ -75,7 +75,7 @@ func SetupRouter(
 	// request-scoped CSP nonce or stale settings payload.
 	if web.HasEmbeddedFrontend() {
 		frontendServer, err := web.NewStaticFrontendServer() //nolint:staticcheck // SA4023: the !embed stub always errors; embed builds can return nil
-		if err != nil {                                              //nolint:staticcheck // SA4023: see above
+		if err != nil {                                      //nolint:staticcheck // SA4023: see above
 			log.Printf("Warning: Failed to create static frontend server: %v, using legacy mode", err)
 			r.Use(web.ServeEmbeddedFrontend())
 			settingService.SetOnUpdateCallback(refreshFrameOrigins)
