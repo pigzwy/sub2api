@@ -103,6 +103,17 @@ func TestClassifyOpenAIRealtimeUnavailable(t *testing.T) {
 	require.Equal(t, OpenAIRealtimeUnavailableTransient, classifyOpenAIRealtimeUnavailable([]Account{apikeyWithout, apikeyWithRealtime}))
 }
 
+func TestSummarizeOpenAIRealtimePool(t *testing.T) {
+	oauth := Account{ID: 5, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Credentials: map[string]any{"access_token": "tok"}}
+	apikeyWithout := Account{ID: 7, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "sk-2"}}
+	grok := Account{ID: 9, Platform: PlatformGrok, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "xai-1"}}
+
+	require.Equal(t, "no openai accounts", summarizeOpenAIRealtimePool(nil))
+	require.Equal(t, "no openai accounts", summarizeOpenAIRealtimePool([]Account{grok}))
+	require.Equal(t, "id=5 type=oauth cap=false; id=7 type=apikey cap=false",
+		summarizeOpenAIRealtimePool([]Account{oauth, apikeyWithout, grok}))
+}
+
 func TestSupportsOpenAIEndpointCapabilityRealtime(t *testing.T) {
 	oauth := &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth, Credentials: map[string]any{
 		"openai_capabilities": []string{"chat_completions", "realtime"},

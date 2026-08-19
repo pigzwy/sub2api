@@ -1229,7 +1229,7 @@ export default {
       },
       openaiRealtime: {
         allow: '允许访问 Realtime 语音（/v1/realtime）',
-        hint: '启用后，此 OpenAI 分组的 API Key 可以通过 WebSocket 直连 /v1/realtime 语音接口，按 response.done 的 token 用量结算（连接时长不计费）。仅调度显式勾选 Realtime 能力的 API-Key 账号。'
+        hint: '启用后，此 OpenAI 分组的 API Key 可以通过 WebSocket 直连 /v1/realtime 语音接口，按 response.done 的 token 用量结算（连接时长不计费）。注意：本开关只放行分组，账号还需单独开通——到分组内 API-Key 账号的编辑页 →「端点能力」勾选「Realtime 语音」，否则调用会报 503（no available realtime accounts）。'
       },
       invalidRequestFallback: {
         title: '无效请求兜底分组',
