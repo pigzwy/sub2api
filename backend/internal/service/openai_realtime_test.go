@@ -100,17 +100,21 @@ func TestClassifyOpenAIRealtimeUnavailable(t *testing.T) {
 	require.Equal(t, OpenAIRealtimeUnavailableNoAccounts, classifyOpenAIRealtimeUnavailable([]Account{grok}))
 	require.Equal(t, OpenAIRealtimeUnavailableNoAPIKeyAccounts, classifyOpenAIRealtimeUnavailable([]Account{oauth}))
 	require.Equal(t, OpenAIRealtimeUnavailableCapabilityMissing, classifyOpenAIRealtimeUnavailable([]Account{oauth, apikeyWithout}))
-	require.Equal(t, OpenAIRealtimeUnavailableTransient, classifyOpenAIRealtimeUnavailable([]Account{apikeyWithout, apikeyWithRealtime}))
+	// 能力齐备但并发上限为 0：占槽恒失败，必须归为配置态而非瞬时态。
+	require.Equal(t, OpenAIRealtimeUnavailableConcurrencyZero, classifyOpenAIRealtimeUnavailable([]Account{apikeyWithRealtime}))
+	apikeyUsable := apikeyWithRealtime
+	apikeyUsable.Concurrency = 3
+	require.Equal(t, OpenAIRealtimeUnavailableTransient, classifyOpenAIRealtimeUnavailable([]Account{apikeyWithout, apikeyUsable}))
 }
 
 func TestSummarizeOpenAIRealtimePool(t *testing.T) {
 	oauth := Account{ID: 5, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Credentials: map[string]any{"access_token": "tok"}}
-	apikeyWithout := Account{ID: 7, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "sk-2"}}
+	apikeyWithout := Account{ID: 7, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Concurrency: 2, Credentials: map[string]any{"api_key": "sk-2"}}
 	grok := Account{ID: 9, Platform: PlatformGrok, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "xai-1"}}
 
 	require.Equal(t, "no openai accounts", summarizeOpenAIRealtimePool(nil))
 	require.Equal(t, "no openai accounts", summarizeOpenAIRealtimePool([]Account{grok}))
-	require.Equal(t, "id=5 type=oauth cap=false; id=7 type=apikey cap=false",
+	require.Equal(t, "id=5 type=oauth cap=false conc=0; id=7 type=apikey cap=false conc=2",
 		summarizeOpenAIRealtimePool([]Account{oauth, apikeyWithout, grok}))
 }
 
