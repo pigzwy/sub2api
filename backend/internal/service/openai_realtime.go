@@ -39,14 +39,18 @@ const (
 	// OpenAIRealtimeUnavailableCapabilityMissing 有 API-Key 账号但均未勾选
 	// realtime 端点能力——配置态问题，重试无效。
 	OpenAIRealtimeUnavailableCapabilityMissing = "realtime_capability_not_enabled"
-	// OpenAIRealtimeUnavailableTransient 存在具备能力的账号，本次失败为
-	// 瞬时态（并发占满/冷却/调度竞争），可重试。
+	// OpenAIRealtimeUnavailableConcurrencyZero 能力齐备的账号并发上限全部
+	// ≤0——占槽 Lua 的 count < maxConcurrency 在 0 上恒假，该账号永远无可用
+	// 槽。配置态问题（把账号「并发数」改成 ≥1），重试无效。
+	OpenAIRealtimeUnavailableConcurrencyZero = "concurrency_limit_zero"
+	// OpenAIRealtimeUnavailableTransient 存在具备能力且并发上限有效的账号，
+	// 本次失败为瞬时态（并发占满/冷却/调度竞争），可重试。
 	OpenAIRealtimeUnavailableTransient = "temporarily_unavailable"
 )
 
 // classifyOpenAIRealtimeUnavailable 对分组内可调度账号做能力归因。
 func classifyOpenAIRealtimeUnavailable(accounts []Account) string {
-	openaiCount, apikeyCount, capableCount := 0, 0, 0
+	openaiCount, apikeyCount, capableCount, usableCount := 0, 0, 0, 0
 	for i := range accounts {
 		acc := &accounts[i]
 		if acc.Platform != PlatformOpenAI {
@@ -58,6 +62,9 @@ func classifyOpenAIRealtimeUnavailable(accounts []Account) string {
 		}
 		if acc.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityRealtime) {
 			capableCount++
+			if acc.Concurrency > 0 {
+				usableCount++
+			}
 		}
 	}
 	switch {
@@ -67,6 +74,9 @@ func classifyOpenAIRealtimeUnavailable(accounts []Account) string {
 		return OpenAIRealtimeUnavailableNoAPIKeyAccounts
 	case capableCount == 0:
 		return OpenAIRealtimeUnavailableCapabilityMissing
+	case usableCount == 0:
+		// 能力全过但并发上限全 ≤0：占槽恒失败，是配置态而非瞬时态。
+		return OpenAIRealtimeUnavailableConcurrencyZero
 	default:
 		return OpenAIRealtimeUnavailableTransient
 	}
@@ -82,8 +92,8 @@ func summarizeOpenAIRealtimePool(accounts []Account) string {
 		if acc.Platform != PlatformOpenAI {
 			continue
 		}
-		parts = append(parts, fmt.Sprintf("id=%d type=%s cap=%t",
-			acc.ID, acc.Type, acc.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityRealtime)))
+		parts = append(parts, fmt.Sprintf("id=%d type=%s cap=%t conc=%d",
+			acc.ID, acc.Type, acc.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityRealtime), acc.Concurrency))
 	}
 	if len(parts) == 0 {
 		return "no openai accounts"

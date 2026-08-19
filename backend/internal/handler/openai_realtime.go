@@ -107,6 +107,8 @@ func (h *OpenAIGatewayHandler) OpenAIRealtime(c *gin.Context) {
 		switch reason {
 		case service.OpenAIRealtimeUnavailableCapabilityMissing:
 			message = "No realtime-capable accounts in this group: enable the Realtime voice (/v1/realtime) endpoint capability on an API-Key account"
+		case service.OpenAIRealtimeUnavailableConcurrencyZero:
+			message = "Realtime-capable accounts exist but their concurrency limit is 0 (0 means never schedulable): set the account's concurrency to at least 1"
 		case service.OpenAIRealtimeUnavailableNoAPIKeyAccounts:
 			message = "Realtime requires an API-Key account; this group has no schedulable API-Key accounts"
 		case service.OpenAIRealtimeUnavailableNoAccounts:
