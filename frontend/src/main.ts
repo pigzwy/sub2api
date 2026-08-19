@@ -8,6 +8,29 @@ import { updateFavicon } from '@/utils/branding'
 import { isIOSDevice } from '@/utils/device'
 import './style.css'
 
+const publicSettingsBootstrapTimeoutMs = 2500
+
+async function loadPublicSettingsBeforeMount(appStore: ReturnType<typeof useAppStore>): Promise<void> {
+  // A static HTML shell has no embedded runtime configuration. Give the
+  // public settings request a short head start so branding and feature gates
+  // are ready before the first paint, but never hold the whole application
+  // hostage when the endpoint is degraded or under attack.
+  if (appStore.initFromInjectedConfig()) return
+
+  let timeoutId: number | undefined
+  const timeout = new Promise<null>((resolve) => {
+    timeoutId = window.setTimeout(() => resolve(null), publicSettingsBootstrapTimeoutMs)
+  })
+
+  try {
+    await Promise.race([appStore.fetchPublicSettings(), timeout])
+  } finally {
+    if (timeoutId !== undefined) {
+      window.clearTimeout(timeoutId)
+    }
+  }
+}
+
 function initIOSViewportZoomFix() {
   // iOS Safari 在输入框字号小于 16px 时聚焦会自动放大页面，且失焦后不会恢复。
   // 限制 maximum-scale 可阻止该行为；iOS 10+ 用户仍可双指手动缩放，不影响可访问性。
@@ -39,10 +62,10 @@ async function bootstrap() {
   const pinia = createPinia()
   app.use(pinia)
 
-  // Initialize settings from injected config BEFORE mounting (prevents flash)
-  // This must happen after pinia is installed but before router and i18n
+  // Initialize settings before mounting. Production uses a stable HTML shell;
+  // the request has a short deadline and continues in the store after timeout.
   const appStore = useAppStore()
-  appStore.initFromInjectedConfig()
+  await loadPublicSettingsBeforeMount(appStore)
 
   // Set document title immediately after config is loaded
   if (appStore.siteName && appStore.siteName !== 'Sub2API') {

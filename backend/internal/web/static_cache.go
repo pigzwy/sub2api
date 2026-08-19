@@ -3,6 +3,8 @@
 package web
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"net/http"
 	"path"
 	"strings"
@@ -11,6 +13,19 @@ import (
 // Vite emits content-hashed filenames under assets/, so the backend can apply
 // immutable caching without relying on a reverse proxy to classify paths.
 const staticAssetsCacheControl = "public, max-age=31536000, immutable"
+
+// The HTML shell contains only the immutable asset references. Runtime
+// settings are loaded by the frontend, so this short TTL is safe for edge
+// caching while allowing a new build to propagate quickly.
+const staticShellCacheControl = "public, max-age=60, must-revalidate"
+
+// StaticHTMLETag returns a stable validator for an embedded HTML shell.
+// Unlike the settings-injected cache ETag, it changes only when the built
+// frontend shell changes, which makes it safe to reuse at an edge cache.
+func StaticHTMLETag(html []byte) string {
+	hash := sha256.Sum256(html)
+	return `"` + hex.EncodeToString(hash[:8]) + `"`
+}
 
 // isFingerprintedEmbeddedAssetPath reports whether a cleaned URL path refers to
 // a Vite asset whose filename contains the default eight-character build hash.
@@ -50,4 +65,8 @@ func applyStaticAssetCacheHeaders(header http.Header, cleanPath string) {
 		return
 	}
 	header.Set("Cache-Control", staticAssetsCacheControl)
+}
+
+func isFrontendNavigationMethod(method string) bool {
+	return method == http.MethodGet || method == http.MethodHead
 }

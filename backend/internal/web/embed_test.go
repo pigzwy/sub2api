@@ -726,6 +726,44 @@ func TestHasEmbeddedFrontend(t *testing.T) {
 	})
 }
 
+func TestStaticFrontendServerUsesStableShell(t *testing.T) {
+	server, err := NewStaticFrontendServer()
+	require.NoError(t, err)
+
+	router := gin.New()
+	router.Use(server.Middleware())
+
+	firstWriter := httptest.NewRecorder()
+	router.ServeHTTP(firstWriter, httptest.NewRequest(http.MethodGet, "/login?utm_source=test", nil))
+	assert.Equal(t, http.StatusOK, firstWriter.Code)
+	assert.Equal(t, staticShellCacheControl, firstWriter.Header().Get("Cache-Control"))
+	assert.NotEmpty(t, firstWriter.Header().Get("ETag"))
+	assert.NotContains(t, firstWriter.Body.String(), "window.__APP_CONFIG__")
+
+	secondWriter := httptest.NewRecorder()
+	secondRequest := httptest.NewRequest(http.MethodGet, "/home", nil)
+	secondRequest.Header.Set("If-None-Match", firstWriter.Header().Get("ETag"))
+	router.ServeHTTP(secondWriter, secondRequest)
+	assert.Equal(t, http.StatusNotModified, secondWriter.Code)
+}
+
+func TestFrontendMiddlewareDoesNotServeShellForWriteMethods(t *testing.T) {
+	provider := &mockSettingsProvider{settings: map[string]string{"test": "value"}}
+	server, err := NewFrontendServer(provider)
+	require.NoError(t, err)
+
+	router := gin.New()
+	router.Use(server.Middleware())
+	router.POST("/login", func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+
+	writer := httptest.NewRecorder()
+	router.ServeHTTP(writer, httptest.NewRequest(http.MethodPost, "/login", nil))
+	assert.Equal(t, http.StatusNoContent, writer.Code)
+	assert.Equal(t, 0, provider.called)
+}
+
 // Tests for legacy ServeEmbeddedFrontend function
 func TestServeEmbeddedFrontend(t *testing.T) {
 	t.Run("serves_static_files", func(t *testing.T) {

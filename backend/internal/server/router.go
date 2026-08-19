@@ -70,19 +70,17 @@ func SetupRouter(
 	}))
 	r.Use(middleware2.ServerTiming(cfg.Server.EnableServerTiming))
 
-	// Serve embedded frontend with settings injection if available
+	// Serve a stable embedded frontend shell. Public settings are loaded by the
+	// frontend at bootstrap, so index.html can be cached without reusing a
+	// request-scoped CSP nonce or stale settings payload.
 	if web.HasEmbeddedFrontend() {
-		frontendServer, err := web.NewFrontendServer(settingService) //nolint:staticcheck // SA4023: the !embed stub always errors; embed builds can return nil
+		frontendServer, err := web.NewStaticFrontendServer() //nolint:staticcheck // SA4023: the !embed stub always errors; embed builds can return nil
 		if err != nil {                                              //nolint:staticcheck // SA4023: see above
-			log.Printf("Warning: Failed to create frontend server with settings injection: %v, using legacy mode", err)
+			log.Printf("Warning: Failed to create static frontend server: %v, using legacy mode", err)
 			r.Use(web.ServeEmbeddedFrontend())
 			settingService.SetOnUpdateCallback(refreshFrameOrigins)
 		} else {
-			// Register combined callback: invalidate HTML cache + refresh frame origins
-			settingService.SetOnUpdateCallback(func() {
-				frontendServer.InvalidateCache()
-				refreshFrameOrigins()
-			})
+			settingService.SetOnUpdateCallback(refreshFrameOrigins)
 			r.Use(frontendServer.Middleware())
 		}
 	} else {

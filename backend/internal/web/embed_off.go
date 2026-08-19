@@ -25,6 +25,11 @@ func NewFrontendServer(settingsProvider PublicSettingsProvider) (*FrontendServer
 	return nil, errors.New("frontend not embedded")
 }
 
+// NewStaticFrontendServer returns an error when frontend is not embedded.
+func NewStaticFrontendServer() (*FrontendServer, error) {
+	return nil, errors.New("frontend not embedded")
+}
+
 // InvalidateCache is a no-op for non-embed builds
 func (s *FrontendServer) InvalidateCache() {}
 

@@ -4,6 +4,7 @@ package web
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -68,4 +69,28 @@ func TestApplyStaticAssetCacheHeaders(t *testing.T) {
 			applyStaticAssetCacheHeaders(nil, "assets/index-AbCd1234.js")
 		})
 	})
+}
+
+func TestStaticHTMLETag(t *testing.T) {
+	t.Parallel()
+
+	first := StaticHTMLETag([]byte("<html>one</html>"))
+	second := StaticHTMLETag([]byte("<html>one</html>"))
+	changed := StaticHTMLETag([]byte("<html>two</html>"))
+
+	assert.Equal(t, first, second)
+	assert.NotEqual(t, first, changed)
+	assert.True(t, strings.HasPrefix(first, `"`))
+	assert.True(t, strings.HasSuffix(first, `"`))
+}
+
+func TestIsFrontendNavigationMethod(t *testing.T) {
+	t.Parallel()
+
+	for _, method := range []string{http.MethodGet, http.MethodHead} {
+		assert.True(t, isFrontendNavigationMethod(method), "method=%s", method)
+	}
+	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete} {
+		assert.False(t, isFrontendNavigationMethod(method), "method=%s", method)
+	}
 }

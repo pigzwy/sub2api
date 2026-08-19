@@ -18,6 +18,39 @@
 上游正式实现 > 上游后续安全修复 > 本地旧二开 > 历史兼容代码
 ```
 
+## 2026-08-19：同步生产源码基线并加固静态 SPA 壳
+
+生产工作树先通过只读 `fetch` 与远端 `origin/request-audit` 快进核对到
+`3cb9558ff`，没有强制覆盖远端，也没有部署或编译。该基线包含 OpenAI
+Realtime 的能力提示和机器可读 503 归因修复，以及上游截至当时的迁移变更。
+
+在保留已有未提交二开差异的前提下，新增一组小范围的首屏/路由防护改动：
+
+- 后端改用不注入请求级配置的稳定嵌入式 HTML 壳；公开设置由前端通过现有
+  `/api/v1/settings/public` 请求加载，首屏最多等待 2.5 秒，故障时仍可挂载。
+- HTML 壳增加稳定内容 ETag 和 60 秒 `must-revalidate` 缓存；版本化静态
+  资源继续使用长期 immutable 缓存。
+- SPA fallback 限定为 `GET`/`HEAD`。页面路径的写请求不再被返回 `200
+  index.html`，而是继续进入正常 Gin 路由，避免伪造成功响应并减少无效源站工作。
+- 增加后端定向测试覆盖壳缓存、ETag、运行时配置不注入和写方法边界。
+
+涉及文件：
+
+```text
+backend/internal/server/router.go
+backend/internal/web/embed_off.go
+backend/internal/web/embed_on.go
+backend/internal/web/embed_test.go
+backend/internal/web/static_cache.go
+backend/internal/web/static_cache_test.go
+frontend/src/main.ts
+```
+
+验证边界：本机仅执行 `git diff --check`；当前生产机没有 Go 工具链和前端
+依赖，且按约定不得在生产机编译或构建 Docker 镜像。提交推送后由 GitHub
+Actions 完成后端/前端检查和镜像构建；部署仍需低峰期单独确认，不得重建数据库、
+删除数据卷、重启现有生产服务或执行 Cloudflare 写操作。
+
 ### 当前仍需维护的独有二开（2026-08-19 更新）
 
 完整清单见 [FORK_FEATURES.md](./FORK_FEATURES.md)，含每项功能的入口、接口、配置、文件清单、测试和合并冲突高发点。概览：

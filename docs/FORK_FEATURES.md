@@ -11,9 +11,14 @@
 | 统计日期 | 2026-08-19 |
 | 上游基线 | `49504adc9`（`v0.1.178`，已合并入本分支） |
 | 分支共同祖先 | `49504adc9`（`v0.1.178`） |
-| 差异规模 | 206 个文件，+21774 / -317 行 |
+| 差异规模（相对 v0.1.178 的历史盘点） | 206 个文件，+21774 / -317 行 |
 | 其中后端 | 147 个文件，+17908 / -149 行 |
 | 其中前端及其它 | 59 个文件，+3866 / -168 行 |
+
+本次生产源码复核以 `request-audit` 的 `3cb9558ff` 为基线；该提交已同步到
+`origin/request-audit`，且包含最新的 Realtime 能力提示/错误归因修复。下面新增的
+「稳定静态 SPA 壳」改动与该基线一起提交。仓库没有可访问的 GitHub Wiki remote，
+因此本文件和 [MERGE_RECORDS.md](./MERGE_RECORDS.md) 是当前可发布的二开记录。
 
 重新核对清单：
 
@@ -24,7 +29,9 @@ git diff --stat upstream/main...request-audit          # 差异规模
 git log --no-merges --oneline upstream/main..request-audit  # 本地提交
 ```
 
-`request-audit` 当前落后上游 31 个提交（`git describe upstream/main` = `v0.1.178-31-g6a945b3ca`），均在 `v0.1.178` 之后、尚未进入任何 release。按惯例等上游打出下一个版本号再整体合并，避免跟随未定稿的中间状态。
+本仓库当前未配置可用的 `upstream` remote，因此不在此处继续宣称
+`request-audit` 与上游的实时领先/落后关系。下一次上游合并前，必须按
+`MERGE_RECORDS.md` 的基线校准流程重新添加/核对 remote，并重新计算差异盘点。
 
 ## 功能一览
 
@@ -41,6 +48,7 @@ git log --no-merges --oneline upstream/main..request-audit  # 本地提交
 | Studio 创作台免登录接力 | — | ✅ | — | — | — |
 | fork 分支镜像构建 | — | — | — | — | — |
 | OpenAI Realtime 语音网关（含语音运营工具） | ✅ | ✅ | ✅ `227`、`228` | — | — |
+| 稳定静态 SPA 壳与页面写请求硬化 | ✅ | ✅ | — | — | — |
 
 ---
 
@@ -492,6 +500,46 @@ backend/migrations/228_usage_log_audio_tokens.sql
 - 音频内容不经文本安全审计（现有审计链只覆盖文本）；`session.update` 文本可审但当前与 grok 直通保持一致未挂钩。
 - Live（WebRTC/Codex 订阅号通道）与本功能无关，仍为零计费（上游 TODO，`service/openai_live.go` 内注释）。
 - `gpt-realtime-2.1` 价格按 `gpt-realtime-2` 官方价填写，如上游价格表后续收录该型号，以上游同步为准。
+
+## 12. 稳定静态 SPA 壳与页面写请求硬化（2026-08-19）
+
+生产镜像使用 `-tags embed` 内嵌前端。此前后端会把公开设置和 CSP nonce
+注入每个 `index.html` 响应，且 SPA 回退没有限制 HTTP 方法；攻击者对
+`POST /login`、`POST /register` 或任意不存在页面路径写请求时，可能拿到
+`200 index.html`，既浪费源站资源，也掩盖真实路由的错误。此次改动将前端壳
+与运行时配置解耦，并把写请求交还给正常路由。
+
+### 行为
+
+- `backend/internal/server/router.go` 使用 `web.NewStaticFrontendServer()`。
+  `index.html` 不再注入 `window.__APP_CONFIG__`、公开设置或请求级 CSP nonce。
+- `frontend/src/main.ts` 在挂载前发起已有的公开设置请求，最多等待 2.5 秒；
+  超时只延后设置加载，不阻塞整个页面，响应稍后仍由 store 合并。旧版带注入
+  配置的壳仍兼容 `initFromInjectedConfig()`。
+- `backend/internal/web/static_cache.go` 为静态壳生成基于内容的稳定 ETag，
+  使用 `public, max-age=60, must-revalidate`。版本化 `/assets/*` 的
+  `immutable` 缓存策略保持不变；未改动支付、SSE、WebSocket、API body 或
+  认证链路。
+- `backend/internal/web/embed_on.go` 和 `embed_off.go` 只允许 `GET`/`HEAD`
+  回退到 SPA 壳。`POST`、`PUT`、`PATCH`、`DELETE` 等方法调用 `c.Next()`，
+  由注册的 API/错误处理器决定响应，不再返回假成功的 HTML。
+
+### 影响与部署边界
+
+- 不新增数据库迁移、设置项、Redis 数据或文件卷；不要求重建 PostgreSQL/
+  Redis。该变更尚未在生产机编译、构建镜像、重启服务或修改 Cloudflare。
+- 发布必须由 GitHub Actions 构建并推送不可变镜像，再按既有流程只更新
+  `sub2api` 容器。不要在生产机执行 `go build`、`docker build` 或本地依赖安装。
+- 本次代码与远端最新基线同时包含上游迁移；部署前仍需按项目的迁移检查流程确认
+  应用容器是否需要执行迁移，绝不能通过删除数据卷或重建数据库来“更新”。
+
+### 定向测试
+
+- `backend/internal/web/embed_test.go`：稳定壳的 ETag、缓存头、无运行时注入，
+  以及写方法不会吞掉已注册的 `/login` 路由。
+- `backend/internal/web/static_cache_test.go`：ETag 稳定性和 GET/HEAD 方法边界。
+- 推送后由 CI 执行后端 unit、前端 typecheck/测试和镜像构建；本生产机只做
+  `git diff --check` 等静态检查。
 
 ---
 
