@@ -156,12 +156,15 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 
 	// Calculate cost
 	tokens := UsageTokens{
-		InputTokens:         actualInputTokens,
-		ImageInputTokens:    result.Usage.ImageInputTokens,
-		OutputTokens:        result.Usage.OutputTokens,
-		CacheCreationTokens: result.Usage.CacheCreationInputTokens,
-		CacheReadTokens:     result.Usage.CacheReadInputTokens,
-		ImageOutputTokens:   result.Usage.ImageOutputTokens,
+		InputTokens:          actualInputTokens,
+		ImageInputTokens:     result.Usage.ImageInputTokens,
+		OutputTokens:         result.Usage.OutputTokens,
+		CacheCreationTokens:  result.Usage.CacheCreationInputTokens,
+		CacheReadTokens:      result.Usage.CacheReadInputTokens,
+		ImageOutputTokens:    result.Usage.ImageOutputTokens,
+		AudioInputTokens:     result.Usage.AudioInputTokens,
+		AudioOutputTokens:    result.Usage.AudioOutputTokens,
+		AudioCacheReadTokens: result.Usage.AudioCacheReadTokens,
 	}
 
 	// Get rate multiplier
@@ -339,6 +342,8 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		CacheReadTokens:       result.Usage.CacheReadInputTokens,
 		ImageInputTokens:      result.Usage.ImageInputTokens,
 		ImageOutputTokens:     result.Usage.ImageOutputTokens,
+		AudioInputTokens:      result.Usage.AudioInputTokens,
+		AudioOutputTokens:     result.Usage.AudioOutputTokens,
 		ImageCount:            result.ImageCount,
 		ImageSize:             optionalTrimmedStringPtr(result.ImageSize),
 		ImageInputSize:        optionalTrimmedStringPtr(result.ImageInputSize),
@@ -356,8 +361,10 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if cost != nil {
 		usageLog.InputCost = cost.InputCost
 		usageLog.ImageInputCost = cost.ImageInputCost
+		usageLog.AudioInputCost = cost.AudioInputCost
 		usageLog.OutputCost = cost.OutputCost
 		usageLog.ImageOutputCost = cost.ImageOutputCost
+		usageLog.AudioOutputCost = cost.AudioOutputCost
 		usageLog.CacheCreationCost = cost.CacheCreationCost
 		usageLog.CacheReadCost = cost.CacheReadCost
 		usageLog.TotalCost = cost.TotalCost

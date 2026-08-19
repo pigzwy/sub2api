@@ -1,0 +1,50 @@
+name: Ent Codegen
+
+# 本机性能有限，ent 代码生成放到 CI 跑：
+# 手动触发（workflow_dispatch）后在指定分支上运行 go generate ./ent，
+# 有 diff 就把生成代码提交回该分支，然后编译 + 单测兜底。
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/openai-realtime-voice
+
+permissions:
+  contents: write
+
+jobs:
+  entgen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Generate ent code
+        working-directory: backend
+        run: go generate ./ent
+
+      - name: Commit generated code
+        run: |
+          if git diff --quiet; then
+            echo "no generated changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore(ent): regenerate code for allow_realtime [skip ci]"
+          git push origin HEAD:${{ github.ref_name }}
+
+      - name: Build
+        working-directory: backend
+        run: go build ./...
+
+      - name: Unit tests
+        working-directory: backend
+        run: go test -tags=unit ./...

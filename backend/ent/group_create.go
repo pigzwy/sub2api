@@ -704,6 +704,20 @@ func (_c *GroupCreate) SetNillableAllowLive(v *bool) *GroupCreate {
 	return _c
 }
 
+// SetAllowRealtime sets the "allow_realtime" field.
+func (_c *GroupCreate) SetAllowRealtime(v bool) *GroupCreate {
+	_c.mutation.SetAllowRealtime(v)
+	return _c
+}
+
+// SetNillableAllowRealtime sets the "allow_realtime" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableAllowRealtime(v *bool) *GroupCreate {
+	if v != nil {
+		_c.SetAllowRealtime(*v)
+	}
+	return _c
+}
+
 // SetRequireOauthOnly sets the "require_oauth_only" field.
 func (_c *GroupCreate) SetRequireOauthOnly(v bool) *GroupCreate {
 	_c.mutation.SetRequireOauthOnly(v)
@@ -1095,6 +1109,10 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultAllowLive
 		_c.mutation.SetAllowLive(v)
 	}
+	if _, ok := _c.mutation.AllowRealtime(); !ok {
+		v := group.DefaultAllowRealtime
+		_c.mutation.SetAllowRealtime(v)
+	}
 	if _, ok := _c.mutation.RequireOauthOnly(); !ok {
 		v := group.DefaultRequireOauthOnly
 		_c.mutation.SetRequireOauthOnly(v)
@@ -1285,6 +1303,9 @@ func (_c *GroupCreate) check() error {
 	}
 	if _, ok := _c.mutation.AllowLive(); !ok {
 		return &ValidationError{Name: "allow_live", err: errors.New(`ent: missing required field "Group.allow_live"`)}
+	}
+	if _, ok := _c.mutation.AllowRealtime(); !ok {
+		return &ValidationError{Name: "allow_realtime", err: errors.New(`ent: missing required field "Group.allow_realtime"`)}
 	}
 	if _, ok := _c.mutation.RequireOauthOnly(); !ok {
 		return &ValidationError{Name: "require_oauth_only", err: errors.New(`ent: missing required field "Group.require_oauth_only"`)}
@@ -1559,6 +1580,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.AllowLive(); ok {
 		_spec.SetField(group.FieldAllowLive, field.TypeBool, value)
 		_node.AllowLive = value
+	}
+	if value, ok := _c.mutation.AllowRealtime(); ok {
+		_spec.SetField(group.FieldAllowRealtime, field.TypeBool, value)
+		_node.AllowRealtime = value
 	}
 	if value, ok := _c.mutation.RequireOauthOnly(); ok {
 		_spec.SetField(group.FieldRequireOauthOnly, field.TypeBool, value)
@@ -2615,6 +2640,18 @@ func (u *GroupUpsert) SetAllowLive(v bool) *GroupUpsert {
 // UpdateAllowLive sets the "allow_live" field to the value that was provided on create.
 func (u *GroupUpsert) UpdateAllowLive() *GroupUpsert {
 	u.SetExcluded(group.FieldAllowLive)
+	return u
+}
+
+// SetAllowRealtime sets the "allow_realtime" field.
+func (u *GroupUpsert) SetAllowRealtime(v bool) *GroupUpsert {
+	u.Set(group.FieldAllowRealtime, v)
+	return u
+}
+
+// UpdateAllowRealtime sets the "allow_realtime" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateAllowRealtime() *GroupUpsert {
+	u.SetExcluded(group.FieldAllowRealtime)
 	return u
 }
 
@@ -3814,6 +3851,20 @@ func (u *GroupUpsertOne) SetAllowLive(v bool) *GroupUpsertOne {
 func (u *GroupUpsertOne) UpdateAllowLive() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateAllowLive()
+	})
+}
+
+// SetAllowRealtime sets the "allow_realtime" field.
+func (u *GroupUpsertOne) SetAllowRealtime(v bool) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetAllowRealtime(v)
+	})
+}
+
+// UpdateAllowRealtime sets the "allow_realtime" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateAllowRealtime() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateAllowRealtime()
 	})
 }
 
@@ -5204,6 +5255,20 @@ func (u *GroupUpsertBulk) SetAllowLive(v bool) *GroupUpsertBulk {
 func (u *GroupUpsertBulk) UpdateAllowLive() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateAllowLive()
+	})
+}
+
+// SetAllowRealtime sets the "allow_realtime" field.
+func (u *GroupUpsertBulk) SetAllowRealtime(v bool) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetAllowRealtime(v)
+	})
+}
+
+// UpdateAllowRealtime sets the "allow_realtime" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateAllowRealtime() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateAllowRealtime()
 	})
 }
 

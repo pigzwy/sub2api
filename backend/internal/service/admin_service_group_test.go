@@ -1015,6 +1015,7 @@ func TestAdminService_CreateGroup_ClearsMessagesDispatchFieldsForNonOpenAIPlatfo
 		RateMultiplier:        1.0,
 		AllowMessagesDispatch: true,
 		AllowLive:             true,
+		AllowRealtime:         true,
 		DefaultMappedModel:    "gpt-5.4",
 		MessagesDispatchModelConfig: OpenAIMessagesDispatchModelConfig{
 			OpusMappedModel: "gpt-5.4",
@@ -1025,6 +1026,7 @@ func TestAdminService_CreateGroup_ClearsMessagesDispatchFieldsForNonOpenAIPlatfo
 	require.NotNil(t, repo.created)
 	require.False(t, repo.created.AllowMessagesDispatch)
 	require.False(t, repo.created.AllowLive)
+	require.False(t, repo.created.AllowRealtime)
 	require.Empty(t, repo.created.DefaultMappedModel)
 	require.Equal(t, OpenAIMessagesDispatchModelConfig{}, repo.created.MessagesDispatchModelConfig)
 }
@@ -1037,6 +1039,7 @@ func TestAdminService_UpdateGroup_ClearsMessagesDispatchFieldsWhenPlatformChange
 		Status:                StatusActive,
 		AllowMessagesDispatch: true,
 		AllowLive:             true,
+		AllowRealtime:         true,
 		DefaultMappedModel:    "gpt-5.4",
 		MessagesDispatchModelConfig: OpenAIMessagesDispatchModelConfig{
 			SonnetMappedModel: "gpt-5.3-codex",
@@ -1054,6 +1057,7 @@ func TestAdminService_UpdateGroup_ClearsMessagesDispatchFieldsWhenPlatformChange
 	require.Equal(t, PlatformAnthropic, repo.updated.Platform)
 	require.False(t, repo.updated.AllowMessagesDispatch)
 	require.False(t, repo.updated.AllowLive)
+	require.False(t, repo.updated.AllowRealtime)
 	require.Empty(t, repo.updated.DefaultMappedModel)
 	require.Equal(t, OpenAIMessagesDispatchModelConfig{}, repo.updated.MessagesDispatchModelConfig)
 }

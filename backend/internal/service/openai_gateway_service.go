@@ -227,6 +227,12 @@ type OpenAIUsage struct {
 	CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"`
 	CacheReadInputTokens     int `json:"cache_read_input_tokens,omitempty"`
 	ImageOutputTokens        int `json:"image_output_tokens,omitempty"`
+	// Realtime 语音明细：AudioInputTokens 为 InputTokens 中非缓存音频子集，
+	// AudioCacheReadTokens 为 CacheReadInputTokens 中音频子集，
+	// AudioOutputTokens 为 OutputTokens 中音频子集。
+	AudioInputTokens     int `json:"audio_input_tokens,omitempty"`
+	AudioOutputTokens    int `json:"audio_output_tokens,omitempty"`
+	AudioCacheReadTokens int `json:"audio_cache_read_tokens,omitempty"`
 }
 
 // OpenAIForwardResult represents the result of forwarding

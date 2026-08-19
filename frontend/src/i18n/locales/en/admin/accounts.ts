@@ -591,6 +591,7 @@ export default {
         capabilityChatCompletions: 'Chat Completions',
         capabilityChatCompletionsAuto: 'Chat Completions (auto probe)',
         capabilityEmbeddings: 'Embeddings',
+        capabilityRealtime: 'Realtime voice (/v1/realtime)',
         responsesStatusAutoSupported: 'Auto probe: Responses',
         responsesStatusAutoUnsupported: 'Auto probe: Chat Completions',
         responsesStatusAutoUnknown: 'Auto probe: unknown',

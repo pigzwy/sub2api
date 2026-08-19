@@ -4189,16 +4189,22 @@ const openAITextEndpointCapabilityLabel = computed(() => {
 })
 const openAIEndpointCapabilityOptions = computed<{ value: OpenAIEndpointCapability; label: string }[]>(() => [
   { value: 'chat_completions', label: openAITextEndpointCapabilityLabel.value },
-  { value: 'embeddings', label: t('admin.accounts.openai.capabilityEmbeddings') }
+  { value: 'embeddings', label: t('admin.accounts.openai.capabilityEmbeddings') },
+  { value: 'realtime', label: t('admin.accounts.openai.capabilityRealtime') }
 ])
 const openAITextGenerationCapabilityEnabled = computed(() =>
   openAIEndpointCapabilities.value.includes('chat_completions')
 )
 
+// realtime 是显式开通能力：默认集合里没有它，未勾选时保存会回落为默认两项。
+const openAIDefaultEndpointCapabilities: OpenAIEndpointCapability[] = ['chat_completions', 'embeddings']
+const isDefaultOpenAIEndpointCapabilitySelection = (values: OpenAIEndpointCapability[]) =>
+  values.length === openAIDefaultEndpointCapabilities.length &&
+  openAIDefaultEndpointCapabilities.every((value) => values.includes(value))
 const normalizeOpenAIEndpointCapabilities = (values: OpenAIEndpointCapability[]) => {
-  const allowed: OpenAIEndpointCapability[] = ['chat_completions', 'embeddings']
+  const allowed: OpenAIEndpointCapability[] = ['chat_completions', 'embeddings', 'realtime']
   const selected = allowed.filter((value) => values.includes(value))
-  return selected.length > 0 ? selected : allowed
+  return selected.length > 0 ? selected : [...openAIDefaultEndpointCapabilities]
 }
 
 const toggleOpenAIEndpointCapability = (capability: OpenAIEndpointCapability, event?: Event) => {
@@ -4224,7 +4230,7 @@ const toggleOpenAIEndpointCapability = (capability: OpenAIEndpointCapability, ev
 
 const applyOpenAIEndpointCapabilities = (credentials: Record<string, unknown>) => {
   const capabilities = normalizeOpenAIEndpointCapabilities(openAIEndpointCapabilities.value)
-  if (capabilities.length === 2) {
+  if (isDefaultOpenAIEndpointCapabilitySelection(capabilities)) {
     delete credentials.openai_capabilities
     return
   }

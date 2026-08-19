@@ -1229,6 +1229,10 @@ export default {
         unsupportedMessage: 'This Sub2API server cannot generate the required Live attestation. Live will not work even if enabled. Continue anyway?',
         enableAnyway: 'Enable anyway'
       },
+      openaiRealtime: {
+        allow: 'Allow Realtime voice (/v1/realtime)',
+        hint: 'When enabled, API keys in this OpenAI group can connect to the /v1/realtime voice WebSocket. Billing is per response.done token usage (connection time is free). Only API-key accounts with the Realtime capability are scheduled.'
+      },
       invalidRequestFallback: {
         title: 'Invalid Request Fallback Group',
         hint: 'Triggered only when upstream explicitly returns prompt too long. Leave empty to disable fallback.',

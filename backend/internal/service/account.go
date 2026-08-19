@@ -92,6 +92,10 @@ const (
 	OpenAIEndpointCapabilityEmbeddings      OpenAIEndpointCapability = "embeddings"
 	OpenAIEndpointCapabilityAlphaSearch     OpenAIEndpointCapability = "alpha_search"
 	OpenAIEndpointCapabilityLive            OpenAIEndpointCapability = "live"
+	// OpenAIEndpointCapabilityRealtime 表示 /v1/realtime 语音 WS 直通。
+	// 显式开通能力：仅 API-Key 账号可用，且必须在 credentials 的
+	// openai_capabilities 里明确列出（缺省不参与 realtime 调度）。
+	OpenAIEndpointCapabilityRealtime OpenAIEndpointCapability = "realtime"
 	// OpenAIEndpointCapabilityGrokMediaGeneration keeps image/video generation
 	// away from Grok accounts that are explicitly disabled or whose billing
 	// entitlement probe was forbidden. Video status lookups intentionally do not
@@ -1698,6 +1702,18 @@ func (a *Account) SupportsOpenAIEndpointCapability(capability OpenAIEndpointCapa
 		if a.Type != AccountTypeAPIKey {
 			return false
 		}
+	case OpenAIEndpointCapabilityRealtime:
+		// Realtime 语音直通只允许平台 API-Key 账号（OAuth/Codex 订阅号没有
+		// 公开 realtime WS 通道），且要求显式勾选：openai_capabilities 未
+		// 配置时不参与调度，避免把长连接语音流量派给未验证的上游。
+		if a.Platform != PlatformOpenAI || a.Type != AccountTypeAPIKey {
+			return false
+		}
+		realtimeConfigured, realtimeFound := a.openAIEndpointCapabilitySet()
+		if !realtimeFound {
+			return false
+		}
+		return realtimeConfigured[string(OpenAIEndpointCapabilityRealtime)]
 	default:
 		return false
 	}

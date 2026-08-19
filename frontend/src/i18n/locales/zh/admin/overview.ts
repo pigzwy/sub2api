@@ -1227,6 +1227,10 @@ export default {
         unsupportedMessage: '当前 Sub2API 服务端无法生成 Live 所需的设备证明，即使开启也不能使用。是否仍然开启？',
         enableAnyway: '仍然开启'
       },
+      openaiRealtime: {
+        allow: '允许访问 Realtime 语音（/v1/realtime）',
+        hint: '启用后，此 OpenAI 分组的 API Key 可以通过 WebSocket 直连 /v1/realtime 语音接口，按 response.done 的 token 用量结算（连接时长不计费）。仅调度显式勾选 Realtime 能力的 API-Key 账号。'
+      },
       invalidRequestFallback: {
         title: '无效请求兜底分组',
         hint: '仅当上游明确返回 prompt too long 时才会触发，留空表示不兜底',

@@ -99,6 +99,10 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			sqlmock.AnyArg(), // billing_mode
 			sqlmock.AnyArg(), // account_stats_cost
 			sqlmock.AnyArg(), // session_id
+			sqlmock.AnyArg(), // audio_input_tokens
+			sqlmock.AnyArg(), // audio_input_cost
+			sqlmock.AnyArg(), // audio_output_tokens
+			sqlmock.AnyArg(), // audio_output_cost
 			createdAt,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(99), createdAt))
@@ -191,6 +195,10 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(), // billing_mode
 			sqlmock.AnyArg(), // account_stats_cost
 			sqlmock.AnyArg(), // session_id
+			sqlmock.AnyArg(), // audio_input_tokens
+			sqlmock.AnyArg(), // audio_input_cost
+			sqlmock.AnyArg(), // audio_output_tokens
+			sqlmock.AnyArg(), // audio_output_cost
 			createdAt,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(100), createdAt))
@@ -852,6 +860,10 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullFloat64{},
 			sql.NullString{},
+			0,   // audio_input_tokens
+			0.0, // audio_input_cost
+			0,   // audio_output_tokens
+			0.0, // audio_output_cost
 			now,
 		}})
 		require.NoError(t, err)
@@ -929,6 +941,10 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},  // billing_mode
 			sql.NullFloat64{}, // account_stats_cost
 			sql.NullString{},  // session_id
+			0,                 // audio_input_tokens
+			0.0,               // audio_input_cost
+			0,                 // audio_output_tokens
+			0.0,               // audio_output_cost
 			now,
 		}})
 		require.NoError(t, err)
@@ -989,6 +1005,10 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},  // billing_mode
 			sql.NullFloat64{}, // account_stats_cost
 			sql.NullString{},  // session_id
+			0,                 // audio_input_tokens
+			0.0,               // audio_input_cost
+			0,                 // audio_output_tokens
+			0.0,               // audio_output_cost
 			now,
 		}})
 		require.NoError(t, err)
@@ -1049,6 +1069,10 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},  // billing_mode
 			sql.NullFloat64{}, // account_stats_cost
 			sql.NullString{},  // session_id
+			0,                 // audio_input_tokens
+			0.0,               // audio_input_cost
+			0,                 // audio_output_tokens
+			0.0,               // audio_output_cost
 			now,
 		}})
 		require.NoError(t, err)

@@ -155,6 +155,13 @@ type UsageLog struct {
 	ImageOutputTokens int
 	ImageOutputCost   float64
 
+	// Realtime 语音明细：audio token 从 input/output_tokens 中拆出，
+	// 对应费用从 input/output_cost 中拆出，total_cost 口径不变。
+	AudioInputTokens  int
+	AudioInputCost    float64
+	AudioOutputTokens int
+	AudioOutputCost   float64
+
 	InputCost                 float64
 	OutputCost                float64
 	CacheCreationCost         float64

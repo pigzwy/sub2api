@@ -141,6 +141,8 @@ type Group struct {
 	AllowMessagesDispatch bool `json:"allow_messages_dispatch"`
 	// OpenAI Live 接口开关
 	AllowLive bool `json:"allow_live"`
+	// OpenAI Realtime 语音接口开关（/v1/realtime）
+	AllowRealtime bool `json:"allow_realtime"`
 
 	// 账号过滤控制（仅 OpenAI/Antigravity 平台有效）
 	RequireOAuthOnly  bool `json:"require_oauth_only"`
