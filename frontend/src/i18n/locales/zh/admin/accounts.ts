@@ -665,6 +665,9 @@ export default {
         capabilityChatCompletionsAuto: 'Chat Completions（自动探测）',
         capabilityEmbeddings: 'Embeddings',
         capabilityRealtime: 'Realtime 语音（/v1/realtime）',
+        testModeRealtime: '实时语音 Realtime（WS /v1/realtime）',
+        realtimeTestHint:
+          '用所选语音模型对账号 base_url 的 /v1/realtime 发起 WebSocket 探测：收到 session.created 即该密钥可用此模型；收到 error 事件（如模型不存在/无权限）按失败上报。仅支持 API-Key 账号，不产生 token 费用。',
         responsesStatusAutoSupported: '自动探测：Responses',
         responsesStatusAutoUnsupported: '自动探测：Chat Completions',
         responsesStatusAutoUnknown: '自动探测：未探测',

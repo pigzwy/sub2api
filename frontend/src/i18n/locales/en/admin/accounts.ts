@@ -592,6 +592,9 @@ export default {
         capabilityChatCompletionsAuto: 'Chat Completions (auto probe)',
         capabilityEmbeddings: 'Embeddings',
         capabilityRealtime: 'Realtime voice (/v1/realtime)',
+        testModeRealtime: 'Realtime voice (WS /v1/realtime)',
+        realtimeTestHint:
+          "Dials the account base_url's /v1/realtime over WebSocket with the selected voice model. session.created means this key can use the model; an error event (e.g. model not found / no access) is reported as failure. API-Key accounts only; no token cost.",
         responsesStatusAutoSupported: 'Auto probe: Responses',
         responsesStatusAutoUnsupported: 'Auto probe: Chat Completions',
         responsesStatusAutoUnknown: 'Auto probe: unknown',

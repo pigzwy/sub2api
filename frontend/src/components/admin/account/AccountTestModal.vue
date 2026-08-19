@@ -92,7 +92,7 @@
         />
       </div>
       <p
-        v-else-if="isGrokAccount && promptInputHint"
+        v-else-if="(isGrokAccount || isOpenAIAccount) && promptInputHint"
         class="text-xs text-gray-500 dark:text-gray-400"
       >
         {{ promptInputHint }}
@@ -413,7 +413,7 @@ const generatedImages = ref<PreviewMedia[]>([])
 const generatedAudios = ref<PreviewMedia[]>([])
 const generatedVideos = ref<PreviewMedia[]>([])
 const previewImageUrl = ref('')
-const testMode = ref<'default' | 'compact'>('default')
+const testMode = ref<'default' | 'compact' | 'realtime'>('default')
 const grokTestMode = ref<'text' | 'image' | 'video' | 'search' | 'tts' | 'stt' | 'realtime'>('text')
 const uploadImageDataURL = ref('')
 const uploadImagePreview = ref('')
@@ -426,7 +426,8 @@ const isOpenAIAccount = computed(() => props.account?.platform === 'openai')
 const isGrokAccount = computed(() => props.account?.platform === 'grok')
 const openAITestModeOptions = computed(() => [
   { value: 'default', label: t('admin.accounts.openai.testModeDefault') },
-  { value: 'compact', label: t('admin.accounts.openai.testModeCompact') }
+  { value: 'compact', label: t('admin.accounts.openai.testModeCompact') },
+  { value: 'realtime', label: t('admin.accounts.openai.testModeRealtime') }
 ])
 const grokTestModeOptions = computed(() => [
   { value: 'text', label: t('admin.accounts.grok.testModeText') },
@@ -483,6 +484,11 @@ const showModelSelect = computed(() => {
 })
 
 const modelOptionsForMode = computed(() => {
+  // OpenAI Realtime 探测只对语音模型有意义，收敛下拉避免误选文本模型。
+  if (isOpenAIAccount.value && testMode.value === 'realtime') {
+    const voiceModels = availableModels.value.filter((m) => m.id.startsWith('gpt-realtime'))
+    return voiceModels.length > 0 ? voiceModels : availableModels.value
+  }
   if (!isGrokAccount.value) return availableModels.value
   if (grokTestMode.value === 'image') {
     return availableModels.value.filter((m) => isGrokImageModel(m.id))
@@ -629,6 +635,9 @@ const promptInputPlaceholder = computed(() => {
 })
 
 const promptInputHint = computed(() => {
+  if (isOpenAIAccount.value && testMode.value === 'realtime') {
+    return t('admin.accounts.openai.realtimeTestHint')
+  }
   if (grokTestMode.value === 'video') {
     return t('admin.accounts.videoTestHint')
   }
@@ -758,6 +767,15 @@ watch(grokTestMode, () => {
   clearMediaUploads()
   pickDefaultModelForMode()
   applyDefaultPromptForMode()
+})
+
+// OpenAI 模式切换：realtime 只探语音模型，当前选中不在收敛后的下拉里时重置。
+watch(testMode, () => {
+  if (!isOpenAIAccount.value) return
+  const options = modelOptionsForMode.value
+  if (options.length > 0 && !options.some((m) => m.id === selectedModelId.value)) {
+    selectedModelId.value = options[0].id
+  }
 })
 
 const loadAvailableModels = async () => {
