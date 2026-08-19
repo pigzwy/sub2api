@@ -98,7 +98,7 @@ func (h *OpenAIGatewayHandler) OpenAIRealtime(c *gin.Context) {
 		// 503 带机器可读归因码：配置态（能力未勾选/无账号）与瞬时态分开，
 		// 下游据 error.code 精确翻译，避免把配置问题提示成"稍后再试"。
 		// 逐账号摘要只进日志：管理员据此直接定位该改哪个账号。
-		reason, poolSummary := h.gatewayService.DiagnoseOpenAIRealtimeUnavailable(c.Request.Context(), apiKey.GroupID)
+		reason, poolSummary := h.gatewayService.DiagnoseOpenAIRealtimeUnavailable(c.Request.Context(), apiKey.GroupID, model)
 		reqLog.Info("openai_realtime.pool_diagnosis",
 			zap.String("reason", reason),
 			zap.String("accounts", poolSummary),

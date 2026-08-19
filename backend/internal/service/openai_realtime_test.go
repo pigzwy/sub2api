@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -112,10 +113,46 @@ func TestSummarizeOpenAIRealtimePool(t *testing.T) {
 	apikeyWithout := Account{ID: 7, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Concurrency: 2, Credentials: map[string]any{"api_key": "sk-2"}}
 	grok := Account{ID: 9, Platform: PlatformGrok, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "xai-1"}}
 
-	require.Equal(t, "no openai accounts", summarizeOpenAIRealtimePool(nil))
-	require.Equal(t, "no openai accounts", summarizeOpenAIRealtimePool([]Account{grok}))
+	require.Equal(t, "no openai accounts", summarizeOpenAIRealtimePool(nil, nil))
+	require.Equal(t, "no openai accounts", summarizeOpenAIRealtimePool([]Account{grok}, nil))
 	require.Equal(t, "id=5 type=oauth cap=false conc=0; id=7 type=apikey cap=false conc=2",
-		summarizeOpenAIRealtimePool([]Account{oauth, apikeyWithout, grok}))
+		summarizeOpenAIRealtimePool([]Account{oauth, apikeyWithout, grok}, nil))
+	require.Equal(t, "id=5 type=oauth cap=false conc=0 sched=stub; id=7 type=apikey cap=false conc=2 sched=stub",
+		summarizeOpenAIRealtimePool([]Account{oauth, apikeyWithout}, func(*Account) string { return "stub" }))
+}
+
+// 调度器本尊的逐账号判定：模型映射白名单不含请求模型时给出 model_not_supported，
+// 空映射放行——钉住"配了映射的账号会被静默排除出语音调度"这一机制。
+func TestSchedulerVerdictModelNotSupported(t *testing.T) {
+	sched, ok := newDefaultOpenAIAccountScheduler(nil, nil).(*defaultOpenAIAccountScheduler)
+	require.True(t, ok)
+	req := OpenAIAccountScheduleRequest{
+		Platform:           PlatformOpenAI,
+		RequestedModel:     "gpt-realtime-2.1",
+		RequiredTransport:  OpenAIUpstreamTransportHTTPSSE,
+		RequiredCapability: OpenAIEndpointCapabilityRealtime,
+	}
+
+	mapped := &Account{ID: 21, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Concurrency: 10, Credentials: map[string]any{
+		"api_key":             "sk-1",
+		"openai_capabilities": []string{"chat_completions", "embeddings", "realtime"},
+		"model_mapping":       map[string]any{"gpt-5.4": "gpt-5.4"},
+	}}
+	compatible, reason := sched.isAccountRequestCompatibleReason(context.Background(), mapped, req)
+	require.False(t, compatible)
+	require.Equal(t, "model_not_supported", reason)
+
+	unmapped := &Account{ID: 22, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Concurrency: 10, Credentials: map[string]any{
+		"api_key":             "sk-2",
+		"openai_capabilities": []string{"chat_completions", "embeddings", "realtime"},
+	}}
+	compatible, reason = sched.isAccountRequestCompatibleReason(context.Background(), unmapped, req)
+	require.True(t, compatible, "空映射=放行所有模型，reason=%s", reason)
+
+	noCap := &Account{ID: 23, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Concurrency: 10, Credentials: map[string]any{"api_key": "sk-3"}}
+	compatible, reason = sched.isAccountRequestCompatibleReason(context.Background(), noCap, req)
+	require.False(t, compatible)
+	require.Equal(t, "capability_mismatch", reason)
 }
 
 func TestSupportsOpenAIEndpointCapabilityRealtime(t *testing.T) {

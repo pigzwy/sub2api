@@ -83,17 +83,22 @@ func classifyOpenAIRealtimeUnavailable(accounts []Account) string {
 }
 
 // summarizeOpenAIRealtimePool 生成逐账号的排除原因摘要（进网关日志，不进响应体，
-// 避免向 key 持有者泄露分组账号构成）。形如：
-// "id=5 type=oauth cap=false; id=7 type=apikey cap=false"。
-func summarizeOpenAIRealtimePool(accounts []Account) string {
+// 避免向 key 持有者泄露分组账号构成）。verdict 非 nil 时追加调度器本尊的
+// 逐账号判定（sched=ok 或调度器淘汰码），形如：
+// "id=5 type=oauth cap=false conc=0 sched=capability_mismatch"。
+func summarizeOpenAIRealtimePool(accounts []Account, verdict func(*Account) string) string {
 	parts := make([]string, 0, len(accounts))
 	for i := range accounts {
 		acc := &accounts[i]
 		if acc.Platform != PlatformOpenAI {
 			continue
 		}
-		parts = append(parts, fmt.Sprintf("id=%d type=%s cap=%t conc=%d",
-			acc.ID, acc.Type, acc.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityRealtime), acc.Concurrency))
+		entry := fmt.Sprintf("id=%d type=%s cap=%t conc=%d",
+			acc.ID, acc.Type, acc.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityRealtime), acc.Concurrency)
+		if verdict != nil {
+			entry += " sched=" + verdict(acc)
+		}
+		parts = append(parts, entry)
 	}
 	if len(parts) == 0 {
 		return "no openai accounts"
@@ -103,8 +108,13 @@ func summarizeOpenAIRealtimePool(accounts []Account) string {
 
 // DiagnoseOpenAIRealtimeUnavailable 在 realtime 选号失败后做一次轻量归因，
 // 返回归因码与逐账号摘要（后者供调用方写日志，定位"具体该点哪个账号"）。
-// 只读一次分组账号列表；任何取数失败都按瞬时态处理（不放大故障）。
-func (s *OpenAIGatewayService) DiagnoseOpenAIRealtimeUnavailable(ctx context.Context, groupID *int64) (string, string) {
+// 摘要里的 sched= 字段来自调度器候选过滤的同款判定
+// （isAccountRequestCompatibleReason），输出的是调度器自己的淘汰码
+// （model_not_supported / channel_upstream_restricted / quota_auto_pause_* /
+// proxy_stream_quarantined / capability_mismatch / runtime_blocked /
+// shadow_parent_unhealthy / 利润控制码）；sched=ok 仍选号失败 = 占槽竞争或
+// 等待超时等瞬时因素。只读一次分组账号列表；任何取数失败都按瞬时态处理。
+func (s *OpenAIGatewayService) DiagnoseOpenAIRealtimeUnavailable(ctx context.Context, groupID *int64, model string) (string, string) {
 	if s == nil || s.accountRepo == nil || groupID == nil {
 		return OpenAIRealtimeUnavailableTransient, ""
 	}
@@ -112,7 +122,24 @@ func (s *OpenAIGatewayService) DiagnoseOpenAIRealtimeUnavailable(ctx context.Con
 	if err != nil {
 		return OpenAIRealtimeUnavailableTransient, ""
 	}
-	return classifyOpenAIRealtimeUnavailable(accounts), summarizeOpenAIRealtimePool(accounts)
+	var verdict func(*Account) string
+	if sched, ok := newDefaultOpenAIAccountScheduler(s, nil).(*defaultOpenAIAccountScheduler); ok {
+		req := OpenAIAccountScheduleRequest{
+			GroupID:            groupID,
+			Platform:           PlatformOpenAI,
+			RequestedModel:     model,
+			RequiredTransport:  OpenAIUpstreamTransportHTTPSSE,
+			RequiredCapability: OpenAIEndpointCapabilityRealtime,
+		}
+		verdict = func(acc *Account) string {
+			compatible, reason := sched.isAccountRequestCompatibleReason(ctx, acc, req)
+			if compatible {
+				return "ok"
+			}
+			return reason
+		}
+	}
+	return classifyOpenAIRealtimeUnavailable(accounts), summarizeOpenAIRealtimePool(accounts, verdict)
 }
 
 // StableOpenAIRealtimeBillingRequestID 保证 realtime 每回合有独立且带前缀的
