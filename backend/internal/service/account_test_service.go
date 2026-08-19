@@ -1847,6 +1847,17 @@ func (s *AccountTestService) testOpenAIRealtime(c *gin.Context, ctx context.Cont
 		})
 	}
 
+	// 连通性通过 ≠ 参与调度：realtime 是显式开通能力，未在「端点能力」勾选时
+	// 调度器会以 capability_mismatch 排除该账号（对外表现为 503 No available
+	// realtime accounts）。在测试结果里直说，消灭"测试绿但调用 503"的困惑。
+	// 检查对象用 account（调度候选本体）而非 credentialAccount，与调度语义一致。
+	if !account.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityRealtime) {
+		s.sendEvent(c, TestEvent{
+			Type: "content",
+			Text: "warning: connectivity OK, but this account does NOT have the Realtime endpoint capability enabled — realtime scheduling will skip it (503 No available realtime accounts). Enable \"Realtime voice (/v1/realtime)\" in the account's endpoint capabilities.\n",
+		})
+	}
+
 	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
 	return nil
 }

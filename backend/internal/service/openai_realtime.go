@@ -29,6 +29,62 @@ type OpenAIRealtimeTurnUsage struct {
 	Usage          OpenAIUsage
 }
 
+// Realtime 选号失败的归因码：503 响应体经 error.code 携带，供下游（如工作台）
+// 精确翻译，避免把配置态问题当成瞬时故障提示"稍后再试"。
+const (
+	// OpenAIRealtimeUnavailableNoAccounts 分组内没有可调度的 openai 账号。
+	OpenAIRealtimeUnavailableNoAccounts = "no_schedulable_accounts"
+	// OpenAIRealtimeUnavailableNoAPIKeyAccounts 分组内只有 OAuth 账号。
+	OpenAIRealtimeUnavailableNoAPIKeyAccounts = "no_apikey_accounts"
+	// OpenAIRealtimeUnavailableCapabilityMissing 有 API-Key 账号但均未勾选
+	// realtime 端点能力——配置态问题，重试无效。
+	OpenAIRealtimeUnavailableCapabilityMissing = "realtime_capability_not_enabled"
+	// OpenAIRealtimeUnavailableTransient 存在具备能力的账号，本次失败为
+	// 瞬时态（并发占满/冷却/调度竞争），可重试。
+	OpenAIRealtimeUnavailableTransient = "temporarily_unavailable"
+)
+
+// classifyOpenAIRealtimeUnavailable 对分组内可调度账号做能力归因。
+func classifyOpenAIRealtimeUnavailable(accounts []Account) string {
+	openaiCount, apikeyCount, capableCount := 0, 0, 0
+	for i := range accounts {
+		acc := &accounts[i]
+		if acc.Platform != PlatformOpenAI {
+			continue
+		}
+		openaiCount++
+		if acc.Type == AccountTypeAPIKey {
+			apikeyCount++
+		}
+		if acc.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityRealtime) {
+			capableCount++
+		}
+	}
+	switch {
+	case openaiCount == 0:
+		return OpenAIRealtimeUnavailableNoAccounts
+	case apikeyCount == 0:
+		return OpenAIRealtimeUnavailableNoAPIKeyAccounts
+	case capableCount == 0:
+		return OpenAIRealtimeUnavailableCapabilityMissing
+	default:
+		return OpenAIRealtimeUnavailableTransient
+	}
+}
+
+// DiagnoseOpenAIRealtimeUnavailable 在 realtime 选号失败后做一次轻量归因。
+// 只读一次分组账号列表；任何取数失败都按瞬时态处理（不放大故障）。
+func (s *OpenAIGatewayService) DiagnoseOpenAIRealtimeUnavailable(ctx context.Context, groupID *int64) string {
+	if s == nil || s.accountRepo == nil || groupID == nil {
+		return OpenAIRealtimeUnavailableTransient
+	}
+	accounts, err := s.accountRepo.ListSchedulableByGroupID(ctx, *groupID)
+	if err != nil {
+		return OpenAIRealtimeUnavailableTransient
+	}
+	return classifyOpenAIRealtimeUnavailable(accounts)
+}
+
 // StableOpenAIRealtimeBillingRequestID 保证 realtime 每回合有独立且带前缀的
 // 计费 request_id：response.done 缺 id 时生成随机 id，避免同会话多回合在
 // usage_billing_dedup / (request_id, api_key_id) 唯一键上互相碰撞。

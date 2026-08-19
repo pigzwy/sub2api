@@ -47,6 +47,34 @@ func TestAccountTestService_OpenAIRealtimeModeDialsWS(t *testing.T) {
 	require.Contains(t, rec.Body.String(), "session.created")
 	require.Contains(t, rec.Body.String(), `"type":"test_complete"`)
 	require.Contains(t, rec.Body.String(), `"success":true`)
+	// 未勾 realtime 能力：连通性通过但必须提示不会参与调度。
+	require.Contains(t, rec.Body.String(), "does NOT have the Realtime endpoint capability")
+}
+
+func TestAccountTestService_OpenAIRealtimeNoCapabilityWarningWhenEnabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	account := &Account{
+		ID: 36, Name: "openai-apikey-realtime-enabled", Platform: PlatformOpenAI,
+		Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":             "sk-upstream-3",
+			"openai_capabilities": []string{"chat_completions", "embeddings", "realtime"},
+		},
+	}
+	repo := &mockAccountRepoForGemini{accountsByID: map[int64]*Account{account.ID: account}}
+	dialer := &grokRealtimeTestDialer{
+		conn: &grokRealtimeTestConn{msg: []byte(`{"type":"session.created"}`)},
+	}
+	svc := newOpenAIRealtimeTestService(repo, dialer)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/36/test", nil)
+
+	err := svc.TestAccountConnection(c, account.ID, "", "", AccountTestModeRealtime)
+
+	require.NoError(t, err)
+	require.NotContains(t, rec.Body.String(), "does NOT have the Realtime endpoint capability")
+	require.Contains(t, rec.Body.String(), `"success":true`)
 }
 
 func TestAccountTestService_OpenAIRealtimeCustomBaseURLAndModel(t *testing.T) {

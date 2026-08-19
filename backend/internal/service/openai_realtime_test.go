@@ -88,6 +88,21 @@ func TestBuildOpenAIRealtimeUpstreamURL(t *testing.T) {
 	require.Equal(t, "wss://relay.example.com/v1/realtime?model=gpt-realtime", got)
 }
 
+func TestClassifyOpenAIRealtimeUnavailable(t *testing.T) {
+	apikeyWithRealtime := Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{
+		"api_key": "sk-1", "openai_capabilities": []string{"chat_completions", "embeddings", "realtime"},
+	}}
+	apikeyWithout := Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "sk-2"}}
+	oauth := Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth, Credentials: map[string]any{"access_token": "tok"}}
+	grok := Account{Platform: PlatformGrok, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "xai-1"}}
+
+	require.Equal(t, OpenAIRealtimeUnavailableNoAccounts, classifyOpenAIRealtimeUnavailable(nil))
+	require.Equal(t, OpenAIRealtimeUnavailableNoAccounts, classifyOpenAIRealtimeUnavailable([]Account{grok}))
+	require.Equal(t, OpenAIRealtimeUnavailableNoAPIKeyAccounts, classifyOpenAIRealtimeUnavailable([]Account{oauth}))
+	require.Equal(t, OpenAIRealtimeUnavailableCapabilityMissing, classifyOpenAIRealtimeUnavailable([]Account{oauth, apikeyWithout}))
+	require.Equal(t, OpenAIRealtimeUnavailableTransient, classifyOpenAIRealtimeUnavailable([]Account{apikeyWithout, apikeyWithRealtime}))
+}
+
 func TestSupportsOpenAIEndpointCapabilityRealtime(t *testing.T) {
 	oauth := &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth, Credentials: map[string]any{
 		"openai_capabilities": []string{"chat_completions", "realtime"},
