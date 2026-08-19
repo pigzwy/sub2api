@@ -1231,7 +1231,7 @@ export default {
       },
       openaiRealtime: {
         allow: 'Allow Realtime voice (/v1/realtime)',
-        hint: 'When enabled, API keys in this OpenAI group can connect to the /v1/realtime voice WebSocket. Billing is per response.done token usage (connection time is free). Only API-key accounts with the Realtime capability are scheduled.'
+        hint: 'When enabled, API keys in this OpenAI group can connect to the /v1/realtime voice WebSocket. Billing is per response.done token usage (connection time is free). Note: this switch only unlocks the group — each account must also be enabled separately: edit the API-key account in this group and check "Realtime voice" under Endpoint capabilities, or calls will fail with 503 (no available realtime accounts).'
       },
       invalidRequestFallback: {
         title: 'Invalid Request Fallback Group',
