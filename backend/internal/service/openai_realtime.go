@@ -47,6 +47,12 @@ const (
 	// 且渠道价目表中没有该模型——选号在账号过滤之前即被拒绝（账号本身完全
 	// 健康，逐账号判定会显示 sched=ok）。配置态问题，重试无效。
 	OpenAIRealtimeUnavailableChannelRestricted = "channel_model_restricted"
+	// OpenAIRealtimeUnavailablePrivacyNotSet 分组开启了 require_privacy_set，
+	// 而 Realtime 只能用 API-Key 账号——OpenAI 平台的 IsPrivacySet 要求
+	// extra.privacy_mode=training_off（仅 OAuth 探测会写入），API-Key 账号
+	// 永远不满足，于是候选循环每次都以 privacy_not_set 排除它。
+	// 结构性冲突：该开关与 OpenAI Realtime 不可同时启用。
+	OpenAIRealtimeUnavailablePrivacyNotSet = "group_requires_privacy_set"
 	// OpenAIRealtimeUnavailableTransient 存在具备能力且并发上限有效的账号，
 	// 本次失败为瞬时态（并发占满/冷却/调度竞争），可重试。
 	OpenAIRealtimeUnavailableTransient = "temporarily_unavailable"
@@ -118,7 +124,7 @@ func summarizeOpenAIRealtimePool(accounts []Account, verdict func(*Account) stri
 // proxy_stream_quarantined / capability_mismatch / runtime_blocked /
 // shadow_parent_unhealthy / 利润控制码）；sched=ok 仍选号失败 = 占槽竞争或
 // 等待超时等瞬时因素。只读一次分组账号列表；任何取数失败都按瞬时态处理。
-func (s *OpenAIGatewayService) DiagnoseOpenAIRealtimeUnavailable(ctx context.Context, groupID *int64, model string) (string, string) {
+func (s *OpenAIGatewayService) DiagnoseOpenAIRealtimeUnavailable(ctx context.Context, groupID *int64, model string, group *Group) (string, string) {
 	if s == nil || s.accountRepo == nil || groupID == nil {
 		return OpenAIRealtimeUnavailableTransient, ""
 	}
@@ -163,6 +169,22 @@ func (s *OpenAIGatewayService) DiagnoseOpenAIRealtimeUnavailable(ctx context.Con
 			summary += " | sched_pool=empty(账号在调度取数阶段即被丢弃：调度快照未收录或调度阈值拦截)"
 		} else {
 			summary += " | sched_pool=" + strings.Join(parts, ",")
+		}
+	}
+
+	// require_privacy_set 与 Realtime 结构冲突：判定在调度器候选循环里，
+	// 既不在 isAccountRequestCompatibleReason 也不在账号侧分类中，
+	// 因此逐账号判定会显示 sched=ok 而选号必然失败（真实事故：分组 69）。
+	if group != nil && group.RequirePrivacySet {
+		anyPrivacySet := false
+		for i := range accounts {
+			if accounts[i].Platform == PlatformOpenAI && accounts[i].IsPrivacySet() {
+				anyPrivacySet = true
+				break
+			}
+		}
+		if !anyPrivacySet {
+			return OpenAIRealtimeUnavailablePrivacyNotSet, summary
 		}
 	}
 
