@@ -187,3 +187,25 @@ func TestSupportsOpenAIEndpointCapabilityRealtime(t *testing.T) {
 	require.True(t, apikeyWith.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityRealtime))
 	require.True(t, apikeyWith.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityChatCompletions), "勾选 realtime 不影响其他能力")
 }
+
+// 利润门与语音路径：Realtime 按 audio token 结算，必须像 Live/Grok 媒体一样
+// 抑制利润门。否则分组开启利润控制时，上游声明倍率 ≥ 阈值的账号会在选号阶段
+// 被全量否决，对外表现为「没有可用账号」而账号本身完全健康（分组 69 事故）。
+func TestProfitControlSuppressedContextSkipsVeto(t *testing.T) {
+	rate := 1.0
+	account := &Account{ID: 15046, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, RateMultiplier: &rate}
+
+	// 装门的 ctx：上游 1.00x 高于阈值 0.8 → 否决（未抑制时的行为）。
+	gate := &openAIProfitControlGate{groupID: 69, platform: PlatformOpenAI, threshold: 0.8}
+	gated := context.WithValue(context.Background(), openAIProfitControlGateCtxKey{}, gate)
+	vetoed, reason := openAIProfitControlVetoReason(gated, account)
+	require.True(t, vetoed, "未抑制时应被利润门否决")
+	require.NotEmpty(t, reason)
+
+	// 抑制标记会让 withOpenAIProfitControlGate 不装门 → 无门放行。
+	svc := &OpenAIGatewayService{}
+	groupID := int64(69)
+	suppressed := svc.withOpenAIProfitControlGate(WithOpenAIProfitControlSuppressed(context.Background()), &groupID)
+	vetoed, _ = openAIProfitControlVetoReason(suppressed, account)
+	require.False(t, vetoed, "语音路径抑制利润门后不得否决健康账号")
+}

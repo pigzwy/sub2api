@@ -81,6 +81,13 @@ func (h *OpenAIGatewayHandler) OpenAIRealtime(c *gin.Context) {
 		zap.String("model", model),
 	)
 
+	// Realtime 是语音媒体路径：按 audio token 逐回合结算，与利润门比较的
+	// 「文本倍率」口径无关。兄弟路径 Live（service/openai_live.go）与 Grok 媒体
+	// （handler/grok_media.go）都显式抑制利润门，此处必须一致——否则开启了
+	// 分组利润控制的分组会在选号阶段把语音账号全量否决，对外表现为
+	// 503「没有可用账号」，而账号本身完全健康（真实事故：分组 69）。
+	c.Request = c.Request.WithContext(service.WithOpenAIProfitControlSuppressed(c.Request.Context()))
+
 	selection, _, err := h.gatewayService.SelectAccountWithSchedulerForCapability(
 		c.Request.Context(),
 		apiKey.GroupID,
