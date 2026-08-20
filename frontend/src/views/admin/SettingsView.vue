@@ -790,21 +790,21 @@
               </template>
             </div>
           </div>
-          <!-- Request Intercept feature card -->
+          <!-- Local Answer card (settings key stays request_intercept_* to avoid a migration) -->
           <div class="card">
               <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
                 <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
-                  {{ localText('请求内容拦截', 'Request Intercept') }}
+                  {{ localText('本地直答', 'Local Answer') }}
                 </h2>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  {{ localText('命中规则后直接返回本地响应，不再请求上游模型。默认关闭，且只对选中的分组生效。', 'Return a local response when a rule matches, without calling upstream models. Disabled by default and only applies to selected groups.') }}
+                  {{ localText('命中规则的请求由本站直接作答，不发给上游模型，因此不消耗上游额度。客户端收到的是正常应答，不是拒绝。默认关闭，且只对选中的分组生效。', 'Requests matching a rule are answered locally instead of being sent upstream, so they consume no upstream quota. Clients receive a normal answer, not a rejection. Disabled by default and only applies to selected groups.') }}
                 </p>
               </div>
               <div class="space-y-5 p-6">
                 <div class="flex items-center justify-between gap-4">
                   <div>
                     <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      {{ localText('启用请求拦截', 'Enable Request Intercept') }}
+                      {{ localText('启用本地直答', 'Enable Local Answer') }}
                     </label>
                     <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                       {{ localText('对 Chat Completions、Messages 和 Responses 入口生效。', 'Applies to Chat Completions, Messages, and Responses endpoints.') }}
@@ -814,13 +814,13 @@
                 </div>
 
                 <div>
-                  <label class="input-label">{{ localText('拦截分组', 'Intercept Groups') }}</label>
+                  <label class="input-label">{{ localText('生效分组', 'Applies To Groups') }}</label>
                   <Select
                     v-model="requestInterceptGroupPicker"
                     :options="requestInterceptGroupOptions"
                     searchable
                     clearable
-                    :placeholder="localText('选择要拦截的分组', 'Select groups to intercept')"
+                    :placeholder="localText('选择生效的分组', 'Select groups')"
                     @change="addRequestInterceptGroupScope"
                   />
                   <div v-if="selectedRequestInterceptGroups.length > 0" class="mt-2 flex flex-wrap gap-2">
@@ -836,7 +836,7 @@
                     </span>
                   </div>
                   <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    {{ localText('只拦截所选分组的 API Key 请求；未选择分组时不会拦截任何请求，可选择多个分组。', 'Only API key requests from selected groups are intercepted. No group selected means no requests are intercepted. Multiple groups are supported.') }}
+                    {{ localText('只对所选分组的 API Key 请求生效；未选择分组时不作答任何请求，可选择多个分组。', 'Applies only to API key requests from the selected groups. With no group selected nothing is answered locally. Multiple groups are supported.') }}
                   </p>
                 </div>
 
@@ -9779,6 +9779,13 @@ const form = reactive<SettingsForm>({
   hide_ccs_import_button: false,
   payment_enabled: false,
   risk_control_enabled: false,
+  // 审计设置已移到用量页的「请求审计」标签页自行读写。这四个字段留在这里只为满足
+  // SettingsForm = Omit<SystemSettings, …> 的类型约束，本页不读也不提交它们——
+  // 提交会把用量页刚改的值顶回去。
+  request_audit_enabled: false,
+  request_audit_retention_hours: 0,
+  request_audit_user_scope: [],
+  request_audit_group_scope: [],
   request_intercept_enabled: false,
   request_intercept_keywords: "",
   request_intercept_response: "",
