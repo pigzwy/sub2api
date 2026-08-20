@@ -591,6 +591,62 @@
             </div>
           </div>
 
+          <!-- Response Header Policy -->
+          <div class="card">
+            <div
+              class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+            >
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t("admin.settings.responseHeaders.title") }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.responseHeaders.description") }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div
+                v-if="responseHeaderLoading"
+                class="flex items-center gap-2 text-gray-500"
+              >
+                <div
+                  class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
+                ></div>
+                {{ t("common.loading") }}
+              </div>
+
+              <template v-else>
+                <div class="flex items-center justify-between">
+                  <div>
+                    <label class="font-medium text-gray-900 dark:text-white">{{
+                      t("admin.settings.responseHeaders.hideUpstream")
+                    }}</label>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.responseHeaders.hideUpstreamHint") }}
+                    </p>
+                  </div>
+                  <Toggle v-model="responseHeaderForm.hide_upstream" />
+                </div>
+
+                <div
+                  class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700"
+                >
+                  <button
+                    type="button"
+                    @click="saveResponseHeaderPolicy"
+                    :disabled="responseHeaderSaving"
+                    class="btn btn-primary btn-sm"
+                  >
+                    {{
+                      responseHeaderSaving
+                        ? t("common.saving")
+                        : t("common.save")
+                    }}
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+
           <!-- Request Rectifier Settings -->
           <div class="card">
             <div
@@ -627,25 +683,6 @@
                     </p>
                   </div>
                   <Toggle v-model="rectifierForm.enabled" />
-                </div>
-
-                <!-- Hide upstream response headers. Deliberately outside the
-                     master toggle: concealing the relay must not depend on
-                     whether request rectification is switched on. -->
-                <div
-                  class="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-dark-700"
-                >
-                  <div>
-                    <label class="font-medium text-gray-900 dark:text-white">{{
-                      t("admin.settings.rectifier.hideUpstreamHeaders")
-                    }}</label>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">
-                      {{ t("admin.settings.rectifier.hideUpstreamHeadersHint") }}
-                    </p>
-                  </div>
-                  <Toggle
-                    v-model="rectifierForm.hide_upstream_response_headers"
-                  />
                 </div>
 
                 <!-- Sub-toggles (only show when master is enabled) -->
@@ -9350,14 +9387,17 @@ const streamTimeoutForm = reactive({
 // Rectifier 状态
 const rectifierLoading = ref(true);
 const rectifierSaving = ref(false);
+// 响应头策略：默认隐藏，未配置过的站点接的多半是中转，不该默认泄露。
+const responseHeaderLoading = ref(true);
+const responseHeaderSaving = ref(false);
+const responseHeaderForm = reactive({ hide_upstream: true });
+
 const rectifierForm = reactive({
   enabled: true,
   thinking_signature_enabled: true,
   thinking_budget_enabled: true,
   apikey_signature_enabled: false,
   apikey_signature_patterns: [] as string[],
-  // 默认隐藏：多数部署的上游本身是中转，透传它的请求 ID 与限额会暴露架构。
-  hide_upstream_response_headers: true,
 });
 
 // Beta Policy 状态
@@ -12526,6 +12566,39 @@ async function saveStreamTimeoutSettings() {
   }
 }
 
+// 响应头策略方法
+async function loadResponseHeaderPolicy() {
+  responseHeaderLoading.value = true;
+  try {
+    const policy = await adminAPI.settings.getResponseHeaderPolicy();
+    responseHeaderForm.hide_upstream = policy.hide_upstream;
+  } catch (_error: unknown) {
+    // 读不到就保持默认（隐藏），失败不该导致泄露。
+  } finally {
+    responseHeaderLoading.value = false;
+  }
+}
+
+async function saveResponseHeaderPolicy() {
+  responseHeaderSaving.value = true;
+  try {
+    const updated = await adminAPI.settings.updateResponseHeaderPolicy({
+      hide_upstream: responseHeaderForm.hide_upstream,
+    });
+    responseHeaderForm.hide_upstream = updated.hide_upstream;
+    appStore.showSuccess(t("admin.settings.responseHeaders.saveSuccess"));
+  } catch (error: unknown) {
+    appStore.showError(
+      getErrorMessage(
+        error,
+        t("admin.settings.responseHeaders.saveFailed"),
+      ),
+    );
+  } finally {
+    responseHeaderSaving.value = false;
+  }
+}
+
 // Rectifier 方法
 async function loadRectifierSettings() {
   rectifierLoading.value = true;
@@ -12554,8 +12627,6 @@ async function saveRectifierSettings() {
       apikey_signature_patterns: rectifierForm.apikey_signature_patterns.filter(
         (p) => p.trim() !== "",
       ),
-      hide_upstream_response_headers:
-        rectifierForm.hide_upstream_response_headers,
     });
     Object.assign(rectifierForm, updated);
     if (!Array.isArray(rectifierForm.apikey_signature_patterns)) {
@@ -13138,6 +13209,7 @@ onMounted(() => {
   loadRateLimit429CooldownSettings();
   loadPanelRateLimitSettings();
   loadStreamTimeoutSettings();
+  loadResponseHeaderPolicy();
   loadRectifierSettings();
   loadBetaPolicySettings();
   loadProviders();

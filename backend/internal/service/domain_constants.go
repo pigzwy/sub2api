@@ -575,6 +575,10 @@ const (
 	// SettingKeyRectifierSettings stores JSON config for rectifier settings (thinking signature + budget).
 	SettingKeyRectifierSettings = "rectifier_settings"
 
+	// SettingKeyResponseHeaderPolicy stores JSON config for what upstream response
+	// headers may reach the client.
+	SettingKeyResponseHeaderPolicy = "response_header_policy"
+
 	// =========================
 	// Beta Policy Settings
 	// =========================

@@ -250,12 +250,11 @@ func (h *SettingHandler) GetRectifierSettings(c *gin.Context) {
 		patterns = []string{}
 	}
 	response.Success(c, dto.RectifierSettings{
-		Enabled:                     settings.Enabled,
-		ThinkingSignatureEnabled:    settings.ThinkingSignatureEnabled,
-		ThinkingBudgetEnabled:       settings.ThinkingBudgetEnabled,
-		APIKeySignatureEnabled:      settings.APIKeySignatureEnabled,
-		APIKeySignaturePatterns:     patterns,
-		HideUpstreamResponseHeaders: settings.HidesUpstreamResponseHeaders(),
+		Enabled:                  settings.Enabled,
+		ThinkingSignatureEnabled: settings.ThinkingSignatureEnabled,
+		ThinkingBudgetEnabled:    settings.ThinkingBudgetEnabled,
+		APIKeySignatureEnabled:   settings.APIKeySignatureEnabled,
+		APIKeySignaturePatterns:  patterns,
 	})
 }
 
@@ -266,8 +265,6 @@ type UpdateRectifierSettingsRequest struct {
 	ThinkingBudgetEnabled    bool     `json:"thinking_budget_enabled"`
 	APIKeySignatureEnabled   bool     `json:"apikey_signature_enabled"`
 	APIKeySignaturePatterns  []string `json:"apikey_signature_patterns"`
-	// 指针：老版本前端不带这个字段时保持当前值，而不是被当成显式关闭。
-	HideUpstreamResponseHeaders *bool `json:"hide_upstream_response_headers"`
 }
 
 // UpdateRectifierSettings 更新请求整流器配置
@@ -299,25 +296,12 @@ func (h *SettingHandler) UpdateRectifierSettings(c *gin.Context) {
 		cleanedPatterns = append(cleanedPatterns, p)
 	}
 
-	hideUpstream := req.HideUpstreamResponseHeaders
-	if hideUpstream == nil {
-		// 老版本前端不带这个字段：沿用当前值，别把它悄悄关掉。
-		current, err := h.settingService.GetRectifierSettings(c.Request.Context())
-		if err != nil {
-			response.ErrorFrom(c, err)
-			return
-		}
-		effective := current.HidesUpstreamResponseHeaders()
-		hideUpstream = &effective
-	}
-
 	settings := &service.RectifierSettings{
-		Enabled:                     req.Enabled,
-		ThinkingSignatureEnabled:    req.ThinkingSignatureEnabled,
-		ThinkingBudgetEnabled:       req.ThinkingBudgetEnabled,
-		APIKeySignatureEnabled:      req.APIKeySignatureEnabled,
-		APIKeySignaturePatterns:     cleanedPatterns,
-		HideUpstreamResponseHeaders: hideUpstream,
+		Enabled:                  req.Enabled,
+		ThinkingSignatureEnabled: req.ThinkingSignatureEnabled,
+		ThinkingBudgetEnabled:    req.ThinkingBudgetEnabled,
+		APIKeySignatureEnabled:   req.APIKeySignatureEnabled,
+		APIKeySignaturePatterns:  cleanedPatterns,
 	}
 
 	if err := h.settingService.SetRectifierSettings(c.Request.Context(), settings); err != nil {
@@ -337,13 +321,44 @@ func (h *SettingHandler) UpdateRectifierSettings(c *gin.Context) {
 		updatedPatterns = []string{}
 	}
 	response.Success(c, dto.RectifierSettings{
-		Enabled:                     updatedSettings.Enabled,
-		ThinkingSignatureEnabled:    updatedSettings.ThinkingSignatureEnabled,
-		ThinkingBudgetEnabled:       updatedSettings.ThinkingBudgetEnabled,
-		APIKeySignatureEnabled:      updatedSettings.APIKeySignatureEnabled,
-		APIKeySignaturePatterns:     updatedPatterns,
-		HideUpstreamResponseHeaders: updatedSettings.HidesUpstreamResponseHeaders(),
+		Enabled:                  updatedSettings.Enabled,
+		ThinkingSignatureEnabled: updatedSettings.ThinkingSignatureEnabled,
+		ThinkingBudgetEnabled:    updatedSettings.ThinkingBudgetEnabled,
+		APIKeySignatureEnabled:   updatedSettings.APIKeySignatureEnabled,
+		APIKeySignaturePatterns:  updatedPatterns,
 	})
+}
+
+// GetResponseHeaderPolicy 获取响应头策略
+// GET /api/v1/admin/settings/response-headers
+func (h *SettingHandler) GetResponseHeaderPolicy(c *gin.Context) {
+	policy, err := h.settingService.GetResponseHeaderPolicy(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dto.ResponseHeaderPolicy{HideUpstream: policy.HideUpstream})
+}
+
+// UpdateResponseHeaderPolicyRequest 更新响应头策略请求
+type UpdateResponseHeaderPolicyRequest struct {
+	HideUpstream bool `json:"hide_upstream"`
+}
+
+// UpdateResponseHeaderPolicy 更新响应头策略
+// PUT /api/v1/admin/settings/response-headers
+func (h *SettingHandler) UpdateResponseHeaderPolicy(c *gin.Context) {
+	var req UpdateResponseHeaderPolicyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	policy := &service.ResponseHeaderPolicy{HideUpstream: req.HideUpstream}
+	if err := h.settingService.SetResponseHeaderPolicy(c.Request.Context(), policy); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	response.Success(c, dto.ResponseHeaderPolicy{HideUpstream: policy.HideUpstream})
 }
 
 // GetBetaPolicySettings 获取 Beta 策略配置

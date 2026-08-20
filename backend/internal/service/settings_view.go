@@ -527,30 +527,14 @@ type RectifierSettings struct {
 	ThinkingBudgetEnabled    bool     `json:"thinking_budget_enabled"`    // Thinking Budget 整流
 	APIKeySignatureEnabled   bool     `json:"apikey_signature_enabled"`   // API Key 签名整流开关
 	APIKeySignaturePatterns  []string `json:"apikey_signature_patterns"`  // API Key 自定义匹配关键词
-
-	// HideUpstreamResponseHeaders 隐藏上游响应头（x-request-id / x-ratelimit-* /
-	// x-codex-*）。用指针是为了区分「本次保存显式关掉」和「这条设置存于该字段存在
-	// 之前」——后者按默认（开启）处理，否则升级上来的站点会突然开始泄露。
-	HideUpstreamResponseHeaders *bool `json:"hide_upstream_response_headers,omitempty"`
-}
-
-// HidesUpstreamResponseHeaders 未显式设置时默认隐藏：多数部署的上游是中转或聚合站，
-// 把它的请求 ID 与限额透出去既暴露架构又误导排查。
-func (s *RectifierSettings) HidesUpstreamResponseHeaders() bool {
-	if s == nil || s.HideUpstreamResponseHeaders == nil {
-		return true
-	}
-	return *s.HideUpstreamResponseHeaders
 }
 
 // DefaultRectifierSettings 返回默认的整流器配置（全部启用）
 func DefaultRectifierSettings() *RectifierSettings {
-	hideUpstream := true
 	return &RectifierSettings{
-		Enabled:                     true,
-		ThinkingSignatureEnabled:    true,
-		ThinkingBudgetEnabled:       true,
-		HideUpstreamResponseHeaders: &hideUpstream,
+		Enabled:                  true,
+		ThinkingSignatureEnabled: true,
+		ThinkingBudgetEnabled:    true,
 	}
 }
 

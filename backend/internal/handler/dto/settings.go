@@ -500,8 +500,11 @@ type RectifierSettings struct {
 	ThinkingBudgetEnabled    bool     `json:"thinking_budget_enabled"`
 	APIKeySignatureEnabled   bool     `json:"apikey_signature_enabled"`
 	APIKeySignaturePatterns  []string `json:"apikey_signature_patterns"`
-	// HideUpstreamResponseHeaders 始终返回解析后的实际值，未设置时为 true。
-	HideUpstreamResponseHeaders bool `json:"hide_upstream_response_headers"`
+}
+
+// ResponseHeaderPolicy 响应头策略 DTO
+type ResponseHeaderPolicy struct {
+	HideUpstream bool `json:"hide_upstream"`
 }
 
 // BetaPolicyRule Beta 策略规则 DTO

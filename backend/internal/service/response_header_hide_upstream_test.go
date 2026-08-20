@@ -50,19 +50,9 @@ func TestPassthroughResponseHeadersStillForwardCodexQuotaByDefault(t *testing.T)
 	}
 }
 
-// 旧配置里没有这个字段时必须按「隐藏」处理，否则升级上来的站点会突然开始泄露。
-func TestRectifierSettingsDefaultToHidingUpstreamHeaders(t *testing.T) {
-	if !DefaultRectifierSettings().HidesUpstreamResponseHeaders() {
-		t.Fatal("a fresh install must hide upstream headers")
-	}
-	if !(&RectifierSettings{}).HidesUpstreamResponseHeaders() {
-		t.Fatal("settings saved before this field existed must be treated as hiding")
-	}
-	if !(*RectifierSettings)(nil).HidesUpstreamResponseHeaders() {
-		t.Fatal("a nil settings pointer must not disable hiding")
-	}
-	off := false
-	if (&RectifierSettings{HideUpstreamResponseHeaders: &off}).HidesUpstreamResponseHeaders() {
-		t.Fatal("an explicit false must be honoured")
+// 未配置过的站点必须按「隐藏」处理，否则接了中转的部署会默认泄露。
+func TestResponseHeaderPolicyDefaultsToHiding(t *testing.T) {
+	if !DefaultResponseHeaderPolicy().HideUpstream {
+		t.Fatal("the default policy must hide upstream headers")
 	}
 }

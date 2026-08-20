@@ -1442,8 +1442,6 @@ export interface RectifierSettings {
   thinking_budget_enabled: boolean;
   apikey_signature_enabled: boolean;
   apikey_signature_patterns: string[];
-  /** 隐藏会暴露上游身份与配额的响应头。独立于上面的总开关，默认开启。 */
-  hide_upstream_response_headers: boolean;
 }
 
 /**
@@ -1468,6 +1466,34 @@ export async function updateRectifierSettings(
   const { data } = await apiClient.put<RectifierSettings>(
     "/admin/settings/rectifier",
     settings,
+  );
+  return data;
+}
+
+// ==================== Response Header Policy ====================
+
+/**
+ * Response header policy. Controls which upstream response headers reach the
+ * client. Matches backend dto.ResponseHeaderPolicy.
+ */
+export interface ResponseHeaderPolicy {
+  /** 隐藏 x-request-id / x-ratelimit-* / x-codex-*，默认开启。 */
+  hide_upstream: boolean;
+}
+
+export async function getResponseHeaderPolicy(): Promise<ResponseHeaderPolicy> {
+  const { data } = await apiClient.get<ResponseHeaderPolicy>(
+    "/admin/settings/response-headers",
+  );
+  return data;
+}
+
+export async function updateResponseHeaderPolicy(
+  policy: ResponseHeaderPolicy,
+): Promise<ResponseHeaderPolicy> {
+  const { data } = await apiClient.put<ResponseHeaderPolicy>(
+    "/admin/settings/response-headers",
+    policy,
   );
   return data;
 }
@@ -1627,6 +1653,8 @@ export const settingsAPI = {
   updateStreamTimeoutSettings,
   getRectifierSettings,
   updateRectifierSettings,
+  getResponseHeaderPolicy,
+  updateResponseHeaderPolicy,
   getBetaPolicySettings,
   updateBetaPolicySettings,
   getWebSearchEmulationConfig,
