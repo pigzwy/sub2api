@@ -12589,7 +12589,7 @@ async function saveResponseHeaderPolicy() {
     appStore.showSuccess(t("admin.settings.responseHeaders.saveSuccess"));
   } catch (error: unknown) {
     appStore.showError(
-      getErrorMessage(
+      extractApiErrorMessage(
         error,
         t("admin.settings.responseHeaders.saveFailed"),
       ),
