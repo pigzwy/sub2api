@@ -56,10 +56,14 @@ git log --no-merges --oneline upstream/main..request-audit  # 本地提交
 
 按用户和分组范围记录网关请求体与响应体（各截断 64 KiB），管理后台可分页检索、查看详情并按保留时长清理。默认关闭。
 
-**入口**
+**入口**：管理后台 `用量统计 → 请求审计`。**看和配在同一个标签页**——上半是设置块（开关、保留时长、分组范围、按邮箱搜索的用户范围），下半是日志列表（请求体、响应体、状态码、耗时、账号、用户、API Key）。
 
-- 管理后台 `系统设置 → 功能开关 → 请求审计`：开关、保留时长、分组范围、按邮箱搜索的用户范围。
-- 管理后台 `用量统计 → 请求审计`：开关打开后才出现的标签页，可查看请求体、响应体、状态码、耗时、账号、用户和 API Key。
+原先设置在 `系统设置 → 功能设置` 的一张孤卡里，与日志隔着两个页面；2026-08-20 抽成 `components/admin/usage/RequestAuditSettings.vue` 就近挪了过来，系统设置那张卡已删除。
+
+**两处搬迁时必须处理的坑**（改回去时注意）：
+
+1. **标签页必须常驻**。原来是 `v-if="requestAuditEnabled"`，审计一关标签页就消失。设置搬进来后若沿用此写法，关闭即成单向门——再也进不去打开。现在标签页恒显示，只有日志面板受开关控制；`loadRequestAuditEnabled` 里两处「关闭时踢回 usage 标签页」的逻辑也一并去掉。
+2. **`SettingsView` 不能再提交这四个 key**。它原本每次保存都写 `request_audit_*`，会把用量页刚改的设置顶回去。已从其保存负载、表单字段、加载与回填中全部摘除。安全性依赖后端 `UpdateSettings` 的 `omittedSettingKeys`：只写请求里出现的字段，省略即保持现值——新组件也据此只提交自己那四个 key。
 
 **接口**
 
@@ -95,7 +99,8 @@ frontend/src/components/admin/usage/RequestAuditPanel.vue
 - 设置链路：`service/domain_constants.go`、`setting_parse.go`、`setting_update.go`、`setting_gateway_runtime.go`（`GetRequestAuditRuntime` 带 60 秒缓存，读取失败按关闭处理）、`settings_view.go`、`handler/dto/settings.go`、`handler/admin/setting_handler.go`、`setting_handler_update.go`。
 - 装配与路由：`server/routes/admin.go`、`handler/handler.go`、`handler/wire.go`、`repository/wire.go`、`service/wire.go`、`cmd/server/wire_gen.go`。
 - ent 生成代码：`ent/{client,ent,tx,mutation}.go`、`ent/hook/hook.go`、`ent/intercept/intercept.go`、`ent/predicate/predicate.go`、`ent/migrate/schema.go`、`ent/runtime/runtime.go`。
-- 前端：`views/admin/UsageView.vue`、`views/admin/SettingsView.vue`、`api/admin/settings.ts`、`api/admin/index.ts`、`components/admin/usage/UsageFilters.vue`、`i18n/locales/{zh,en}/dashboard.ts`。
+- 前端新增：`components/admin/usage/RequestAuditPanel.vue`、`components/admin/usage/RequestAuditSettings.vue`、`api/admin/requestAudit.ts`。
+- 前端修改：`views/admin/UsageView.vue`（标签页常驻 + 挂载设置组件 + `onRequestAuditSettingsSaved`）、`views/admin/SettingsView.vue`（移除审计卡与其脚本）、`api/admin/settings.ts`、`api/admin/index.ts`、`components/admin/usage/UsageFilters.vue`、`i18n/locales/{zh,en}/dashboard.ts`。
 
 **测试**：`service/request_audit_log_test.go`；`server/api_contract_test.go` 与 4 个 handler 测试因构造函数签名变化被同步修改。前端无测试。
 
@@ -107,7 +112,9 @@ frontend/src/components/admin/usage/RequestAuditPanel.vue
 
 对选中分组的请求先做本地匹配，命中后直接返回本地配置的模拟响应，不请求上游模型。默认关闭；未选择分组时即使总开关打开也不拦截。
 
-**入口**：管理后台 `系统设置 → 功能开关 → 请求内容拦截`（开关、生效分组、`match_content`/`response_content` 规则列表）。
+**入口**：管理后台 `系统设置 → 网关服务 → 请求内容拦截`（开关、生效分组、`match_content`/`response_content` 规则列表），紧跟在「请求整流器」之后。
+
+2026-08-20 从「功能设置」标签页移到「网关服务」：拦截命中即返回本地响应、根本不请求上游，改变的是**请求怎么被处理**，与整流器、请求转发行为同类；留在功能设置里邻居是模型广场、签到等无关开关。纯模板搬家，表单字段与保存负载未变。分组下拉复用 `SettingsView` 里的 `requestAuditGroups` / `loadRequestAuditGroups`（名字沿用历史，现在只服务拦截），删审计相关代码时**不要连它们一起删**。
 
 **覆盖范围**：OpenAI Chat Completions、Anthropic Messages、OpenAI Responses 三种协议的流式与非流式。不覆盖 Gemini、Images、WebSocket 及其它入口。除精确规则外内置算术题和 Python `print(... + str(...))` 输出识别。
 
