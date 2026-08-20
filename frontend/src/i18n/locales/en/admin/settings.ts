@@ -1144,15 +1144,6 @@ export default {
         saved: 'Stream timeout settings saved',
         saveFailed: 'Failed to save stream timeout settings'
       },
-      responseHeaders: {
-        title: 'Response Header Policy',
-        description: 'Control which upstream response headers reach the client',
-        hideUpstream: 'Hide upstream response headers',
-        hideUpstreamHint:
-          'Stop forwarding the upstream x-request-id, x-ratelimit-* and x-codex-* headers to clients. When the upstream is itself a relay (sub2api / new-api), those request IDs and quota numbers belong to the relay: passing them through advertises the hop and misleads anyone debugging quota. On by default; turning it off restores passthrough immediately, no restart needed.',
-        saveSuccess: 'Response header policy saved',
-        saveFailed: 'Failed to save response header policy'
-      },
       rectifier: {
         title: 'Request Rectifier',
         description: 'Automatically fix request parameters and retry when upstream returns specific errors',

@@ -705,9 +705,8 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 	c.Header("Connection", "keep-alive")
 	c.Header("X-Accel-Buffering", "no")
 
-	// 透传其他响应头。过滤器已经写过一轮，这里补写是为了兼容 filter 为 nil 的情况；
-	// 但被 force_remove/hide_upstream 拿掉的必须尊重，否则删了又加回来。
-	if v := resp.Header.Get("x-request-id"); v != "" && !s.responseHeaderFilter.IsRemoved("x-request-id") {
+	// 透传其他响应头
+	if v := resp.Header.Get("x-request-id"); v != "" {
 		c.Header("x-request-id", v)
 	}
 

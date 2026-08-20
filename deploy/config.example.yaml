@@ -173,9 +173,6 @@ security:
     # Force-remove response headers from upstream
     # 强制移除的上游响应头
     force_remove: []
-    # Hiding upstream identity headers (x-request-id / x-ratelimit-* / x-codex-*)
-    # is an admin setting, not a config key: 系统设置 → 网关服务 → 响应头策略。
-    # It defaults to on and takes effect on save without a restart.
   csp:
     # Enable Content-Security-Policy header
     # 启用内容安全策略 (CSP) 响应头

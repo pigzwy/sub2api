@@ -502,11 +502,6 @@ type RectifierSettings struct {
 	APIKeySignaturePatterns  []string `json:"apikey_signature_patterns"`
 }
 
-// ResponseHeaderPolicy 响应头策略 DTO
-type ResponseHeaderPolicy struct {
-	HideUpstream bool `json:"hide_upstream"`
-}
-
 // BetaPolicyRule Beta 策略规则 DTO
 type BetaPolicyRule struct {
 	BetaToken            string   `json:"beta_token"`

@@ -580,10 +580,6 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		// 请求整流器配置
 		adminSettings.GET("/rectifier", h.Admin.Setting.GetRectifierSettings)
 		adminSettings.PUT("/rectifier", h.Admin.Setting.UpdateRectifierSettings)
-
-		// 响应头策略：控制上游响应头能否到达客户端
-		adminSettings.GET("/response-headers", h.Admin.Setting.GetResponseHeaderPolicy)
-		adminSettings.PUT("/response-headers", h.Admin.Setting.UpdateResponseHeaderPolicy)
 		// Beta 策略配置
 		adminSettings.GET("/beta-policy", h.Admin.Setting.GetBetaPolicySettings)
 		adminSettings.PUT("/beta-policy", h.Admin.Setting.UpdateBetaPolicySettings)

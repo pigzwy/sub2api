@@ -1785,11 +1785,6 @@ func writeOpenAIPassthroughResponseHeaders(dst http.Header, src http.Header, fil
 		"x-codex-secondary-window-minutes",
 		"x-codex-primary-over-secondary-limit-percent",
 	} {
-		// 强制放行仍要服从 force_remove/hide_upstream：接中转时这些配额数字属于
-		// 中转站，透出去既暴露架构又误导排查。
-		if filter.IsRemoved(rawKey) {
-			continue
-		}
 		vals := getCaseInsensitiveValues(src, rawKey)
 		if len(vals) == 0 {
 			continue

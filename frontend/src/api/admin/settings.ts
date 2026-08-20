@@ -1470,34 +1470,6 @@ export async function updateRectifierSettings(
   return data;
 }
 
-// ==================== Response Header Policy ====================
-
-/**
- * Response header policy. Controls which upstream response headers reach the
- * client. Matches backend dto.ResponseHeaderPolicy.
- */
-export interface ResponseHeaderPolicy {
-  /** 隐藏 x-request-id / x-ratelimit-* / x-codex-*，默认开启。 */
-  hide_upstream: boolean;
-}
-
-export async function getResponseHeaderPolicy(): Promise<ResponseHeaderPolicy> {
-  const { data } = await apiClient.get<ResponseHeaderPolicy>(
-    "/admin/settings/response-headers",
-  );
-  return data;
-}
-
-export async function updateResponseHeaderPolicy(
-  policy: ResponseHeaderPolicy,
-): Promise<ResponseHeaderPolicy> {
-  const { data } = await apiClient.put<ResponseHeaderPolicy>(
-    "/admin/settings/response-headers",
-    policy,
-  );
-  return data;
-}
-
 // ==================== OpenAI Fast Policy Settings ====================
 
 /**
@@ -1653,8 +1625,6 @@ export const settingsAPI = {
   updateStreamTimeoutSettings,
   getRectifierSettings,
   updateRectifierSettings,
-  getResponseHeaderPolicy,
-  updateResponseHeaderPolicy,
   getBetaPolicySettings,
   updateBetaPolicySettings,
   getWebSearchEmulationConfig,

@@ -1138,15 +1138,6 @@ export default {
         saved: '流超时设置保存成功',
         saveFailed: '保存流超时设置失败'
       },
-      responseHeaders: {
-        title: '响应头策略',
-        description: '控制上游返回的响应头哪些可以到达客户端',
-        hideUpstream: '隐藏上游响应头',
-        hideUpstreamHint:
-          '不把上游返回的 x-request-id、x-ratelimit-*、x-codex-* 透传给客户端。上游本身是中转（sub2api / new-api 等）时，这些请求 ID 与限额数字属于中转站，透出去既暴露转发架构，也会让照着限额排查的人看错数。默认开启；关闭后立即恢复透传，无需重启。',
-        saveSuccess: '响应头策略已保存',
-        saveFailed: '保存响应头策略失败'
-      },
       rectifier: {
         title: '请求整流器',
         description: '当上游返回特定错误时，自动修正请求参数并重试，提高请求成功率',

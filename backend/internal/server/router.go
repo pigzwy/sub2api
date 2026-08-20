@@ -11,7 +11,6 @@ import (
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/server/routes"
 	"github.com/Wei-Shaw/sub2api/internal/service"
-	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/Wei-Shaw/sub2api/internal/web"
 
 	"github.com/gin-gonic/gin"
@@ -56,17 +55,8 @@ func SetupRouter(
 	}
 	refreshFrameOrigins() // 启动时初始化
 
-	// 启动即生效：不能等第一个网关请求进来才决定要不要隐藏上游响应头。
-	func() {
-		ctx, cancel := context.WithTimeout(context.Background(), frameSrcRefreshTimeout)
-		defer cancel()
-		responseheaders.SetHideUpstream(settingService.HidesUpstreamResponseHeaders(ctx))
-	}()
-
 	// 应用中间件
 	r.Use(middleware2.RequestLogger())
-	// 把「隐藏上游响应头」策略刷进响应头过滤器（60s 缓存，未收到保存事件的副本也会收敛）
-	r.Use(middleware2.HideUpstreamResponseHeaders(settingService.HidesUpstreamResponseHeaders))
 	// 将客户端 IP + UA 注入 request context，供 token 签发/会话绑定/审计日志统一读取。
 	// 解析模式按请求快照：兼容开关开启时信任原始转发头，关闭时使用 server.trusted_proxies。
 	r.Use(middleware2.SessionBindingContext(cfg))

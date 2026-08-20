@@ -329,38 +329,6 @@ func (h *SettingHandler) UpdateRectifierSettings(c *gin.Context) {
 	})
 }
 
-// GetResponseHeaderPolicy 获取响应头策略
-// GET /api/v1/admin/settings/response-headers
-func (h *SettingHandler) GetResponseHeaderPolicy(c *gin.Context) {
-	policy, err := h.settingService.GetResponseHeaderPolicy(c.Request.Context())
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	response.Success(c, dto.ResponseHeaderPolicy{HideUpstream: policy.HideUpstream})
-}
-
-// UpdateResponseHeaderPolicyRequest 更新响应头策略请求
-type UpdateResponseHeaderPolicyRequest struct {
-	HideUpstream bool `json:"hide_upstream"`
-}
-
-// UpdateResponseHeaderPolicy 更新响应头策略
-// PUT /api/v1/admin/settings/response-headers
-func (h *SettingHandler) UpdateResponseHeaderPolicy(c *gin.Context) {
-	var req UpdateResponseHeaderPolicyRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-	policy := &service.ResponseHeaderPolicy{HideUpstream: req.HideUpstream}
-	if err := h.settingService.SetResponseHeaderPolicy(c.Request.Context(), policy); err != nil {
-		response.BadRequest(c, err.Error())
-		return
-	}
-	response.Success(c, dto.ResponseHeaderPolicy{HideUpstream: policy.HideUpstream})
-}
-
 // GetBetaPolicySettings 获取 Beta 策略配置
 // GET /api/v1/admin/settings/beta-policy
 func (h *SettingHandler) GetBetaPolicySettings(c *gin.Context) {
