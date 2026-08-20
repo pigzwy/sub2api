@@ -790,6 +790,113 @@
               </template>
             </div>
           </div>
+          <!-- Request Intercept feature card -->
+          <div class="card">
+              <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                  {{ localText('请求内容拦截', 'Request Intercept') }}
+                </h2>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  {{ localText('命中规则后直接返回本地响应，不再请求上游模型。默认关闭，且只对选中的分组生效。', 'Return a local response when a rule matches, without calling upstream models. Disabled by default and only applies to selected groups.') }}
+                </p>
+              </div>
+              <div class="space-y-5 p-6">
+                <div class="flex items-center justify-between gap-4">
+                  <div>
+                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {{ localText('启用请求拦截', 'Enable Request Intercept') }}
+                    </label>
+                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ localText('对 Chat Completions、Messages 和 Responses 入口生效。', 'Applies to Chat Completions, Messages, and Responses endpoints.') }}
+                    </p>
+                  </div>
+                  <Toggle v-model="form.request_intercept_enabled" />
+                </div>
+
+                <div>
+                  <label class="input-label">{{ localText('拦截分组', 'Intercept Groups') }}</label>
+                  <Select
+                    v-model="requestInterceptGroupPicker"
+                    :options="requestInterceptGroupOptions"
+                    searchable
+                    clearable
+                    :placeholder="localText('选择要拦截的分组', 'Select groups to intercept')"
+                    @change="addRequestInterceptGroupScope"
+                  />
+                  <div v-if="selectedRequestInterceptGroups.length > 0" class="mt-2 flex flex-wrap gap-2">
+                    <span
+                      v-for="group in selectedRequestInterceptGroups"
+                      :key="group.id"
+                      class="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-700 dark:bg-dark-700 dark:text-gray-200"
+                    >
+                      {{ group.name }}
+                      <button type="button" class="text-gray-400 hover:text-red-500" @click="removeRequestInterceptGroupScope(group.id)">
+                        <Icon name="x" size="xs" />
+                      </button>
+                    </span>
+                  </div>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {{ localText('只拦截所选分组的 API Key 请求；未选择分组时不会拦截任何请求，可选择多个分组。', 'Only API key requests from selected groups are intercepted. No group selected means no requests are intercepted. Multiple groups are supported.') }}
+                  </p>
+                </div>
+
+                <div class="space-y-3">
+                  <div class="flex items-center justify-between gap-3">
+                    <div>
+                      <label class="input-label">{{ localText('完整匹配规则', 'Exact Match Rules') }}</label>
+                      <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        {{ localText('请求内容完全等于左侧文本时，直接返回右侧响应。内置算术题识别由后端自动处理，不需要写规则。', 'When request content exactly equals the match text, the configured response is returned. Built-in arithmetic checks are handled automatically by the backend.') }}
+                      </p>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" @click="addRequestInterceptRule">
+                      {{ localText('添加规则', 'Add Rule') }}
+                    </button>
+                  </div>
+
+                  <div
+                    v-if="form.request_intercept_rules.length === 0"
+                    class="rounded-lg border border-dashed border-gray-200 p-4 text-sm text-gray-500 dark:border-dark-700 dark:text-gray-400"
+                  >
+                    {{ localText('暂无完整匹配规则。示例：左侧填 hi，右侧填你好；只有请求内容完全是 hi 时才会命中。', 'No exact match rules yet. Example: match hi and respond hello; only requests whose content is exactly hi will match.') }}
+                  </div>
+
+                  <div
+                    v-for="(rule, index) in form.request_intercept_rules"
+                    :key="index"
+                    class="grid gap-3 rounded-lg border border-gray-200 p-3 dark:border-dark-700 md:grid-cols-[1fr_1fr_auto]"
+                  >
+                    <div>
+                      <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{{ localText('匹配完整内容', 'Match Content') }}</label>
+                      <input
+                        v-model="rule.match_content"
+                        type="text"
+                        class="input"
+                        placeholder="hi"
+                      />
+                    </div>
+                    <div>
+                      <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{{ localText('响应内容', 'Response Content') }}</label>
+                      <input
+                        v-model="rule.response_content"
+                        type="text"
+                        class="input"
+                        :placeholder="localText('你好', 'hello')"
+                      />
+                    </div>
+                    <div class="flex items-end">
+                      <button
+                        type="button"
+                        class="btn btn-secondary btn-sm text-red-600 hover:text-red-700 dark:text-red-400"
+                        @click="removeRequestInterceptRule(index)"
+                      >
+                        {{ localText('删除', 'Delete') }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+          </div>
+
           <!-- Beta Policy Settings -->
           <div class="card">
             <div
@@ -7387,112 +7494,6 @@
           </div>
         </div>
 
-        <!-- Request Intercept feature card -->
-        <div class="card">
-            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
-                {{ localText('请求内容拦截', 'Request Intercept') }}
-              </h2>
-              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                {{ localText('命中规则后直接返回本地响应，不再请求上游模型。默认关闭，且只对选中的分组生效。', 'Return a local response when a rule matches, without calling upstream models. Disabled by default and only applies to selected groups.') }}
-              </p>
-            </div>
-            <div class="space-y-5 p-6">
-              <div class="flex items-center justify-between gap-4">
-                <div>
-                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {{ localText('启用请求拦截', 'Enable Request Intercept') }}
-                  </label>
-                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                    {{ localText('对 Chat Completions、Messages 和 Responses 入口生效。', 'Applies to Chat Completions, Messages, and Responses endpoints.') }}
-                  </p>
-                </div>
-                <Toggle v-model="form.request_intercept_enabled" />
-              </div>
-
-              <div>
-                <label class="input-label">{{ localText('拦截分组', 'Intercept Groups') }}</label>
-                <Select
-                  v-model="requestInterceptGroupPicker"
-                  :options="requestInterceptGroupOptions"
-                  searchable
-                  clearable
-                  :placeholder="localText('选择要拦截的分组', 'Select groups to intercept')"
-                  @change="addRequestInterceptGroupScope"
-                />
-                <div v-if="selectedRequestInterceptGroups.length > 0" class="mt-2 flex flex-wrap gap-2">
-                  <span
-                    v-for="group in selectedRequestInterceptGroups"
-                    :key="group.id"
-                    class="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-700 dark:bg-dark-700 dark:text-gray-200"
-                  >
-                    {{ group.name }}
-                    <button type="button" class="text-gray-400 hover:text-red-500" @click="removeRequestInterceptGroupScope(group.id)">
-                      <Icon name="x" size="xs" />
-                    </button>
-                  </span>
-                </div>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  {{ localText('只拦截所选分组的 API Key 请求；未选择分组时不会拦截任何请求，可选择多个分组。', 'Only API key requests from selected groups are intercepted. No group selected means no requests are intercepted. Multiple groups are supported.') }}
-                </p>
-              </div>
-
-              <div class="space-y-3">
-                <div class="flex items-center justify-between gap-3">
-                  <div>
-                    <label class="input-label">{{ localText('完整匹配规则', 'Exact Match Rules') }}</label>
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      {{ localText('请求内容完全等于左侧文本时，直接返回右侧响应。内置算术题识别由后端自动处理，不需要写规则。', 'When request content exactly equals the match text, the configured response is returned. Built-in arithmetic checks are handled automatically by the backend.') }}
-                    </p>
-                  </div>
-                  <button type="button" class="btn btn-secondary btn-sm" @click="addRequestInterceptRule">
-                    {{ localText('添加规则', 'Add Rule') }}
-                  </button>
-                </div>
-
-                <div
-                  v-if="form.request_intercept_rules.length === 0"
-                  class="rounded-lg border border-dashed border-gray-200 p-4 text-sm text-gray-500 dark:border-dark-700 dark:text-gray-400"
-                >
-                  {{ localText('暂无完整匹配规则。示例：左侧填 hi，右侧填你好；只有请求内容完全是 hi 时才会命中。', 'No exact match rules yet. Example: match hi and respond hello; only requests whose content is exactly hi will match.') }}
-                </div>
-
-                <div
-                  v-for="(rule, index) in form.request_intercept_rules"
-                  :key="index"
-                  class="grid gap-3 rounded-lg border border-gray-200 p-3 dark:border-dark-700 md:grid-cols-[1fr_1fr_auto]"
-                >
-                  <div>
-                    <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{{ localText('匹配完整内容', 'Match Content') }}</label>
-                    <input
-                      v-model="rule.match_content"
-                      type="text"
-                      class="input"
-                      placeholder="hi"
-                    />
-                  </div>
-                  <div>
-                    <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{{ localText('响应内容', 'Response Content') }}</label>
-                    <input
-                      v-model="rule.response_content"
-                      type="text"
-                      class="input"
-                      :placeholder="localText('你好', 'hello')"
-                    />
-                  </div>
-                  <div class="flex items-end">
-                    <button
-                      type="button"
-                      class="btn btn-secondary btn-sm text-red-600 hover:text-red-700 dark:text-red-400"
-                      @click="removeRequestInterceptRule(index)"
-                    >
-                      {{ localText('删除', 'Delete') }}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-        </div>
 
         <!-- 活动 (Activities) section — 面向用户的运营活动统一放在这里。
              签到与邀请返利都属于此类，后续新增活动继续追加到本分区。 -->
