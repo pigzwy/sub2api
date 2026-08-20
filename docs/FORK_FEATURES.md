@@ -529,6 +529,9 @@ backend/migrations/228_usage_log_audio_tokens.sql
   使用 `public, max-age=60, must-revalidate`。版本化 `/assets/*` 的
   `immutable` 缓存策略保持不变；未改动支付、SSE、WebSocket、API body 或
   认证链路。
+- 静态壳不含内联脚本，因此响应发送前会移除通用中间件生成但已无用途的
+  CSP nonce；其余 CSP 来源、Turnstile、支付脚本和安全指令保持不变。这样
+  HTML 与 CSP 响应头都可由边缘短时缓存，不会复用请求级 nonce。
 - `backend/internal/web/embed_on.go` 和 `embed_off.go` 只允许 `GET`/`HEAD`
   回退到 SPA 壳。`POST`、`PUT`、`PATCH`、`DELETE` 等方法调用 `c.Next()`，
   由注册的 API/错误处理器决定响应，不再返回假成功的 HTML。
@@ -547,6 +550,8 @@ backend/migrations/228_usage_log_audio_tokens.sql
 - `backend/internal/web/embed_test.go`：稳定壳的 ETag、缓存头、无运行时注入，
   以及写方法不会吞掉已注册的 `/login` 路由。
 - `backend/internal/web/static_cache_test.go`：ETag 稳定性和 GET/HEAD 方法边界。
+- `backend/internal/web/static_cache_test.go`、`embed_test.go`：静态壳 CSP 不再
+  携带请求级 nonce，同时保留外部脚本来源。
 - 推送后由 CI 执行后端 unit、前端 typecheck/测试和镜像构建；本生产机只做
   `git diff --check` 等静态检查。
 

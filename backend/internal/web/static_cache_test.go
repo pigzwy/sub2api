@@ -94,3 +94,22 @@ func TestIsFrontendNavigationMethod(t *testing.T) {
 		assert.False(t, isFrontendNavigationMethod(method), "method=%s", method)
 	}
 }
+
+func TestApplyStaticShellSecurityHeaders(t *testing.T) {
+	t.Parallel()
+
+	header := http.Header{}
+	header.Set(
+		"Content-Security-Policy",
+		"default-src 'self'; script-src 'self' 'nonce-random+value==' https://challenges.cloudflare.com; frame-ancestors 'none'",
+	)
+	applyStaticShellSecurityHeaders(header)
+
+	policy := header.Get("Content-Security-Policy")
+	assert.Equal(
+		t,
+		"default-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-ancestors 'none'",
+		policy,
+	)
+	assert.NotContains(t, policy, "nonce-")
+}

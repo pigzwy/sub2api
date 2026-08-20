@@ -230,6 +230,7 @@ func (s *FrontendServer) serveIndexHTML(c *gin.Context) {
 }
 
 func (s *FrontendServer) serveStaticIndexHTML(c *gin.Context) {
+	applyStaticShellSecurityHeaders(c.Writer.Header())
 	if s.staticETag != "" {
 		c.Header("ETag", s.staticETag)
 		c.Header("Cache-Control", staticShellCacheControl)

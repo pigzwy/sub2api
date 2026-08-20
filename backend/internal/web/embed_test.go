@@ -747,6 +747,30 @@ func TestStaticFrontendServerUsesStableShell(t *testing.T) {
 	assert.Equal(t, http.StatusNotModified, secondWriter.Code)
 }
 
+func TestStaticFrontendServerRemovesUnusedCSPNonce(t *testing.T) {
+	server, err := NewStaticFrontendServer()
+	require.NoError(t, err)
+
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Header(
+			"Content-Security-Policy",
+			"default-src 'self'; script-src 'self' 'nonce-request-value' https://challenges.cloudflare.com",
+		)
+		c.Next()
+	})
+	router.Use(server.Middleware())
+
+	writer := httptest.NewRecorder()
+	router.ServeHTTP(writer, httptest.NewRequest(http.MethodGet, "/home", nil))
+	require.Equal(t, http.StatusOK, writer.Code)
+	assert.Equal(
+		t,
+		"default-src 'self'; script-src 'self' https://challenges.cloudflare.com",
+		writer.Header().Get("Content-Security-Policy"),
+	)
+}
+
 func TestFrontendMiddlewareDoesNotServeShellForWriteMethods(t *testing.T) {
 	provider := &mockSettingsProvider{settings: map[string]string{"test": "value"}}
 	server, err := NewFrontendServer(provider)

@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"net/http"
 	"path"
+	"regexp"
 	"strings"
 )
 
@@ -18,6 +19,8 @@ const staticAssetsCacheControl = "public, max-age=31536000, immutable"
 // settings are loaded by the frontend, so this short TTL is safe for edge
 // caching while allowing a new build to propagate quickly.
 const staticShellCacheControl = "public, max-age=60, must-revalidate"
+
+var cspNonceSource = regexp.MustCompile(`\s*'nonce-[^']+'`)
 
 // StaticHTMLETag returns a stable validator for an embedded HTML shell.
 // Unlike the settings-injected cache ETag, it changes only when the built
@@ -65,6 +68,21 @@ func applyStaticAssetCacheHeaders(header http.Header, cleanPath string) {
 		return
 	}
 	header.Set("Cache-Control", staticAssetsCacheControl)
+}
+
+// applyStaticShellSecurityHeaders removes the request-scoped CSP nonce from
+// the stable shell response. The shell contains no inline scripts, so keeping
+// the nonce has no functional benefit and would make an edge-cached CSP header
+// appear request-specific even though the HTML body is immutable.
+func applyStaticShellSecurityHeaders(header http.Header) {
+	if header == nil {
+		return
+	}
+	policy := header.Get("Content-Security-Policy")
+	if policy == "" {
+		return
+	}
+	header.Set("Content-Security-Policy", cspNonceSource.ReplaceAllString(policy, ""))
 }
 
 func isFrontendNavigationMethod(method string) bool {
