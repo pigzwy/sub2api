@@ -629,6 +629,25 @@
                   <Toggle v-model="rectifierForm.enabled" />
                 </div>
 
+                <!-- Hide upstream response headers. Deliberately outside the
+                     master toggle: concealing the relay must not depend on
+                     whether request rectification is switched on. -->
+                <div
+                  class="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-dark-700"
+                >
+                  <div>
+                    <label class="font-medium text-gray-900 dark:text-white">{{
+                      t("admin.settings.rectifier.hideUpstreamHeaders")
+                    }}</label>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.rectifier.hideUpstreamHeadersHint") }}
+                    </p>
+                  </div>
+                  <Toggle
+                    v-model="rectifierForm.hide_upstream_response_headers"
+                  />
+                </div>
+
                 <!-- Sub-toggles (only show when master is enabled) -->
                 <div
                   v-if="rectifierForm.enabled"
@@ -9337,6 +9356,8 @@ const rectifierForm = reactive({
   thinking_budget_enabled: true,
   apikey_signature_enabled: false,
   apikey_signature_patterns: [] as string[],
+  // 默认隐藏：多数部署的上游本身是中转，透传它的请求 ID 与限额会暴露架构。
+  hide_upstream_response_headers: true,
 });
 
 // Beta Policy 状态
@@ -12533,6 +12554,8 @@ async function saveRectifierSettings() {
       apikey_signature_patterns: rectifierForm.apikey_signature_patterns.filter(
         (p) => p.trim() !== "",
       ),
+      hide_upstream_response_headers:
+        rectifierForm.hide_upstream_response_headers,
     });
     Object.assign(rectifierForm, updated);
     if (!Array.isArray(rectifierForm.apikey_signature_patterns)) {

@@ -46,7 +46,7 @@ git log --no-merges --oneline upstream/main..request-audit  # 本地提交
 | 自定义菜单打开方式 | ✅ | ✅ | — | — | 复用 `custom_menu_items` |
 | 每日签到（活动） | ✅ | ✅ | ✅ `224` | — | 4 项 |
 | Studio 创作台免登录接力 | — | ✅ | — | — | — |
-| 隐藏上游中转痕迹 | ✅ | — | — | ✅ `security.response_headers.hide_upstream` | — |
+| 隐藏上游中转痕迹 | ✅ | ✅ | — | — | 1 项（整流器内） |
 | fork 分支镜像构建 | — | — | — | — | — |
 | OpenAI Realtime 语音网关（含语音运营工具） | ✅ | ✅ | ✅ `227`、`228` | — | — |
 | 稳定静态 SPA 壳与页面写请求硬化 | ✅ | ✅ | — | — | — |
@@ -548,33 +548,36 @@ backend/migrations/228_usage_log_audio_tokens.sql
 
 上游若本身也是一台中转（sub2api / new-api 等），它返回的 `x-request-id` 与六个 `x-ratelimit-*` 会穿过默认白名单原样回到客户端。那些值属于**中转站**而不是真实厂商，既暴露了转发架构，也会让照着限额数字排查的人看错。
 
-**开关**（`config.yaml`，无后台设置项）：
+**入口**：管理后台 `系统设置 → 网关服务 → 请求整流器 → 隐藏上游响应头`。**默认开启**，保存即生效，无需重启。
 
-```yaml
-security:
-  response_headers:
-    hide_upstream: true
-```
+剥掉 14 个响应头：`x-request-id`、六个 `x-ratelimit-*`、七个 `x-codex-*`。`content-type`、`retry-after` 等协议必需项保留——客户端仍需要 `retry-after` 来退避。
 
-打开后剥掉 14 个响应头：`x-request-id`、六个 `x-ratelimit-*`、七个 `x-codex-*`。`content-type`、`retry-after` 等协议必需项保留——客户端仍需要 `retry-after` 来退避。
+**为什么放在整流器卡里却不受它的总开关约束**：关掉「请求整流器」是不想改写请求，与「别暴露自己是中转」无关；若跟着总开关走，关掉整流就会静默恢复泄露。后端 `HidesUpstreamResponseHeaders()` 不读 `Enabled`，前端那一栏也放在总开关之外、不随它折叠。
 
-**刻意不受 `enabled` 约束**。`security.response_headers.enabled: false` 的语义是"只用默认白名单、自定义的 `additional_allowed` / `force_remove` 全部失效"（`responseheaders.go` 的 `CompileHeaderFilter`），若 `hide_upstream` 也跟着它走，关掉自定义过滤就会静默恢复泄露——这正是最容易踩空的地方。
+**默认值用指针表达**：`RectifierSettings.HideUpstreamResponseHeaders` 是 `*bool`。存量站点的整流器 JSON 里没有这个字段，反序列化成 `false` 会让它们升级后突然开始泄露；用指针可以区分「显式关闭」与「存于该字段出现之前」，后者按默认（隐藏）处理。后台 PUT 请求里同样是指针，老前端不带该字段时沿用当前值而不是被当成关闭。
 
-**为什么单靠 `force_remove` 堵不住**：有两条路径在过滤之后又把头写了回去，二开为此各加了一处守卫。
+**生效链路**：响应头白名单在启动时编译一次并注入各网关服务，改不动；而 40 多处写头调用点分散在上游文件里，逐个改会背上长期合并税。因此策略落在 `responseheaders` 的一个进程级 `atomic.Bool` 上：
+
+- `internal/server/router.go`：启动时预热一次（不能等第一个网关请求才决定），并注册 `middleware.HideUpstreamResponseHeaders`，每请求用带缓存的设置值刷新。
+- `internal/service/setting_hide_upstream_headers.go`：60s `atomic.Value` 缓存 + singleflight，读库失败时短缓存并**保持隐藏**（失败不该导致泄露）。未收到保存事件的副本靠缓存过期自行收敛；保存的那台通过 `InvalidateHideUpstreamResponseHeadersCache()` 立即生效。
+
+**两处曾绕过过滤器的路径**，二开各加了一处守卫，现在 `force_remove` 也才真正处处生效：
 
 - `service/gateway_upstream_response.go`：Claude 流式路径在 `WriteFilteredHeaders` 之后无条件 `c.Header("x-request-id", …)`，删了又加回来。
 - `service/openai_gateway_passthrough.go`：`writeOpenAIPassthroughResponseHeaders` 用 `dst.Del` + `dst.Add` 强制放行七个 `x-codex-*`，完全绕过白名单。
 
-两处现在都先查 `CompiledHeaderFilter.IsRemoved(key)`。这也意味着**手写 `force_remove` 从此才真正生效**，不只是 `hide_upstream` 受益。
-
 **涉及文件**
 
-- `internal/util/responseheaders/responseheaders.go`：新增 `upstreamIdentityHeaders`、`HideUpstream` 编译分支、导出 `IsRemoved`。
-- `internal/config/config.go`：`ResponseHeaderConfig.HideUpstream` + viper 默认值 `false`（默认关闭，不改变既有部署行为）。
+- 新增：`internal/service/setting_hide_upstream_headers.go`、`internal/server/middleware/hide_upstream_headers.go`。
+- `internal/util/responseheaders/responseheaders.go`：`upstreamIdentityHeaders` 与查表集合、进程级开关 `SetHideUpstream` / `HideUpstreamEnabled`、导出 `IsRemoved`、`FilterHeaders` 内的剥离分支。
+- `internal/service/settings_view.go`：`RectifierSettings` 新字段与 `HidesUpstreamResponseHeaders()`，默认值改为隐藏。
+- `internal/service/setting_features.go`：保存后失效缓存。
+- `internal/handler/dto/settings.go`、`internal/handler/admin/setting_handler_runtime.go`：读写透出该字段。
+- `internal/server/router.go`：启动预热 + 中间件注册。
 - `internal/service/gateway_upstream_response.go`、`internal/service/openai_gateway_passthrough.go`：各一处守卫。
-- `deploy/config.example.yaml`：配置块与中英注释。
+- 前端：`api/admin/settings.ts`、`views/admin/SettingsView.vue`、`i18n/locales/{zh,en}/admin/settings.ts`。
 
-**测试**：`util/responseheaders/hide_upstream_test.go`（剥离生效、关闭时保持原样、不随 `enabled` 失效、`IsRemoved` 大小写与 nil 接收者）、`service/response_header_hide_upstream_test.go`（透传路径的 `x-codex-*` 服从开关，且默认仍放行）。均为新文件，不扩上游测试的 diff。
+**测试**：`util/responseheaders/hide_upstream_test.go`（剥离生效、关闭时保持原样、不随 `security.response_headers.enabled` 失效、`IsRemoved` 大小写与 nil 接收者、显式 `force_remove`）、`service/response_header_hide_upstream_test.go`（透传路径的 `x-codex-*` 服从开关且默认放行、`*bool` 默认语义四种取值）。均为新文件，不扩上游测试的 diff。
 
 ---
 

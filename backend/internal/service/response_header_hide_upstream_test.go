@@ -17,13 +17,16 @@ func TestPassthroughResponseHeadersRespectHideUpstream(t *testing.T) {
 	src.Set("X-Codex-Primary-Used-Percent", "42")
 	src.Set("X-Codex-Secondary-Window-Minutes", "300")
 
+	responseheaders.SetHideUpstream(true)
+	t.Cleanup(func() { responseheaders.SetHideUpstream(false) })
+
 	dst := http.Header{}
 	writeOpenAIPassthroughResponseHeaders(dst, src,
-		responseheaders.CompileHeaderFilter(config.ResponseHeaderConfig{Enabled: true, HideUpstream: true}))
+		responseheaders.CompileHeaderFilter(config.ResponseHeaderConfig{Enabled: true}))
 
 	for _, key := range []string{"X-Request-Id", "X-Codex-Primary-Used-Percent", "X-Codex-Secondary-Window-Minutes"} {
 		if got := dst.Get(key); got != "" {
-			t.Fatalf("%s = %q, want it stripped when hide_upstream is on", key, got)
+			t.Fatalf("%s = %q, want it stripped while hiding", key, got)
 		}
 	}
 	if got := dst.Get("Content-Type"); got != "text/event-stream" {
@@ -36,11 +39,30 @@ func TestPassthroughResponseHeadersStillForwardCodexQuotaByDefault(t *testing.T)
 	src.Set("Content-Type", "text/event-stream")
 	src.Set("X-Codex-Primary-Used-Percent", "42")
 
+	responseheaders.SetHideUpstream(false)
+
 	dst := http.Header{}
 	writeOpenAIPassthroughResponseHeaders(dst, src,
 		responseheaders.CompileHeaderFilter(config.ResponseHeaderConfig{Enabled: true}))
 
 	if got := dst.Get("X-Codex-Primary-Used-Percent"); got != "42" {
-		t.Fatalf("X-Codex-Primary-Used-Percent = %q, want 42 when hide_upstream is off", got)
+		t.Fatalf("X-Codex-Primary-Used-Percent = %q, want 42 when the toggle is off", got)
+	}
+}
+
+// 旧配置里没有这个字段时必须按「隐藏」处理，否则升级上来的站点会突然开始泄露。
+func TestRectifierSettingsDefaultToHidingUpstreamHeaders(t *testing.T) {
+	if !DefaultRectifierSettings().HidesUpstreamResponseHeaders() {
+		t.Fatal("a fresh install must hide upstream headers")
+	}
+	if !(&RectifierSettings{}).HidesUpstreamResponseHeaders() {
+		t.Fatal("settings saved before this field existed must be treated as hiding")
+	}
+	if !(*RectifierSettings)(nil).HidesUpstreamResponseHeaders() {
+		t.Fatal("a nil settings pointer must not disable hiding")
+	}
+	off := false
+	if (&RectifierSettings{HideUpstreamResponseHeaders: &off}).HidesUpstreamResponseHeaders() {
+		t.Fatal("an explicit false must be honoured")
 	}
 }

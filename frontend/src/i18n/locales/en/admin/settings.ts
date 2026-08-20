@@ -1149,6 +1149,9 @@ export default {
         description: 'Automatically fix request parameters and retry when upstream returns specific errors',
         enabled: 'Enable Request Rectifier',
         enabledHint: 'Master switch - disabling turns off all rectification features',
+        hideUpstreamHeaders: 'Hide upstream response headers',
+        hideUpstreamHeadersHint:
+          'Stop forwarding the upstream x-request-id, x-ratelimit-* and x-codex-* headers to clients. When the upstream is itself a relay (sub2api / new-api), those request IDs and quota numbers belong to the relay: passing them through advertises the hop and misleads anyone debugging quota. On by default, independent of the master switch above.',
         thinkingSignature: 'Thinking Signature Rectifier',
         thinkingSignatureHint: 'Automatically strip signatures and retry when upstream returns thinking block signature validation errors',
         thinkingBudget: 'Thinking Budget Rectifier',

@@ -1143,6 +1143,9 @@ export default {
         description: '当上游返回特定错误时，自动修正请求参数并重试，提高请求成功率',
         enabled: '启用请求整流器',
         enabledHint: '总开关，关闭后所有整流功能均不生效',
+        hideUpstreamHeaders: '隐藏上游响应头',
+        hideUpstreamHeadersHint:
+          '不把上游返回的 x-request-id、x-ratelimit-*、x-codex-* 透传给客户端。上游本身是中转（sub2api / new-api 等）时，这些请求 ID 与限额数字属于中转站，透出去既暴露转发架构，也会让照着限额排查的人看错数。默认开启，独立于上面的总开关。',
         thinkingSignature: 'Thinking 签名整流',
         thinkingSignatureHint: '当上游返回 thinking block 签名校验错误时，自动去除签名并重试',
         thinkingBudget: 'Thinking Budget 整流',

@@ -3,6 +3,7 @@ package responseheaders
 import (
 	"net/http"
 	"strings"
+	"sync/atomic"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 )
@@ -49,6 +50,28 @@ var hopByHopHeaders = map[string]struct{}{
 //
 // x-codex-* 在透传路径上被强制放行（见 writeOpenAIPassthroughResponseHeaders），
 // 所以必须一并登记，否则单靠 force_remove 堵不住。
+// hideUpstream 是进程级策略，由后台「请求整流器」的开关驱动。
+//
+// 过滤器在启动时编译一次并注入到各个网关服务，改不动；而这个开关必须保存即生效，
+// 因此用一个原子量承载。策略本身是全站级的（不区分分组/请求），用进程级状态表达
+// 是贴切的，不是把请求态藏进全局。
+var hideUpstream atomic.Bool
+
+// SetHideUpstream 由中间件在每个请求前用带缓存的设置值刷新，因此未收到保存事件的
+// 副本也会在一个缓存周期内自行收敛。
+func SetHideUpstream(enabled bool) { hideUpstream.Store(enabled) }
+
+// HideUpstreamEnabled 供测试与诊断读取当前策略。
+func HideUpstreamEnabled() bool { return hideUpstream.Load() }
+
+var upstreamIdentityHeaderSet = func() map[string]struct{} {
+	set := make(map[string]struct{}, len(upstreamIdentityHeaders))
+	for _, key := range upstreamIdentityHeaders {
+		set[key] = struct{}{}
+	}
+	return set
+}()
+
 var upstreamIdentityHeaders = []string{
 	"x-request-id",
 	"x-ratelimit-limit-requests",
@@ -71,12 +94,19 @@ type CompiledHeaderFilter struct {
 	forceRemove map[string]struct{}
 }
 
-// IsRemoved 供那些在过滤之后又单独回写响应头的路径查询，避免绕过 force_remove。
+// IsRemoved 供那些在过滤之后又单独回写响应头的路径查询，避免绕过 force_remove
+// 与隐藏上游开关。
 func (f *CompiledHeaderFilter) IsRemoved(key string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(key))
+	if hideUpstream.Load() {
+		if _, hidden := upstreamIdentityHeaderSet[normalized]; hidden {
+			return true
+		}
+	}
 	if f == nil {
 		return false
 	}
-	_, removed := f.forceRemove[strings.ToLower(strings.TrimSpace(key))]
+	_, removed := f.forceRemove[normalized]
 	return removed
 }
 
@@ -99,13 +129,6 @@ func CompileHeaderFilter(cfg config.ResponseHeaderConfig) *CompiledHeaderFilter 
 	}
 
 	forceRemove := map[string]struct{}{}
-	// HideUpstream 刻意不受 Enabled 约束：它是一个「别暴露自己是中转」的独立诉求，
-	// 若也跟着 Enabled 走，关掉自定义过滤就会静默恢复泄露，正是最容易踩空的地方。
-	if cfg.HideUpstream {
-		for _, key := range upstreamIdentityHeaders {
-			forceRemove[key] = struct{}{}
-		}
-	}
 	if cfg.Enabled {
 		for _, key := range cfg.ForceRemove {
 			normalized := strings.ToLower(strings.TrimSpace(key))
@@ -128,10 +151,16 @@ func FilterHeaders(src http.Header, filter *CompiledHeaderFilter) http.Header {
 	}
 
 	filtered := make(http.Header, len(src))
+	hidden := hideUpstream.Load()
 	for key, values := range src {
 		lower := strings.ToLower(key)
 		if _, blocked := filter.forceRemove[lower]; blocked {
 			continue
+		}
+		if hidden {
+			if _, identity := upstreamIdentityHeaderSet[lower]; identity {
+				continue
+			}
 		}
 		if _, ok := filter.allowed[lower]; !ok {
 			continue

@@ -1442,6 +1442,8 @@ export interface RectifierSettings {
   thinking_budget_enabled: boolean;
   apikey_signature_enabled: boolean;
   apikey_signature_patterns: string[];
+  /** 隐藏会暴露上游身份与配额的响应头。独立于上面的总开关，默认开启。 */
+  hide_upstream_response_headers: boolean;
 }
 
 /**

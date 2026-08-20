@@ -7,6 +7,14 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 )
 
+// withHideUpstream 保证测试之间不互相污染这个进程级开关。
+func withHideUpstream(t *testing.T, enabled bool) {
+	t.Helper()
+	previous := HideUpstreamEnabled()
+	SetHideUpstream(enabled)
+	t.Cleanup(func() { SetHideUpstream(previous) })
+}
+
 func upstreamRelayResponse() http.Header {
 	h := http.Header{}
 	h.Set("Content-Type", "application/json")
@@ -22,10 +30,9 @@ func upstreamRelayResponse() http.Header {
 }
 
 func TestHideUpstreamStripsIdentityHeaders(t *testing.T) {
-	filtered := FilterHeaders(
-		upstreamRelayResponse(),
-		CompileHeaderFilter(config.ResponseHeaderConfig{Enabled: true, HideUpstream: true}),
-	)
+	withHideUpstream(t, true)
+	filtered := FilterHeaders(upstreamRelayResponse(),
+		CompileHeaderFilter(config.ResponseHeaderConfig{Enabled: true}))
 
 	for _, key := range []string{
 		"X-Request-Id",
@@ -34,7 +41,7 @@ func TestHideUpstreamStripsIdentityHeaders(t *testing.T) {
 		"X-Ratelimit-Reset-Requests", "X-Ratelimit-Reset-Tokens",
 	} {
 		if got := filtered.Get(key); got != "" {
-			t.Fatalf("%s must not reach the client when hide_upstream is on, got %q", key, got)
+			t.Fatalf("%s must not reach the client while hiding, got %q", key, got)
 		}
 	}
 	// 协议必需的头不能一起误伤。
@@ -47,26 +54,28 @@ func TestHideUpstreamStripsIdentityHeaders(t *testing.T) {
 }
 
 func TestHideUpstreamKeepsIdentityHeadersWhenOff(t *testing.T) {
-	filtered := FilterHeaders(
-		upstreamRelayResponse(),
-		CompileHeaderFilter(config.ResponseHeaderConfig{Enabled: true}),
-	)
+	withHideUpstream(t, false)
+	filtered := FilterHeaders(upstreamRelayResponse(),
+		CompileHeaderFilter(config.ResponseHeaderConfig{Enabled: true}))
 	if got := filtered.Get("X-Request-Id"); got != "relay-req-abc" {
-		t.Fatalf("X-Request-Id = %q, want the upstream value when hide_upstream is off", got)
+		t.Fatalf("X-Request-Id = %q, want the upstream value when the toggle is off", got)
 	}
 }
 
-// hide_upstream 不跟随 Enabled：关掉自定义过滤时若静默恢复泄露，正是最容易踩空的地方。
-func TestHideUpstreamAppliesEvenWhenFilteringIsDisabled(t *testing.T) {
-	filter := CompileHeaderFilter(config.ResponseHeaderConfig{Enabled: false, HideUpstream: true})
+// 开关是进程级策略，和 security.response_headers.enabled 无关：把自定义过滤关掉
+// 不应该静默恢复泄露。
+func TestHideUpstreamAppliesEvenWhenCustomFilteringIsDisabled(t *testing.T) {
+	withHideUpstream(t, true)
+	filter := CompileHeaderFilter(config.ResponseHeaderConfig{Enabled: false})
 	if got := FilterHeaders(upstreamRelayResponse(), filter).Get("X-Request-Id"); got != "" {
 		t.Fatalf("X-Request-Id = %q, want it stripped regardless of enabled", got)
 	}
 }
 
-// x-codex-* 不在默认白名单里，但透传路径会强制放行，所以必须能被查询到。
+// x-codex-* 不在默认白名单里，但透传路径会强制放行，所以必须能被 IsRemoved 查到。
 func TestIsRemovedCoversTheForcedCodexHeaders(t *testing.T) {
-	filter := CompileHeaderFilter(config.ResponseHeaderConfig{HideUpstream: true})
+	withHideUpstream(t, true)
+	filter := CompileHeaderFilter(config.ResponseHeaderConfig{})
 	for _, key := range upstreamIdentityHeaders {
 		if !filter.IsRemoved(key) {
 			t.Fatalf("IsRemoved(%q) = false, want true", key)
@@ -76,11 +85,15 @@ func TestIsRemovedCoversTheForcedCodexHeaders(t *testing.T) {
 		t.Fatal("IsRemoved must be case-insensitive")
 	}
 	if filter.IsRemoved("content-type") {
-		t.Fatal("content-type must never be removed by hide_upstream")
+		t.Fatal("content-type must never be hidden")
+	}
+	if !(*CompiledHeaderFilter)(nil).IsRemoved("x-request-id") {
+		t.Fatal("the policy must hold even for a nil filter")
 	}
 }
 
 func TestIsRemovedHonoursExplicitForceRemove(t *testing.T) {
+	withHideUpstream(t, false)
 	filter := CompileHeaderFilter(config.ResponseHeaderConfig{
 		Enabled:     true,
 		ForceRemove: []string{" X-Request-Id "},
@@ -89,6 +102,6 @@ func TestIsRemovedHonoursExplicitForceRemove(t *testing.T) {
 		t.Fatal("force_remove entries must be trimmed, lowercased and queryable")
 	}
 	if (*CompiledHeaderFilter)(nil).IsRemoved("x-request-id") {
-		t.Fatal("a nil filter removes nothing")
+		t.Fatal("a nil filter removes nothing once the policy is off")
 	}
 }

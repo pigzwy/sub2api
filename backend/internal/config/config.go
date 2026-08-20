@@ -863,11 +863,6 @@ type ResponseHeaderConfig struct {
 	Enabled           bool     `mapstructure:"enabled"`
 	AdditionalAllowed []string `mapstructure:"additional_allowed"`
 	ForceRemove       []string `mapstructure:"force_remove"`
-
-	// HideUpstream 剥掉会暴露上游身份与配额的响应头（x-request-id、x-ratelimit-*、
-	// x-codex-*）。上游本身是中转时打开，客户端就看不出这是转发的。
-	// 与 Enabled 无关：关掉自定义过滤不应静默恢复泄露。
-	HideUpstream bool `mapstructure:"hide_upstream"`
 }
 
 type CSPConfig struct {
@@ -2048,7 +2043,6 @@ func setDefaults() {
 	viper.SetDefault("security.response_headers.enabled", true)
 	viper.SetDefault("security.response_headers.additional_allowed", []string{})
 	viper.SetDefault("security.response_headers.force_remove", []string{})
-	viper.SetDefault("security.response_headers.hide_upstream", false)
 	viper.SetDefault("security.csp.enabled", true)
 	viper.SetDefault("security.csp.policy", DefaultCSPPolicy)
 	viper.SetDefault("security.proxy_probe.insecure_skip_verify", false)
