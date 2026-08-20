@@ -149,15 +149,8 @@
             @update:pageSize="onErrPageSize"
             @ipGeoBatchFailed="handleIpGeoBatchFailed" />
         </div>
-        <div v-show="activeTab === 'audit'" class="space-y-4 overflow-hidden rounded-b-2xl p-4">
-          <RequestAuditSettings @saved="onRequestAuditSettingsSaved" />
-          <RequestAuditPanel
-            v-if="requestAuditEnabled"
-            ref="requestAuditPanelRef"
-            :start-date="startDate"
-            :end-date="endDate"
-            :filters="filters"
-          />
+        <div v-if="requestAuditEnabled" v-show="activeTab === 'audit'" class="overflow-hidden rounded-b-2xl p-4">
+          <RequestAuditPanel ref="requestAuditPanelRef" :start-date="startDate" :end-date="endDate" :filters="filters" />
         </div>
         <!-- 懒挂载：首次切到该 tab 才请求排行数据，之后随筛选自动刷新 -->
         <div v-if="rankingMounted" v-show="activeTab === 'ranking'" class="overflow-hidden rounded-b-2xl">
@@ -206,7 +199,6 @@ import UsageTable from '@/components/admin/usage/UsageTable.vue'; import UsageEx
 import UserTokenRanking from '@/components/admin/usage/UserTokenRanking.vue'
 import UsageCleanupDialog from '@/components/admin/usage/UsageCleanupDialog.vue'
 import RequestAuditPanel from '@/components/admin/usage/RequestAuditPanel.vue'
-import RequestAuditSettings from '@/components/admin/usage/RequestAuditSettings.vue'
 import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryModal.vue'
 import OpsErrorLogTable from '@/views/admin/ops/components/OpsErrorLogTable.vue'
 import OpsErrorDetailModal from '@/views/admin/ops/components/OpsErrorDetailModal.vue'
@@ -796,8 +788,9 @@ const detailTabs = computed(() => {
     { key: 'usage', label: t('usage.tabs.usage'), icon: 'document' },
     { key: 'errors', label: t('usage.tabs.errors'), icon: 'exclamationTriangle' },
   ]
-  // tab 常驻：审计设置就在这个 tab 里，关掉后若把 tab 也藏了就再也开不回来。
-  tabs.push({ key: 'audit', label: t('usage.tabs.audit'), icon: 'document' })
+  if (requestAuditEnabled.value) {
+    tabs.push({ key: 'audit', label: t('usage.tabs.audit'), icon: 'document' })
+  }
   tabs.push({ key: 'ranking', label: t('usage.tabs.ranking'), icon: 'chart' })
   return tabs
 })
@@ -871,15 +864,11 @@ const loadRequestAuditEnabled = async () => {
   try {
     const settings = await adminAPI.settings.getSettings()
     requestAuditEnabled.value = settings.request_audit_enabled === true
+    if (!requestAuditEnabled.value && activeTab.value === 'audit') activeTab.value = 'usage'
   } catch {
     requestAuditEnabled.value = false
+    if (activeTab.value === 'audit') activeTab.value = 'usage'
   }
-}
-
-// 面板内保存后立刻反映，不必刷新页面。
-const onRequestAuditSettingsSaved = (enabled: boolean) => {
-  requestAuditEnabled.value = enabled
-  if (enabled) requestAuditPanelRef.value?.refreshData()
 }
 
 const showColumnDropdown = ref(false)
