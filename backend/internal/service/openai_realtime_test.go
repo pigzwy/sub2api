@@ -121,6 +121,16 @@ func TestSummarizeOpenAIRealtimePool(t *testing.T) {
 		summarizeOpenAIRealtimePool([]Account{oauth, apikeyWithout}, func(*Account) string { return "stub" }))
 }
 
+// 渠道模型限制在账号过滤之前拒绝：nil channelService 时不得误报，
+// 保证归因函数在未装配渠道服务的路径上仍回落到账号侧分类。
+func TestDiagnoseChannelRestrictionNilChannelServiceIsSafe(t *testing.T) {
+	svc := &OpenAIGatewayService{}
+	require.False(t, svc.checkChannelPricingRestriction(context.Background(), nil, "gpt-realtime-2.1"))
+	groupID := int64(69)
+	require.False(t, svc.checkChannelPricingRestriction(context.Background(), &groupID, "gpt-realtime-2.1"))
+	require.False(t, svc.checkChannelPricingRestriction(context.Background(), &groupID, ""))
+}
+
 // 调度器本尊的逐账号判定：模型映射白名单不含请求模型时给出 model_not_supported，
 // 空映射放行——钉住"配了映射的账号会被静默排除出语音调度"这一机制。
 func TestSchedulerVerdictModelNotSupported(t *testing.T) {

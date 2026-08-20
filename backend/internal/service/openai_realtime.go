@@ -43,6 +43,10 @@ const (
 	// ≤0——占槽 Lua 的 count < maxConcurrency 在 0 上恒假，该账号永远无可用
 	// 槽。配置态问题（把账号「并发数」改成 ≥1），重试无效。
 	OpenAIRealtimeUnavailableConcurrencyZero = "concurrency_limit_zero"
+	// OpenAIRealtimeUnavailableChannelRestricted 分组渠道开启了「限制模型」
+	// 且渠道价目表中没有该模型——选号在账号过滤之前即被拒绝（账号本身完全
+	// 健康，逐账号判定会显示 sched=ok）。配置态问题，重试无效。
+	OpenAIRealtimeUnavailableChannelRestricted = "channel_model_restricted"
 	// OpenAIRealtimeUnavailableTransient 存在具备能力且并发上限有效的账号，
 	// 本次失败为瞬时态（并发占满/冷却/调度竞争），可重试。
 	OpenAIRealtimeUnavailableTransient = "temporarily_unavailable"
@@ -138,6 +142,11 @@ func (s *OpenAIGatewayService) DiagnoseOpenAIRealtimeUnavailable(ctx context.Con
 			}
 			return reason
 		}
+	}
+	// 渠道模型限制在账号过滤之前拒绝，账号侧全部健康也会失败——必须先判，
+	// 否则会被误分类成瞬时态（真实案例：分组 69 排障绕了两天）。
+	if s.checkChannelPricingRestriction(ctx, groupID, model) {
+		return OpenAIRealtimeUnavailableChannelRestricted, summarizeOpenAIRealtimePool(accounts, verdict)
 	}
 	return classifyOpenAIRealtimeUnavailable(accounts), summarizeOpenAIRealtimePool(accounts, verdict)
 }
