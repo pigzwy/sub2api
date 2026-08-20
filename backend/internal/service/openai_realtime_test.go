@@ -209,3 +209,20 @@ func TestProfitControlSuppressedContextSkipsVeto(t *testing.T) {
 	vetoed, _ = openAIProfitControlVetoReason(suppressed, account)
 	require.False(t, vetoed, "语音路径抑制利润门后不得否决健康账号")
 }
+
+// require_privacy_set 与 Realtime 结构冲突：OpenAI 平台的 IsPrivacySet 要求
+// extra.privacy_mode=training_off（仅 OAuth 探测写入），而 Realtime 只调度
+// API-Key 账号——两者同时开启时账号必被 privacy_not_set 排除。
+// Grok 不受影响（IsPrivacySet 对非 openai 平台恒为 true），这正是
+// 「Grok 语音能用、OpenAI 语音打不通」的成因。
+func TestPrivacySetGateBlocksAPIKeyRealtimeAccounts(t *testing.T) {
+	apikey := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "sk-1"}}
+	require.False(t, apikey.IsPrivacySet(), "API-Key 账号不可能有 privacy_mode=training_off")
+
+	oauthWithPrivacy := &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth,
+		Extra: map[string]any{"privacy_mode": PrivacyModeTrainingOff}}
+	require.True(t, oauthWithPrivacy.IsPrivacySet())
+
+	grok := &Account{Platform: PlatformGrok, Type: AccountTypeAPIKey}
+	require.True(t, grok.IsPrivacySet(), "非 openai 平台恒为 true —— Grok 语音不受该开关影响")
+}

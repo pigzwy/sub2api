@@ -105,7 +105,7 @@ func (h *OpenAIGatewayHandler) OpenAIRealtime(c *gin.Context) {
 		// 503 带机器可读归因码：配置态（能力未勾选/无账号）与瞬时态分开，
 		// 下游据 error.code 精确翻译，避免把配置问题提示成"稍后再试"。
 		// 逐账号摘要只进日志：管理员据此直接定位该改哪个账号。
-		reason, poolSummary := h.gatewayService.DiagnoseOpenAIRealtimeUnavailable(c.Request.Context(), apiKey.GroupID, model)
+		reason, poolSummary := h.gatewayService.DiagnoseOpenAIRealtimeUnavailable(c.Request.Context(), apiKey.GroupID, model, apiKey.Group)
 		// select_err 是选号函数的原始错误：渠道模型限制等"账号过滤之前"的
 		// 拒绝只体现在这里，逐账号判定会全是 sched=ok。
 		reqLog.Info("openai_realtime.pool_diagnosis",
@@ -121,6 +121,8 @@ func (h *OpenAIGatewayHandler) OpenAIRealtime(c *gin.Context) {
 			message = "Realtime-capable accounts exist but their concurrency limit is 0 (0 means never schedulable): set the account's concurrency to at least 1"
 		case service.OpenAIRealtimeUnavailableChannelRestricted:
 			message = "The group's channel restricts models and has no pricing entry for this model: add it to the channel model pricing, or turn off model restriction for this channel"
+		case service.OpenAIRealtimeUnavailablePrivacyNotSet:
+			message = "This group requires accounts to have privacy set, which API-key accounts can never satisfy; realtime only schedules API-key accounts. Turn off \"require privacy set\" for this group"
 		case service.OpenAIRealtimeUnavailableNoAPIKeyAccounts:
 			message = "Realtime requires an API-Key account; this group has no schedulable API-Key accounts"
 		case service.OpenAIRealtimeUnavailableNoAccounts:

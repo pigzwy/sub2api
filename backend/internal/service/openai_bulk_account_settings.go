@@ -94,7 +94,8 @@ func normalizeBulkOpenAIEndpointCapabilities(raw any) (any, bool, error) {
 	selected := make(map[string]bool, 2)
 	for _, value := range values {
 		switch OpenAIEndpointCapability(value) {
-		case OpenAIEndpointCapabilityChatCompletions, OpenAIEndpointCapabilityEmbeddings:
+		case OpenAIEndpointCapabilityChatCompletions, OpenAIEndpointCapabilityEmbeddings,
+			OpenAIEndpointCapabilityRealtime:
 			selected[value] = true
 		default:
 			return nil, false, invalidBulkOpenAIEndpointCapabilities()
