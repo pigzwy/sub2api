@@ -43,6 +43,10 @@ const (
 	// ≤0——占槽 Lua 的 count < maxConcurrency 在 0 上恒假，该账号永远无可用
 	// 槽。配置态问题（把账号「并发数」改成 ≥1），重试无效。
 	OpenAIRealtimeUnavailableConcurrencyZero = "concurrency_limit_zero"
+	// OpenAIRealtimeUnavailableChannelRestricted 分组渠道开启了「限制模型」
+	// 且渠道价目表中没有该模型——选号在账号过滤之前即被拒绝（账号本身完全
+	// 健康，逐账号判定会显示 sched=ok）。配置态问题，重试无效。
+	OpenAIRealtimeUnavailableChannelRestricted = "channel_model_restricted"
 	// OpenAIRealtimeUnavailableTransient 存在具备能力且并发上限有效的账号，
 	// 本次失败为瞬时态（并发占满/冷却/调度竞争），可重试。
 	OpenAIRealtimeUnavailableTransient = "temporarily_unavailable"
@@ -139,7 +143,35 @@ func (s *OpenAIGatewayService) DiagnoseOpenAIRealtimeUnavailable(ctx context.Con
 			return reason
 		}
 	}
-	return classifyOpenAIRealtimeUnavailable(accounts), summarizeOpenAIRealtimePool(accounts, verdict)
+	summary := summarizeOpenAIRealtimePool(accounts, verdict)
+
+	// 选号真正使用的候选来源与资格判定与上面那份"原始分组账号列表"不是同一套：
+	// listSchedulableAccounts 走调度快照 + 调度阈值过滤，
+	// isOpenAICompatibleAccountEligibleForRequest 还包含模型级限流、配额自动
+	// 暂停、compact 档位等关卡。两份对不上时，差异本身就是根因所在，
+	// 因此把选号侧的实况一并落日志（仅失败路径执行一次）。
+	if schedAccounts, schedErr := s.listSchedulableAccounts(ctx, groupID, PlatformOpenAI); schedErr != nil {
+		summary += fmt.Sprintf(" | sched_pool_err=%v", schedErr)
+	} else {
+		parts := make([]string, 0, len(schedAccounts))
+		for i := range schedAccounts {
+			acc := &schedAccounts[i]
+			parts = append(parts, fmt.Sprintf("id=%d elig=%t", acc.ID,
+				isOpenAICompatibleAccountEligibleForRequest(ctx, acc, PlatformOpenAI, model, false, OpenAIEndpointCapabilityRealtime)))
+		}
+		if len(parts) == 0 {
+			summary += " | sched_pool=empty(账号在调度取数阶段即被丢弃：调度快照未收录或调度阈值拦截)"
+		} else {
+			summary += " | sched_pool=" + strings.Join(parts, ",")
+		}
+	}
+
+	// 渠道模型限制在账号过滤之前拒绝，账号侧全部健康也会失败——必须先判，
+	// 否则会被误分类成瞬时态。
+	if s.checkChannelPricingRestriction(ctx, groupID, model) {
+		return OpenAIRealtimeUnavailableChannelRestricted, summary
+	}
+	return classifyOpenAIRealtimeUnavailable(accounts), summary
 }
 
 // StableOpenAIRealtimeBillingRequestID 保证 realtime 每回合有独立且带前缀的
