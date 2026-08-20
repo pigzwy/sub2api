@@ -41,9 +41,43 @@ var hopByHopHeaders = map[string]struct{}{
 	"connection":        {},
 }
 
+// upstreamIdentityHeaders 是白名单里会暴露上游身份与配额状态的响应头。
+//
+// 当上游本身也是一台中转（sub2api / new-api 之类）时，把它们原样透传，等于直接
+// 告诉客户端"这里是转发的"，而且给出的请求 ID 与限额数字来自中转站，既暴露架构
+// 又会误导排查。hide_upstream 打开后一律剥掉。
+//
+// x-codex-* 在透传路径上被强制放行（见 writeOpenAIPassthroughResponseHeaders），
+// 所以必须一并登记，否则单靠 force_remove 堵不住。
+var upstreamIdentityHeaders = []string{
+	"x-request-id",
+	"x-ratelimit-limit-requests",
+	"x-ratelimit-limit-tokens",
+	"x-ratelimit-remaining-requests",
+	"x-ratelimit-remaining-tokens",
+	"x-ratelimit-reset-requests",
+	"x-ratelimit-reset-tokens",
+	"x-codex-primary-used-percent",
+	"x-codex-primary-reset-after-seconds",
+	"x-codex-primary-window-minutes",
+	"x-codex-secondary-used-percent",
+	"x-codex-secondary-reset-after-seconds",
+	"x-codex-secondary-window-minutes",
+	"x-codex-primary-over-secondary-limit-percent",
+}
+
 type CompiledHeaderFilter struct {
 	allowed     map[string]struct{}
 	forceRemove map[string]struct{}
+}
+
+// IsRemoved 供那些在过滤之后又单独回写响应头的路径查询，避免绕过 force_remove。
+func (f *CompiledHeaderFilter) IsRemoved(key string) bool {
+	if f == nil {
+		return false
+	}
+	_, removed := f.forceRemove[strings.ToLower(strings.TrimSpace(key))]
+	return removed
 }
 
 var defaultCompiledHeaderFilter = CompileHeaderFilter(config.ResponseHeaderConfig{})
@@ -65,8 +99,14 @@ func CompileHeaderFilter(cfg config.ResponseHeaderConfig) *CompiledHeaderFilter 
 	}
 
 	forceRemove := map[string]struct{}{}
+	// HideUpstream 刻意不受 Enabled 约束：它是一个「别暴露自己是中转」的独立诉求，
+	// 若也跟着 Enabled 走，关掉自定义过滤就会静默恢复泄露，正是最容易踩空的地方。
+	if cfg.HideUpstream {
+		for _, key := range upstreamIdentityHeaders {
+			forceRemove[key] = struct{}{}
+		}
+	}
 	if cfg.Enabled {
-		forceRemove = make(map[string]struct{}, len(cfg.ForceRemove))
 		for _, key := range cfg.ForceRemove {
 			normalized := strings.ToLower(strings.TrimSpace(key))
 			if normalized == "" {

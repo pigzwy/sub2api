@@ -46,6 +46,7 @@ git log --no-merges --oneline upstream/main..request-audit  # 本地提交
 | 自定义菜单打开方式 | ✅ | ✅ | — | — | 复用 `custom_menu_items` |
 | 每日签到（活动） | ✅ | ✅ | ✅ `224` | — | 4 项 |
 | Studio 创作台免登录接力 | — | ✅ | — | — | — |
+| 隐藏上游中转痕迹 | ✅ | — | — | ✅ `security.response_headers.hide_upstream` | — |
 | fork 分支镜像构建 | — | — | — | — | — |
 | OpenAI Realtime 语音网关（含语音运营工具） | ✅ | ✅ | ✅ `227`、`228` | — | — |
 | 稳定静态 SPA 壳与页面写请求硬化 | ✅ | ✅ | — | — | — |
@@ -540,6 +541,40 @@ backend/migrations/228_usage_log_audio_tokens.sql
 - `backend/internal/web/static_cache_test.go`：ETag 稳定性和 GET/HEAD 方法边界。
 - 推送后由 CI 执行后端 unit、前端 typecheck/测试和镜像构建；本生产机只做
   `git diff --check` 等静态检查。
+
+---
+
+## 11. 隐藏上游中转痕迹（响应头）
+
+上游若本身也是一台中转（sub2api / new-api 等），它返回的 `x-request-id` 与六个 `x-ratelimit-*` 会穿过默认白名单原样回到客户端。那些值属于**中转站**而不是真实厂商，既暴露了转发架构，也会让照着限额数字排查的人看错。
+
+**开关**（`config.yaml`，无后台设置项）：
+
+```yaml
+security:
+  response_headers:
+    hide_upstream: true
+```
+
+打开后剥掉 14 个响应头：`x-request-id`、六个 `x-ratelimit-*`、七个 `x-codex-*`。`content-type`、`retry-after` 等协议必需项保留——客户端仍需要 `retry-after` 来退避。
+
+**刻意不受 `enabled` 约束**。`security.response_headers.enabled: false` 的语义是"只用默认白名单、自定义的 `additional_allowed` / `force_remove` 全部失效"（`responseheaders.go` 的 `CompileHeaderFilter`），若 `hide_upstream` 也跟着它走，关掉自定义过滤就会静默恢复泄露——这正是最容易踩空的地方。
+
+**为什么单靠 `force_remove` 堵不住**：有两条路径在过滤之后又把头写了回去，二开为此各加了一处守卫。
+
+- `service/gateway_upstream_response.go`：Claude 流式路径在 `WriteFilteredHeaders` 之后无条件 `c.Header("x-request-id", …)`，删了又加回来。
+- `service/openai_gateway_passthrough.go`：`writeOpenAIPassthroughResponseHeaders` 用 `dst.Del` + `dst.Add` 强制放行七个 `x-codex-*`，完全绕过白名单。
+
+两处现在都先查 `CompiledHeaderFilter.IsRemoved(key)`。这也意味着**手写 `force_remove` 从此才真正生效**，不只是 `hide_upstream` 受益。
+
+**涉及文件**
+
+- `internal/util/responseheaders/responseheaders.go`：新增 `upstreamIdentityHeaders`、`HideUpstream` 编译分支、导出 `IsRemoved`。
+- `internal/config/config.go`：`ResponseHeaderConfig.HideUpstream` + viper 默认值 `false`（默认关闭，不改变既有部署行为）。
+- `internal/service/gateway_upstream_response.go`、`internal/service/openai_gateway_passthrough.go`：各一处守卫。
+- `deploy/config.example.yaml`：配置块与中英注释。
+
+**测试**：`util/responseheaders/hide_upstream_test.go`（剥离生效、关闭时保持原样、不随 `enabled` 失效、`IsRemoved` 大小写与 nil 接收者）、`service/response_header_hide_upstream_test.go`（透传路径的 `x-codex-*` 服从开关，且默认仍放行）。均为新文件，不扩上游测试的 diff。
 
 ---
 
