@@ -443,7 +443,7 @@ docker compose up -d sub2api
 
 **入口**
 
-- 分组编辑（openai 平台）：「OpenAI Live」区块下新增**允许访问 Realtime 语音（/v1/realtime）**开关（`groups.allow_realtime`，默认关；非 openai 平台保存时强制清零，与 `allow_live` 同门禁）。
+- 分组编辑（openai 与 composite 平台）：「OpenAI Live」区块下新增**允许访问 Realtime 语音（/v1/realtime）**开关（`groups.allow_realtime`，默认关；非 openai/composite 平台保存时强制清零，与 `allow_live` 同门禁）。
 - 账号编辑（openai + API Key）：「端点能力」新增 **Realtime 语音（/v1/realtime）**。显式开通制：`credentials.openai_capabilities` 未配置或未含 `realtime` 的账号**不参与**语音调度；OAuth/Codex 订阅号一律不支持（没有公开 realtime WS 通道）。
 - 账号测试（openai）：测试模式新增**实时语音 Realtime（WS /v1/realtime）**——真实拨号 `{base_url}/v1/realtime?model=…`，收到 `session.created` 判定该密钥可用所选模型；收到 `error` 事件（模型不存在/无权限）按失败上报原文；零 token 消耗。模型下拉自动收敛为 `gpt-realtime*`。仅 API-Key 账号。
 - 分组「模型列表配置」候选：openai 增 `gpt-realtime-2.1` / `gpt-realtime` / `gpt-realtime-mini`，grok 增 `grok-voice-latest`。**必须进默认模型表，只加候选不够**：`/v1/models` 自定义清单的兜底 source 来自 `DefaultModels`，不在表内的型号即使被勾选也会被过滤掉。grok 分组带账号时 `/v1/models` 经默认映射键自动含语音型号，可不配清单。
@@ -661,6 +661,12 @@ Grok 分组的音频兜底价格放在顶层 `audio`（其他平台不返回这�
 Composite 当前只打通了按模型路由的 Realtime，且同样要求 `allow_realtime=true`，所以
 只返回 `audio.grok_realtime`；其 TTS/STT handler 仍 fail closed，在真正接通前不返回
 这两项价格，避免 Studio 展示无法调用的能力。原生 Grok 分组返回上面的三项。
+
+管理端 GroupsView 的语音价格卡现对 Grok 与 composite 分组均可见，创建和编辑表单都能
+填写三个 `audio_*` 字段；composite 卡片不会显示 Grok 专用的 `search_price_per_1k`。
+其中 OpenAI Realtime 的三档 token 价格仍应在逐模型定价卡配置；composite 当前只有
+Realtime 已接通，TTS/STT 字段先作为兼容后续复合语音端点的可保存配置，端点未开放前不
+会产生可调用的 TTS/STT 计费路径。
 
 `source=group` 表示后台显式配置，`source=default` 表示使用网关实际计费的默认价；显式
 配置 0 会以 `source=group` 和价格 0 返回，语义为免费。这三种按量音频价只应用当前

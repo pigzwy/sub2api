@@ -596,7 +596,7 @@ export interface Group {
   video_model_prices?: VideoModelPrices
   // Codex 网页搜索单次价格（USD/次）；null 表示使用默认价 0.01
   web_search_price_per_call: number | null
-  // Grok Voice 显式定价（分组级）
+  // Voice 显式定价（Grok/Composite 分组级；Composite 当前仅 Realtime 已接通）
   search_price_per_1k: number | null
   audio_realtime_price_per_min: number | null
   audio_tts_price_per_million_chars: number | null

@@ -1098,6 +1098,8 @@ export default {
       voicePricing: {
         title: 'Grok Voice Pricing',
         description: 'Optional per-group prices for Voice realtime / TTS / STT (USD). Leave empty to leave unpriced.',
+        compositeTitle: 'Composite Voice Pricing',
+        compositeDescription: 'Configure group-level Grok-routed voice prices (USD). OpenAI Realtime uses the per-model token pricing section; TTS/STT fields are retained for compatible composite voice endpoints.',
         audioRealtimePerMin: 'Realtime price per minute (USD)',
         audioTtsPerMillionChars: 'TTS price per million chars (USD)',
         audioSttPerHour: 'STT price per hour (USD)',

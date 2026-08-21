@@ -1095,6 +1095,8 @@ export default {
       voicePricing: {
         title: 'Grok Voice 定价',
         description: '分组级 Voice realtime / TTS / STT 单价（USD）。留空表示未配置。',
+        compositeTitle: '复合分组语音定价',
+        compositeDescription: '配置复合分组中 Grok 路由语音的分组级单价（USD）。OpenAI Realtime 请在逐模型定价区域配置 token 价格；TTS/STT 字段为兼容后续复合语音端点保留。',
         audioRealtimePerMin: 'Realtime 每分钟价格（USD）',
         audioTtsPerMillionChars: 'TTS 每百万字符价格（USD）',
         audioSttPerHour: 'STT 每小时价格（USD）',

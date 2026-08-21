@@ -1519,19 +1519,32 @@
           </div>
         </div>
 
-        <!-- Grok Voice 显式定价（仅 grok 平台） -->
+        <!-- Voice 显式定价（Grok 与 Composite 平台） -->
         <div
-          v-if="createForm.platform === 'grok'"
+          v-if="supportsVoicePricingPlatform(createForm.platform)"
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
+          data-testid="create-voice-pricing"
         >
           <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            {{ t("admin.groups.explicitPricing.title") }}
+            {{
+              t(
+                createForm.platform === "composite"
+                  ? "admin.groups.voicePricing.compositeTitle"
+                  : "admin.groups.explicitPricing.title",
+              )
+            }}
           </h4>
           <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
-            {{ t("admin.groups.explicitPricing.description") }}
+            {{
+              t(
+                createForm.platform === "composite"
+                  ? "admin.groups.voicePricing.compositeDescription"
+                  : "admin.groups.explicitPricing.description",
+              )
+            }}
           </p>
           <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div>
+            <div v-if="createForm.platform === 'grok'">
               <label class="input-label">{{ t("admin.groups.explicitPricing.searchPricePer1k") }}</label>
               <input
                 v-model.number="createForm.search_price_per_1k"
@@ -3264,19 +3277,32 @@
           </div>
         </div>
 
-        <!-- Grok Voice 显式定价（仅 grok 平台） -->
+        <!-- Voice 显式定价（Grok 与 Composite 平台） -->
         <div
-          v-if="editForm.platform === 'grok'"
+          v-if="supportsVoicePricingPlatform(editForm.platform)"
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
+          data-testid="edit-voice-pricing"
         >
           <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            {{ t("admin.groups.explicitPricing.title") }}
+            {{
+              t(
+                editForm.platform === "composite"
+                  ? "admin.groups.voicePricing.compositeTitle"
+                  : "admin.groups.explicitPricing.title",
+              )
+            }}
           </h4>
           <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
-            {{ t("admin.groups.explicitPricing.description") }}
+            {{
+              t(
+                editForm.platform === "composite"
+                  ? "admin.groups.voicePricing.compositeDescription"
+                  : "admin.groups.explicitPricing.description",
+              )
+            }}
           </p>
           <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div>
+            <div v-if="editForm.platform === 'grok'">
               <label class="input-label">{{ t("admin.groups.explicitPricing.searchPricePer1k") }}</label>
               <input
                 v-model.number="editForm.search_price_per_1k"
@@ -4550,6 +4576,7 @@ import {
   serializeVideoModelPrices,
   videoModelPriceFamilyRows,
 } from "./groupsVideoModelPricing";
+import { supportsVoicePricingPlatform } from "./groupsVoicePricing";
 
 const supportsLivePlatform = (platform: string): boolean =>
   platform === "openai" || platform === "composite";
@@ -6099,6 +6126,9 @@ const handleCreateGroup = async () => {
     requestData.video_price_480p = emptyToNull(requestData.video_price_480p);
     requestData.video_price_720p = emptyToNull(requestData.video_price_720p);
     requestData.video_price_1080p = emptyToNull(requestData.video_price_1080p);
+    if (createForm.platform !== "grok") {
+      requestData.search_price_per_1k = null;
+    }
     requestData.search_price_per_1k = emptyToNull(
       requestData.search_price_per_1k,
     );
@@ -6174,7 +6204,8 @@ const handleEdit = async (group: AdminGroup) => {
     group.video_model_prices,
   );
   editForm.web_search_price_per_call = group.web_search_price_per_call ?? null;
-  editForm.search_price_per_1k = group.search_price_per_1k ?? null;
+  editForm.search_price_per_1k =
+    group.platform === "grok" ? group.search_price_per_1k ?? null : null;
   editForm.audio_realtime_price_per_min = group.audio_realtime_price_per_min ?? null;
   editForm.audio_tts_price_per_million_chars = group.audio_tts_price_per_million_chars ?? null;
   editForm.audio_stt_price_per_hour = group.audio_stt_price_per_hour ?? null;
@@ -6376,9 +6407,15 @@ const handleUpdateGroup = async () => {
     payload.video_price_480p = emptyPriceToClear(payload.video_price_480p);
     payload.video_price_720p = emptyPriceToClear(payload.video_price_720p);
     payload.video_price_1080p = emptyPriceToClear(payload.video_price_1080p);
-    payload.search_price_per_1k = emptyPriceToClear(
-      payload.search_price_per_1k,
-    );
+    if (editForm.platform === "grok") {
+      payload.search_price_per_1k = emptyPriceToClear(
+        payload.search_price_per_1k,
+      );
+    } else {
+      // Search pricing is Grok-only.  Send the update sentinel so an old
+      // hidden value cannot survive after a group is reused outside Grok.
+      payload.search_price_per_1k = -1;
+    }
     payload.audio_realtime_price_per_min = emptyPriceToClear(
       payload.audio_realtime_price_per_min,
     );
@@ -6706,6 +6743,9 @@ watch(
     if (newVal !== "openai") {
       resetMessagesDispatchFormState(createForm);
     }
+    if (newVal !== "grok") {
+      createForm.search_price_per_1k = null;
+    }
     if (!supportsLivePlatform(newVal)) {
       createForm.allow_live = false;
       createForm.allow_realtime = false;
@@ -6756,6 +6796,9 @@ watch(
     }
     if (newVal !== "openai") {
       resetMessagesDispatchFormState(editForm);
+    }
+    if (newVal !== "grok") {
+      editForm.search_price_per_1k = null;
     }
     if (!supportsLivePlatform(newVal)) {
       editForm.allow_live = false;
