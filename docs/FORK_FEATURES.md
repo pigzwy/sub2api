@@ -509,6 +509,9 @@ backend/migrations/228_usage_log_audio_tokens.sql
 `service/api_key_auth_cache_impl.go` 在鉴权缓存快照里携带 `AllowRealtime`，
 否则命中缓存的请求读不到分组的 realtime 开关；前端
 `components/account/{Create,Edit,BulkEdit}AccountModal.vue` 三处能力下拉加入该项。
+`repository/scheduler_cache.go` 的调度 metadata 白名单必须保留
+`credentials.openai_capabilities`；桶快照读取的是精简 metadata 而非完整账号，漏投影会造成
+数据库账号显示 `cap=true`、真实候选池却以 `capability_mismatch` 淘汰同一账号。
 **注意**：未勾选时保存会回落为默认两项，批量编辑时尤其容易把已开通的账号改回去。
 
 **已知边界**

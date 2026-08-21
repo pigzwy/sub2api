@@ -70,6 +70,45 @@ func TestSchedulerCacheSetAccountClearsUnencodablePayload(t *testing.T) {
 	require.Nil(t, cached)
 }
 
+func TestSchedulerCacheSnapshotPreservesOpenAIEndpointCapabilities(t *testing.T) {
+	ctx := context.Background()
+	cache := newSchedulerCacheUnit(t)
+	bucket := service.SchedulerBucket{
+		GroupID:  71,
+		Platform: service.PlatformOpenAI,
+		Mode:     service.SchedulerModeSingle,
+	}
+	token, err := cache.CaptureBucketWriteToken(ctx, bucket)
+	require.NoError(t, err)
+	account := service.Account{
+		ID:          15046,
+		Platform:    service.PlatformOpenAI,
+		Type:        service.AccountTypeAPIKey,
+		Status:      service.StatusActive,
+		Schedulable: true,
+		Concurrency: 10,
+		Credentials: map[string]any{
+			"api_key":             "sk-test",
+			"openai_capabilities": []string{"chat_completions", "embeddings", "realtime"},
+			"access_token":        "must-not-enter-metadata",
+		},
+	}
+	require.NoError(t, cache.SetSnapshot(ctx, bucket, token, []service.Account{account}))
+
+	full, err := cache.GetAccount(ctx, account.ID)
+	require.NoError(t, err)
+	require.NotNil(t, full)
+	require.True(t, full.SupportsOpenAIEndpointCapability(service.OpenAIEndpointCapabilityRealtime))
+
+	snapshot, hit, err := cache.GetSnapshot(ctx, bucket)
+	require.NoError(t, err)
+	require.True(t, hit)
+	require.Len(t, snapshot, 1)
+	require.True(t, snapshot[0].SupportsOpenAIEndpointCapability(service.OpenAIEndpointCapabilityRealtime),
+		"the scheduler metadata account must retain the same endpoint capabilities as the full account")
+	require.Empty(t, snapshot[0].GetCredential("access_token"))
+}
+
 func TestSchedulerCacheUpdateLastUsedClearsUnencodablePayload(t *testing.T) {
 	ctx := context.Background()
 	cache := newSchedulerCacheUnit(t)
