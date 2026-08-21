@@ -141,11 +141,15 @@ func BuildEffectiveGroupModelPricingCatalog(group *Group, resolvedGroupMultiplie
 	return catalog
 }
 
-// AddEffectiveGroupAudioPricing adds the three group-wide audio billing modes.
+// AddEffectiveGroupAudioPricing adds group-wide audio modes that the platform
+// can currently serve.
 // rateMultiplier is the resolved user/group multiplier without the token-only
 // peak factor, matching CalculateAudioCost in the OpenAI/Grok usage path.
 func AddEffectiveGroupAudioPricing(catalog *EffectiveGroupModelPricingCatalog, group *Group, rateMultiplier float64) {
 	if catalog == nil || group == nil {
+		return
+	}
+	if group.Platform != PlatformGrok && (group.Platform != PlatformComposite || !group.AllowRealtime) {
 		return
 	}
 	if rateMultiplier < 0 {
@@ -157,6 +161,12 @@ func AddEffectiveGroupAudioPricing(catalog *EffectiveGroupModelPricingCatalog, g
 		GroupAudioPricingUnitMinute,
 		rateMultiplier,
 	)
+	// Composite currently exposes only the model-routed Realtime endpoint.
+	// TTS/STT still fail closed inside GrokVoice until their endpoint routing is
+	// explicitly defined, so do not advertise prices for unusable capabilities.
+	if group.Platform == PlatformComposite {
+		return
+	}
 	catalog.Audio[GroupAudioPricingTTS] = effectiveGroupAudioPrice(
 		group.AudioTTSPricePerMillionChars,
 		defaultAudioTTSPricePerMillionChars,
@@ -201,6 +211,9 @@ func (r *ModelPricingResolver) AddEffectiveAudioTokenModelPricing(
 	pricingAt time.Time,
 ) bool {
 	if r == nil || catalog == nil || group == nil {
+		return false
+	}
+	if !group.AllowRealtime || (group.Platform != PlatformOpenAI && group.Platform != PlatformComposite) {
 		return false
 	}
 	model = normalizeChannelPricingModelName(model)

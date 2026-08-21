@@ -622,7 +622,8 @@ OpenAI Realtime 是 token 计费例外：接口默认解析内置清单里的 `g
 重复的 `?model=` 或逗号分隔的 `?models=` 查询（合计最多 32 个，只接受名称含
 `realtime` 的非通配模型）。解析链与真实扣费一致，为 Group → Channel → LiteLLM →
 Fallback；只有 audio input、audio output、audio cache-read 三个专用价格均可确定时，
-才把该模型标记为 `displayable=true`：
+才把该模型标记为 `displayable=true`。该投影只对已开启 `allow_realtime` 的 OpenAI 或
+composite 分组生效：
 
 ```json
 {
@@ -641,7 +642,7 @@ Fallback；只有 audio input、audio output、audio cache-read 三个专用价�
 只能用对应 token 数直接相乘，不能再次乘倍率。任一专用档缺失时接口不拿可能随上下文
 变化的文本 token 价格冒充音频价，而是让模型保持缺席/不可展示。
 
-分组级音频兜底价格放在顶层 `audio`，固定契约如下：
+Grok 分组的音频兜底价格放在顶层 `audio`（其他平台不返回这些项），固定契约如下：
 
 ```json
 {
@@ -650,6 +651,10 @@ Fallback；只有 audio input、audio output、audio cache-read 三个专用价�
   "stt": {"unit":"hour","source":"default","prices":{"default":0.1}}
 }
 ```
+
+Composite 当前只打通了按模型路由的 Realtime，且同样要求 `allow_realtime=true`，所以
+只返回 `audio.grok_realtime`；其 TTS/STT handler 仍 fail closed，在真正接通前不返回
+这两项价格，避免 Studio 展示无法调用的能力。原生 Grok 分组返回上面的三项。
 
 `source=group` 表示后台显式配置，`source=default` 表示使用网关实际计费的默认价；显式
 配置 0 会以 `source=group` 和价格 0 返回，语义为免费。这三种按量音频价只应用当前

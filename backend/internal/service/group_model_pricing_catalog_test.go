@@ -2,9 +2,12 @@ package service
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -212,6 +215,7 @@ func TestAddEffectiveGroupAudioPricingUsesConfiguredAndDefaultPrices(t *testing.
 	realtime := 0.08
 	freeTTS := 0.0
 	group := &Group{
+		Platform:                     PlatformGrok,
 		AudioRealtimePricePerMin:     &realtime,
 		AudioTTSPricePerMillionChars: &freeTTS,
 	}
@@ -232,7 +236,7 @@ func TestAddEffectiveGroupAudioPricingUsesConfiguredAndDefaultPrices(t *testing.
 }
 
 func TestAddEffectiveGroupAudioPricingDoesNotChangeTokenMultiplier(t *testing.T) {
-	group := &Group{}
+	group := &Group{Platform: PlatformGrok}
 	catalog := BuildEffectiveGroupModelPricingCatalog(group, 0.5)
 	catalog.TokenMultiplier = 1.25
 
@@ -240,6 +244,29 @@ func TestAddEffectiveGroupAudioPricingDoesNotChangeTokenMultiplier(t *testing.T)
 
 	require.Equal(t, 1.25, catalog.TokenMultiplier)
 	require.Equal(t, defaultAudioRealtimePricePerMin*0.5, catalog.Audio[GroupAudioPricingGrokRealtime].Prices["default"])
+}
+
+func TestAddEffectiveGroupAudioPricingSkipsUnsupportedPlatforms(t *testing.T) {
+	group := &Group{Platform: PlatformOpenAI}
+	catalog := BuildEffectiveGroupModelPricingCatalog(group, 1)
+
+	AddEffectiveGroupAudioPricing(&catalog, group, 1)
+
+	require.Empty(t, catalog.Audio)
+}
+
+func TestAddEffectiveGroupAudioPricingLimitsCompositeToEnabledRealtime(t *testing.T) {
+	disabled := &Group{Platform: PlatformComposite}
+	disabledCatalog := BuildEffectiveGroupModelPricingCatalog(disabled, 1)
+	AddEffectiveGroupAudioPricing(&disabledCatalog, disabled, 1)
+	require.Empty(t, disabledCatalog.Audio)
+
+	enabled := &Group{Platform: PlatformComposite, AllowRealtime: true}
+	enabledCatalog := BuildEffectiveGroupModelPricingCatalog(enabled, 1)
+	AddEffectiveGroupAudioPricing(&enabledCatalog, enabled, 1)
+	require.Contains(t, enabledCatalog.Audio, GroupAudioPricingGrokRealtime)
+	require.NotContains(t, enabledCatalog.Audio, GroupAudioPricingTTS)
+	require.NotContains(t, enabledCatalog.Audio, GroupAudioPricingSTT)
 }
 
 func TestAddEffectiveAudioTokenModelPricingUsesResolvedBillingPrices(t *testing.T) {
@@ -253,7 +280,7 @@ func TestAddEffectiveAudioTokenModelPricingUsesResolvedBillingPrices(t *testing.
 		AudioCacheReadPricePerToken: 0.4e-6,
 	}
 	resolver := NewModelPricingResolver(nil, billing)
-	group := &Group{ID: 71}
+	group := &Group{ID: 71, Platform: PlatformOpenAI, AllowRealtime: true}
 	catalog := BuildEffectiveGroupModelPricingCatalog(group, 0.5)
 
 	added := resolver.AddEffectiveAudioTokenModelPricing(
@@ -270,9 +297,32 @@ func TestAddEffectiveAudioTokenModelPricingUsesResolvedBillingPrices(t *testing.
 	require.Equal(t, 0.2e-6, model.Prices[GroupModelPricingAudioCacheReadPriceKey])
 }
 
+func TestAddEffectiveAudioTokenModelPricingUsesEmbeddedGPTRealtime21Rates(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "resources", "model-pricing", "model_prices_and_context_window.json"))
+	require.NoError(t, err)
+	pricingService := &PricingService{}
+	pricingData, err := pricingService.parsePricingData(data)
+	require.NoError(t, err)
+	pricingService.pricingData = pricingData
+	billing := NewBillingService(&config.Config{}, pricingService)
+	resolver := NewModelPricingResolver(nil, billing)
+	group := &Group{ID: 71, Platform: PlatformOpenAI, AllowRealtime: true}
+	catalog := BuildEffectiveGroupModelPricingCatalog(group, 1)
+
+	added := resolver.AddEffectiveAudioTokenModelPricing(
+		context.Background(), &catalog, group, "gpt-realtime-2.1", 1, time.Now(),
+	)
+
+	require.True(t, added)
+	model := catalog.Models["gpt-realtime-2.1"]
+	require.InDelta(t, 32e-6, model.Prices[GroupModelPricingAudioInputPriceKey], 1e-12)
+	require.InDelta(t, 64e-6, model.Prices[GroupModelPricingAudioOutputPriceKey], 1e-12)
+	require.InDelta(t, 0.4e-6, model.Prices[GroupModelPricingAudioCacheReadPriceKey], 1e-12)
+}
+
 func TestAddEffectiveAudioTokenModelPricingRejectsPerRequestAndTextOnlyModels(t *testing.T) {
 	price := 0.1
-	group := &Group{ID: 71, ModelPricing: []ChannelModelPricing{{
+	group := &Group{ID: 71, Platform: PlatformOpenAI, AllowRealtime: true, ModelPricing: []ChannelModelPricing{{
 		Models:          []string{"per-request-realtime"},
 		BillingMode:     BillingModePerRequest,
 		PerRequestPrice: &price,
@@ -294,5 +344,10 @@ func TestAddEffectiveAudioTokenModelPricingRejectsPerRequestAndTextOnlyModels(t 
 	))
 	require.False(t, resolver.AddEffectiveAudioTokenModelPricing(
 		context.Background(), &catalog, group, "partial-audio-realtime", 1, time.Now(),
+	))
+
+	disabled := &Group{ID: 72, Platform: PlatformOpenAI}
+	require.False(t, resolver.AddEffectiveAudioTokenModelPricing(
+		context.Background(), &catalog, disabled, "gpt-realtime-test", 1, time.Now(),
 	))
 }

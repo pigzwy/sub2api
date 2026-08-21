@@ -52,6 +52,7 @@ func modelPricingTestGroup(id int64, exclusive bool, model string, price float64
 		Status:           service.StatusActive,
 		SubscriptionType: service.SubscriptionTypeStandard,
 		Platform:         service.PlatformComposite,
+		AllowRealtime:    true,
 		IsExclusive:      exclusive,
 		RateMultiplier:   1,
 		ModelPricing: []service.ChannelModelPricing{{
@@ -196,6 +197,8 @@ func TestBuildGroupModelPricingResponseAppliesPeakOnlyToTokenAudio(t *testing.T)
 	realtime := 0.08
 	group := &service.Group{
 		ID:                       71,
+		Platform:                 service.PlatformComposite,
+		AllowRealtime:            true,
 		SubscriptionType:         service.SubscriptionTypeSubscription,
 		AudioRealtimePricePerMin: &realtime,
 		PeakRateEnabled:          true,

@@ -68,8 +68,8 @@ type groupModelPricingResponse struct {
 	ObservedAt              time.Time                            `json:"observed_at"`
 }
 
-// KeyModelPricing returns the effective explicit media prices for the group
-// bound to the authenticated API key. GET /v1/sub2api/model-pricing
+// KeyModelPricing returns effective media and audio prices for the group bound
+// to the authenticated API key. GET /v1/sub2api/model-pricing
 func (h *GatewayHandler) KeyModelPricing(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
