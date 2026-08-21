@@ -49,6 +49,7 @@ git log --no-merges --oneline upstream/main..request-audit  # 本地提交
 | fork 分支镜像构建 | — | — | — | — | — |
 | OpenAI Realtime 语音网关（含语音运营工具） | ✅ | ✅ | ✅ `227`、`228` | — | — |
 | 稳定静态 SPA 壳与页面写请求硬化 | ✅ | ✅ | — | — | — |
+| Studio 分组模型售价接口 | ✅ | — | — | — | — |
 
 ---
 
@@ -573,7 +574,7 @@ backend/migrations/228_usage_log_audio_tokens.sql
   Gemini generateContent 路径，避免 multipart 中未改写的公开别名进入上游 URL。
 
 改动没有新增数据库迁移、设置项或 Redis key，也没有改变非 composite 分组。未解析到
-具体平台的 composite 请求继续 fail closed。Voice、Realtime、custom voices 以及
+具体平台的 composite 请求继续 fail closed。TTS、custom voices 以及
 web/x search 的无模型请求不在本节能力范围内；这些入口仍需独立的端点能力路由设计，
 不能隐式选择任意供应商。
 
@@ -584,6 +585,50 @@ web/x search 的无模型请求不在本节能力范围内；这些入口仍需�
 `handler/grok_media.go` 与 `service/grok_media.go`；刻意不修改路由热文件
 `server/routes/gateway.go`。后续合并上游时，应保留“消费 resolved target/upstream
 model”的语义，具体函数结构以上游为准。
+
+---
+
+## 14. Studio 分组模型售价接口（2026-08-21）
+
+Studio 的媒体模型菜单不再需要维护一份独立价格常量。网关提供两条认证边界明确、
+响应一致的只读接口：
+
+```text
+GET /v1/sub2api/model-pricing                 # Authorization: Bearer <分组 API key>
+GET /api/v1/groups/:id/model-pricing          # Authorization: Bearer <面板 JWT>
+```
+
+API-key 入口只读取该 key 绑定的分组，不接受客户端指定 group id；JWT 入口复用
+`GetAvailableGroups`，只允许当前用户实际可绑定的活动标准组、已授权专属组或具有有效
+订阅的订阅组。两者均返回 `Cache-Control: no-store`，不受模型广场开关影响。
+
+响应枚举 `groups.model_pricing` 中全部显式模型规则以保留真实匹配优先级，但只给
+`image` / `video` 规则标记 `displayable=true` 并投影销售价格；`token` / `per_request`
+规则标记 `displayable=false` 且不返回 `prices`，消费方必须显示「价格以实际扣费为准」。
+这是因为 `per_request` 可同时用于图片、音频等请求，脱离请求类型无法安全选择倍率。
+接口不返回渠道、账号、成本价、内部 pricing id 或其他分组配置。图片价格单位为
+USD/image，档位固定为 `1K` / `2K` / `4K`；视频价格单位为 USD/second，档位固定为
+`480p` / `720p` / `1080p`。可展示价格已经应用与真实扣费相同的当前用户分组倍率以及
+`image_rate_independent` / `video_rate_independent` 选择，因此 Studio 可直接显示，
+不能再自行重复乘倍率。
+
+契约 `schema_version=1`：`price_scope=effective`、`prices_include_multiplier=true`；
+`models` 是以模型名或后缀 `*` 前缀规则为 key 的对象，规则标记 `match_type=exact|prefix`；
+prefix 规则额外返回从 0 开始的全量规则 `priority`，数值越小越先匹配，exact 始终优先于
+prefix。成功响应中模型缺席明确表示该分组没有该显式模型规则，整个分组未配置模型规则时
+返回 `"models": {}`；请求失败使用非 2xx。接口不把渠道/内置回退价伪装成分组配置价。
+
+API-key 路径与 `/v1/sub2api/billing` 一样属于只读计费元数据：仍执行 Key、用户、分组和
+IP 鉴权，但不执行余额、配额、过期或订阅消费检查，也不刷新 `last_used_at`。该例外只对
+精确 GET 路径生效。
+
+实现新增 `service/group_model_pricing_catalog.go` 与
+`handler/group_model_pricing.go`；对上游的侵入点仅为 `routes/gateway.go` 和
+`routes/user.go` 各增加一条 GET 路由。无数据库迁移、设置项或 Redis key。
+
+测试覆盖老板当前七个媒体模型的价格表、图片/视频独立倍率、用户专属倍率、档位默认价
+回退、全量通配优先级、不可直接展示的 per-request 规则、空配置、API-key 端到端路由，
+以及 JWT 对未授权专属组的 404 防泄露。
 
 ---
 

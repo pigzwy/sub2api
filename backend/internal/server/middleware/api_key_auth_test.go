@@ -1218,7 +1218,7 @@ func TestAPIKeyAuthTouchesLastUsedInStandardMode(t *testing.T) {
 	require.Equal(t, 1, touchCalls)
 }
 
-func TestAPIKeyAuthBillingInfoSkipsBillingAndSideEffects(t *testing.T) {
+func TestAPIKeyAuthBillingMetadataSkipsBillingAndSideEffects(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	group := &service.Group{
@@ -1273,17 +1273,18 @@ func TestAPIKeyAuthBillingInfoSkipsBillingAndSideEffects(t *testing.T) {
 	t.Cleanup(subscriptionService.Stop)
 	router := newAuthTestRouter(apiKeyService, subscriptionService, cfg)
 
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/v1/sub2api/billing", nil)
-	req.Header.Set("x-api-key", apiKey.Key)
-	router.ServeHTTP(w, req)
-
-	require.Equal(t, http.StatusOK, w.Code)
+	for _, path := range []string{"/v1/sub2api/billing", "/v1/sub2api/model-pricing"} {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("x-api-key", apiKey.Key)
+		router.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code, path)
+	}
 	require.Zero(t, subscriptionCalls)
 	require.Zero(t, touchCalls)
 }
 
-func TestAPIKeyAuthBillingInfoSkipsLastUsedInSimpleMode(t *testing.T) {
+func TestAPIKeyAuthBillingMetadataSkipsLastUsedInSimpleMode(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	user := &service.User{ID: 7, Role: service.RoleUser, Status: service.StatusActive}
@@ -1303,13 +1304,21 @@ func TestAPIKeyAuthBillingInfoSkipsLastUsedInSimpleMode(t *testing.T) {
 	apiKeyService := service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, cfg)
 	router := newAuthTestRouter(apiKeyService, nil, cfg)
 
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/v1/sub2api/billing", nil)
-	req.Header.Set("x-api-key", apiKey.Key)
-	router.ServeHTTP(w, req)
-
-	require.Equal(t, http.StatusOK, w.Code)
+	for _, path := range []string{"/v1/sub2api/billing", "/v1/sub2api/model-pricing"} {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("x-api-key", apiKey.Key)
+		router.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code, path)
+	}
 	require.Zero(t, touchCalls)
+}
+
+func TestIsAPIKeyBillingMetadataReadRequiresExactGETPath(t *testing.T) {
+	require.True(t, isAPIKeyBillingMetadataRead(http.MethodGet, "/v1/sub2api/billing"))
+	require.True(t, isAPIKeyBillingMetadataRead(http.MethodGet, "/v1/sub2api/model-pricing"))
+	require.False(t, isAPIKeyBillingMetadataRead(http.MethodPost, "/v1/sub2api/model-pricing"))
+	require.False(t, isAPIKeyBillingMetadataRead(http.MethodGet, "/v1/sub2api/model-pricing/extra"))
 }
 
 func TestAPIKeyAuthUsageStillTouchesLastUsed(t *testing.T) {
@@ -1510,6 +1519,7 @@ func newAuthTestRouter(apiKeyService *service.APIKeyService, subscriptionService
 	router.POST("/v1/messages", ok)
 	router.GET("/v1/usage", ok)
 	router.GET("/v1/sub2api/billing", ok)
+	router.GET("/v1/sub2api/model-pricing", ok)
 	return router
 }
 

@@ -46,6 +46,7 @@ func (r *keyBillingRouteRateRepo) GetRPMOverrideByUserAndGroup(context.Context, 
 
 func newKeyBillingRouteTestRouter(runMode string) (*gin.Engine, *keyBillingRouteRateRepo, string) {
 	gin.SetMode(gin.TestMode)
+	imagePrice := 0.2
 	group := &service.Group{
 		ID:               42,
 		Status:           service.StatusActive,
@@ -53,6 +54,11 @@ func newKeyBillingRouteTestRouter(runMode string) (*gin.Engine, *keyBillingRoute
 		Platform:         service.PlatformOpenAI,
 		SubscriptionType: service.SubscriptionTypeStandard,
 		RateMultiplier:   0.75,
+		ModelPricing: []service.ChannelModelPricing{{
+			Models:          []string{"gpt-image-2"},
+			BillingMode:     service.BillingModeImage,
+			PerRequestPrice: &imagePrice,
+		}},
 	}
 	user := &service.User{ID: 7, Role: service.RoleUser, Status: service.StatusActive, Balance: 10}
 	var groupID *int64
@@ -118,6 +124,18 @@ func TestGatewayRoutesKeyBillingInfoPathIsRegistered(t *testing.T) {
 	t.Fatal("GET /v1/sub2api/billing should be registered")
 }
 
+func TestGatewayRoutesKeyModelPricingPathIsRegistered(t *testing.T) {
+	router := newGatewayRoutesTestRouter()
+
+	for _, route := range router.Routes() {
+		if route.Method == http.MethodGet && route.Path == "/v1/sub2api/model-pricing" {
+			return
+		}
+	}
+
+	t.Fatal("GET /v1/sub2api/model-pricing should be registered")
+}
+
 func TestGatewayRoutesKeyBillingInfoEndToEnd(t *testing.T) {
 	t.Run("missing credentials", func(t *testing.T) {
 		router, rateRepo, _ := newKeyBillingRouteTestRouter(config.RunModeStandard)
@@ -170,4 +188,24 @@ func TestGatewayRoutesKeyBillingInfoEndToEnd(t *testing.T) {
 		}`, w.Body.String())
 		require.Zero(t, rateRepo.lookupCalls)
 	})
+}
+
+func TestGatewayRoutesKeyModelPricingEndToEnd(t *testing.T) {
+	router, rateRepo, key := newKeyBillingRouteTestRouter(config.RunModeStandard)
+	req := httptest.NewRequest(http.MethodGet, "/v1/sub2api/model-pricing", nil)
+	req.Header.Set("Authorization", "Bearer "+key)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "no-store", w.Header().Get("Cache-Control"))
+	require.NotContains(t, strings.ToLower(w.Body.String()), "<!doctype html>")
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	require.Equal(t, "sub2api.group_model_pricing", body["object"])
+	models, ok := body["models"].(map[string]any)
+	require.True(t, ok)
+	require.Contains(t, models, "gpt-image-2")
+	require.Equal(t, 1, rateRepo.lookupCalls)
 }
