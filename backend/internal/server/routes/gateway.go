@@ -79,7 +79,7 @@ func RegisterGatewayRoutes(
 		return getGroupPlatform(c) == service.PlatformOpenAI
 	}
 	imagesHandler := func(c *gin.Context) {
-		switch effectiveMediaPlatform(c) {
+		switch getGroupPlatform(c) {
 		case service.PlatformOpenAI:
 			h.OpenAIGateway.Images(c)
 		case service.PlatformGrok:
@@ -97,7 +97,7 @@ func RegisterGatewayRoutes(
 		}
 	}
 	videoGenerationHandler := func(c *gin.Context) {
-		if grokMediaPlatformAllowed(c) {
+		if getGroupPlatform(c) == service.PlatformGrok {
 			h.OpenAIGateway.GrokVideoGeneration(c)
 			return
 		}
@@ -142,7 +142,7 @@ func RegisterGatewayRoutes(
 		})
 	}
 	videoEditHandler := func(c *gin.Context) {
-		if grokMediaPlatformAllowed(c) {
+		if getGroupPlatform(c) == service.PlatformGrok {
 			h.OpenAIGateway.GrokVideoEdit(c)
 			return
 		}
@@ -150,7 +150,7 @@ func RegisterGatewayRoutes(
 		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Videos API is not supported for this platform"}})
 	}
 	videoExtensionHandler := func(c *gin.Context) {
-		if grokMediaPlatformAllowed(c) {
+		if getGroupPlatform(c) == service.PlatformGrok {
 			h.OpenAIGateway.GrokVideoExtension(c)
 			return
 		}
@@ -283,7 +283,7 @@ func RegisterGatewayRoutes(
 		// Not part of the creation-center product surface — gateway relay only.
 		voiceHandler := func(endpoint string) gin.HandlerFunc {
 			return func(c *gin.Context) {
-				if !grokMediaPlatformAllowed(c) {
+				if getGroupPlatform(c) != service.PlatformGrok {
 					service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
 					c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Voice API is not supported for this platform"}})
 					return
@@ -295,7 +295,7 @@ func RegisterGatewayRoutes(
 		gateway.POST("/stt", voiceHandler("stt"))
 		gateway.POST("/custom-voices", voiceHandler("custom-voices"))
 		customVoicePathHandler := func(c *gin.Context) {
-			if !grokMediaPlatformAllowed(c) {
+			if getGroupPlatform(c) != service.PlatformGrok {
 				service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
 				c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Voice API is not supported for this platform"}})
 				return
@@ -319,7 +319,7 @@ func RegisterGatewayRoutes(
 			}
 		})
 		gateway.POST("/web_search", func(c *gin.Context) {
-			if !grokMediaPlatformAllowed(c) {
+			if getGroupPlatform(c) != service.PlatformGrok {
 				service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
 				c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Web Search API is not supported for this platform"}})
 				return
@@ -327,7 +327,7 @@ func RegisterGatewayRoutes(
 			h.Gateway.WebSearch(c)
 		})
 		gateway.POST("/x_search", func(c *gin.Context) {
-			if !grokMediaPlatformAllowed(c) {
+			if getGroupPlatform(c) != service.PlatformGrok {
 				service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
 				c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "X Search API is not supported for this platform"}})
 				return
@@ -422,7 +422,7 @@ func RegisterGatewayRoutes(
 
 	rootVoiceHandler := func(endpoint string) gin.HandlerFunc {
 		return func(c *gin.Context) {
-			if !grokMediaPlatformAllowed(c) {
+			if getGroupPlatform(c) != service.PlatformGrok {
 				service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
 				c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Voice API is not supported for this platform"}})
 				return
@@ -434,7 +434,7 @@ func RegisterGatewayRoutes(
 	r.POST("/stt", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, rootVoiceHandler("stt"))
 	r.POST("/custom-voices", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, rootVoiceHandler("custom-voices"))
 	rootCustomVoicePathHandler := func(c *gin.Context) {
-		if !grokMediaPlatformAllowed(c) {
+		if getGroupPlatform(c) != service.PlatformGrok {
 			service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
 			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Voice API is not supported for this platform"}})
 			return
@@ -458,7 +458,7 @@ func RegisterGatewayRoutes(
 		}
 	})
 	r.POST("/web_search", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, func(c *gin.Context) {
-		if !grokMediaPlatformAllowed(c) {
+		if getGroupPlatform(c) != service.PlatformGrok {
 			service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
 			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Web Search API is not supported for this platform"}})
 			return
@@ -466,7 +466,7 @@ func RegisterGatewayRoutes(
 		h.Gateway.WebSearch(c)
 	})
 	r.POST("/x_search", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, func(c *gin.Context) {
-		if !grokMediaPlatformAllowed(c) {
+		if getGroupPlatform(c) != service.PlatformGrok {
 			service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
 			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "X Search API is not supported for this platform"}})
 			return
@@ -521,47 +521,6 @@ func getGroupPlatform(c *gin.Context) string {
 		}
 	}
 	return apiKey.Group.Platform
-}
-
-// grokMediaPlatformAllowed reports whether this request may use the Grok media
-// and voice endpoints.
-//
-// A Grok group always qualifies. A composite group qualifies once its route
-// table has resolved this model to a Grok target: compositeTargetPlatformMiddleware
-// runs on the whole gateway group, so by the time a handler executes the target
-// platform is already in the request context. Gating on the group platform alone
-// made composite groups unable to start a video task or use voice at all, even
-// though their Grok accounts were right there.
-// effectiveMediaPlatform returns the provider a media request should be handled
-// by. For a composite group that is whatever its route table resolved this model
-// to; compositeTargetPlatformMiddleware runs on the whole gateway group, so the
-// answer is already in the request context. Dispatching on the group platform
-// alone sent every composite request to the "unsupported platform" branch even
-// when the route table had picked a perfectly good provider.
-func effectiveMediaPlatform(c *gin.Context) string {
-	platform := getGroupPlatform(c)
-	if platform != service.PlatformComposite || c == nil || c.Request == nil {
-		return platform
-	}
-	if resolved, ok := service.ResolvedTargetPlatformFromContext(c.Request.Context()); ok {
-		return resolved
-	}
-	return platform
-}
-
-func grokMediaPlatformAllowed(c *gin.Context) bool {
-	switch getGroupPlatform(c) {
-	case service.PlatformGrok:
-		return true
-	case service.PlatformComposite:
-		if c == nil || c.Request == nil {
-			return false
-		}
-		platform, ok := service.ResolvedTargetPlatformFromContext(c.Request.Context())
-		return ok && platform == service.PlatformGrok
-	default:
-		return false
-	}
 }
 
 func compositeTargetPlatformMiddleware(resolver *service.CompositeRouteResolver) gin.HandlerFunc {

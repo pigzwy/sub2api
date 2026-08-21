@@ -555,26 +555,6 @@ backend/migrations/228_usage_log_audio_tokens.sql
 
 ---
 
-## 12. 复合分组可用 Grok 媒体与语音端点
-
-上游把视频创建/编辑/延长与 tts/stt/realtime 的闸门写成「分组平台 == Grok」，复合分组即使池子里有 Grok 账号也一律 404 `Videos API is not supported for this platform`。结果是复合分组能取回已有视频、发不起新任务，语音整条不通——而工作台正是要用一个复合分组承载生图、视频、语音。
-
-改法：新增 `grokMediaPlatformAllowed(c)`（`internal/server/routes/gateway.go`），Grok 分组直接放行；复合分组则读 `service.ResolvedTargetPlatformFromContext`，解析结果为 Grok 才放行。`compositeTargetPlatformMiddleware` 挂在整个 gateway 路由组上（`gateway.Use(compositeTarget)`），handler 执行时目标平台已在 context 里，所以不必把闸门下沉到 handler。
-
-**未改动的两处**（上游有意为之，别顺手统一）：`videoStatusHandler` 与 `videoContentHandler` 早已放行 composite，因为 `GET` 请求没有 body、解析不出模型名，上游注释写明交给调度器兜底；而 `handler/grok_media.go:168` 会先按 task id 解析出创建该任务的账号，所以不存在「在 A 上创建、去 B 查状态拿 404」。
-
----
-
-### 12.1 图片入口同样要按解析后的平台分派
-
-`imagesHandler` 原本 `switch getGroupPlatform(c)`，composite 落到 `default` 直接 404 `Images API is not supported for this platform`——哪怕路由表已经把该模型解析到了 openai/grok/gemini。视频与语音改完后这条是最后一个漏网的媒体入口。
-
-新增 `effectiveMediaPlatform(c)`：composite 分组返回 `ResolvedTargetPlatformFromContext` 的结果，其余分组原样返回分组平台。`imagesHandler` 改为按它分派。
-
-排查提示：后台请求审计里这类失败的「模型」列是空的——请求在路由闸门就被拒了，根本没进转发器，模型名是转发器才填的。看到「模型为空 + 404 not supported for this platform」就往平台闸门查，不要往模型配置查。
-
----
-
 ## 媒体转存与异步图片对象存储的补充说明
 
 上游 `docs/ASYNC_IMAGE_TASKS.md` 描述的是异步图片任务与 `image_storage`。本分支在其基础上增加了**独立的媒体对象存储**（视频 + TTS 音频），与图片存储互不影响：
