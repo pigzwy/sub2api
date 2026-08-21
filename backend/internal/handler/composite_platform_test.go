@@ -162,3 +162,36 @@ func TestClientRequestedModelUsesCompositePublicModel(t *testing.T) {
 	require.Equal(t, "public-alias", fields.ChannelMappedModel)
 	require.Equal(t, "public-alias\u2192gpt-5", fields.ModelMappingChain)
 }
+
+func TestGeminiImageRequestModelsUsesCompositeUpstreamModel(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest("POST", "/v1/images/edits", nil)
+	c.Request = c.Request.WithContext(service.WithCompositeRouteDecision(c.Request.Context(), service.CompositeRouteDecision{
+		Matched:        true,
+		Source:         service.CompositeRouteSourceExplicit,
+		PublicModel:    "studio-gemini-image",
+		TargetPlatform: service.PlatformGemini,
+		UpstreamModel:  "gemini-3.1-flash-image-preview",
+	}))
+
+	requestModel, upstreamModel := geminiImageRequestModels(c, "studio-gemini-image")
+	require.Equal(t, "studio-gemini-image", requestModel)
+	require.Equal(t, "gemini-3.1-flash-image-preview", upstreamModel)
+}
+
+func TestGrokMediaRoutingModelUsesCompositeUpstreamModel(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest("POST", "/v1/images/edits", nil)
+	c.Request = c.Request.WithContext(service.WithCompositeRouteDecision(c.Request.Context(), service.CompositeRouteDecision{
+		Matched:        true,
+		Source:         service.CompositeRouteSourceExplicit,
+		PublicModel:    "studio-grok-image",
+		TargetPlatform: service.PlatformGrok,
+		UpstreamModel:  "grok-imagine",
+	}))
+
+	model := grokMediaRoutingModel(c, service.GrokMediaEndpointImagesEdits, service.GrokMediaRequestInfo{Model: "studio-grok-image"})
+	require.Equal(t, "grok-imagine-image-quality", model)
+}

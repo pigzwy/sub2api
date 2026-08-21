@@ -555,6 +555,37 @@ backend/migrations/228_usage_log_audio_tokens.sql
 
 ---
 
+## 13. 复合分组的异步图片与媒体模型传播（2026-08-21）
+
+复合分组的同步 Images 入口原本已经由 `getGroupPlatform()` 使用请求上下文中的
+`ResolvedTargetPlatform` 分派，不需要新增路由 helper。本分支只修复解析结果在后续
+消费端丢失的两类真实问题：
+
+- `AsyncImageHandler.Submit` 使用 `effectiveAPIKeyPlatform()`，因此已解析到 OpenAI、
+  Grok 或 Gemini 的 composite 请求可以创建异步任务。后台任务通过
+  `context.WithoutCancel` + `Request.Clone` 保留 target platform、公开模型和上游模型，
+  不会在请求返回 `202` 后丢失路由决定。
+- Grok 图片/视频使用 `ResolvedUpstreamModel` 选号并改写实际上游请求；JSON 与
+  multipart 都覆盖。模型处理顺序固定为「复合路由 upstream model -> Grok 端点内建
+  归一化 -> 账号级 model_mapping」，公开模型仍保留用于调用方归因。
+- Gemini Images 使用公开模型写运营诊断字段，使用 `ResolvedUpstreamModel` 构造内部
+  Gemini generateContent 路径，避免 multipart 中未改写的公开别名进入上游 URL。
+
+改动没有新增数据库迁移、设置项或 Redis key，也没有改变非 composite 分组。未解析到
+具体平台的 composite 请求继续 fail closed。Voice、Realtime、custom voices 以及
+web/x search 的无模型请求不在本节能力范围内；这些入口仍需独立的端点能力路由设计，
+不能隐式选择任意供应商。
+
+对应测试覆盖三种目标平台的 JSON/multipart 异步提交、后台 context 保留、Gemini
+上游模型选择，以及 Grok multipart 下复合路由映射与账号映射的组合顺序。
+
+侵入点位于上游文件 `handler/image_task_handler.go`、`handler/gemini_images.go`、
+`handler/grok_media.go` 与 `service/grok_media.go`；刻意不修改路由热文件
+`server/routes/gateway.go`。后续合并上游时，应保留“消费 resolved target/upstream
+model”的语义，具体函数结构以上游为准。
+
+---
+
 ## 媒体转存与异步图片对象存储的补充说明
 
 上游 `docs/ASYNC_IMAGE_TASKS.md` 描述的是异步图片任务与 `image_storage`。本分支在其基础上增加了**独立的媒体对象存储**（视频 + TTS 音频），与图片存储互不影响：
@@ -563,7 +594,7 @@ backend/migrations/228_usage_log_audio_tokens.sql
 - 已完成的 Grok 视频使用独立的 `video_storage` 开关与 S3 目标，配置见本文件第 3 节。
 - 音频触发时机：`/v1/tts` 上游返回 <400 时，响应写回客户端后异步归档；`/stt`、`custom-voices`、realtime 一律不归档。
 - 视频触发时机：xAI 侧完成状态值为 `done`，第一次成功的 `GET /v1/videos/generations/{request_id}` 状态轮询会把上游视频以分片方式流式写入 `<prefix>` 下，然后在完成 JSON 里补上新的 `video_url` 与 `url_expires_at`。内容接口在该记录存在时重定向到新签发的预签名 URL；上传失败则保持原有的状态与内容透传行为不变。
-- 异步图片任务的平台支持范围本分支已扩展：除 OpenAI 与 Grok 外，**gemini 分组也可使用**（见本文件第 4 节）。上游文档中「Only OpenAI and Grok groups are supported」的表述对本分支不适用。
+- 异步图片任务的平台支持范围本分支已扩展：除 OpenAI 与 Grok 外，**Gemini 分组以及已解析到 OpenAI/Grok/Gemini 的复合分组也可使用**（见本文件第 4、13 节）。上游文档中「Only OpenAI and Grok groups are supported」的表述对本分支不适用。
 
 ---
 

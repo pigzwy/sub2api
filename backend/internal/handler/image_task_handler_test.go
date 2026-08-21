@@ -1,8 +1,12 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -104,6 +108,152 @@ func TestAsyncImageHandlerSubmitAndPoll(t *testing.T) {
 	require.Equal(t, "no-store", pollWriter.Header().Get("Cache-Control"))
 	require.Empty(t, pollWriter.Header().Get("Retry-After"))
 	require.Contains(t, pollWriter.Body.String(), "https://example.test/image.png")
+}
+
+func TestAsyncImageHandlerCompositeDispatchesResolvedPlatform(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	type dispatchCapture struct {
+		platform       string
+		targetPlatform string
+		upstreamModel  string
+		publicModel    string
+		path           string
+		contentType    string
+		body           []byte
+		err            error
+	}
+
+	platforms := []string{service.PlatformOpenAI, service.PlatformGrok, service.PlatformGemini}
+	formats := []string{"json", "multipart"}
+	for _, platform := range platforms {
+		for _, format := range formats {
+			t.Run(platform+"/"+format, func(t *testing.T) {
+				store := &asyncImageMemoryStore{tasks: make(map[string]*service.ImageTaskRecord)}
+				tasks := service.NewImageTaskServiceWithUploader(store, nil, time.Hour, time.Minute)
+				h := NewAsyncImageHandler(tasks, nil)
+				// supportsPlatform requires the production Gemini forwarder wiring even
+				// though this test replaces the executor with a dispatch spy.
+				h.SetGeminiForwarder(&fakeGeminiImageForwarder{})
+
+				captured := make(chan dispatchCapture, 1)
+				h.execute = func(gotPlatform string, c *gin.Context) {
+					body, err := io.ReadAll(c.Request.Body)
+					targetPlatform, _ := service.ResolvedTargetPlatformFromContext(c.Request.Context())
+					upstreamModel, _ := service.ResolvedUpstreamModelFromContext(c.Request.Context())
+					publicModel, _ := service.RequestedPublicModelFromContext(c.Request.Context())
+					captured <- dispatchCapture{
+						platform:       gotPlatform,
+						targetPlatform: targetPlatform,
+						upstreamModel:  upstreamModel,
+						publicModel:    publicModel,
+						path:           c.Request.URL.Path,
+						contentType:    c.GetHeader("Content-Type"),
+						body:           body,
+						err:            err,
+					}
+					c.JSON(http.StatusOK, gin.H{"created": 123, "data": []gin.H{{"url": "https://example.test/image.png"}}})
+				}
+
+				const publicModel = "studio-image-alias"
+				upstreamModel := platform + "-image-upstream"
+				router := gin.New()
+				router.Use(func(c *gin.Context) {
+					groupID := int64(71)
+					c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{
+						ID:      9,
+						UserID:  7,
+						GroupID: &groupID,
+						Group: &service.Group{
+							ID:                   groupID,
+							Platform:             service.PlatformComposite,
+							AllowImageGeneration: true,
+						},
+					})
+					decision := service.CompositeRouteDecision{
+						Matched:        true,
+						Source:         service.CompositeRouteSourceExplicit,
+						GroupID:        groupID,
+						PublicModel:    publicModel,
+						TargetPlatform: platform,
+						UpstreamModel:  upstreamModel,
+					}
+					c.Request = c.Request.WithContext(service.WithCompositeRouteDecision(c.Request.Context(), decision))
+					c.Next()
+				})
+				router.POST("/v1/images/generations/async", h.Submit)
+
+				var requestBody []byte
+				var contentType string
+				if format == "json" {
+					// The route middleware rewrites JSON before Submit runs.
+					requestBody = []byte(`{"model":"` + upstreamModel + `","prompt":"cat"}`)
+					contentType = "application/json"
+				} else {
+					var body bytes.Buffer
+					writer := multipart.NewWriter(&body)
+					require.NoError(t, writer.WriteField("model", publicModel))
+					require.NoError(t, writer.WriteField("prompt", "cat"))
+					require.NoError(t, writer.Close())
+					requestBody = body.Bytes()
+					contentType = writer.FormDataContentType()
+				}
+
+				req := httptest.NewRequest(http.MethodPost, "/v1/images/generations/async", bytes.NewReader(requestBody))
+				req.Header.Set("Content-Type", contentType)
+				w := httptest.NewRecorder()
+				router.ServeHTTP(w, req)
+				require.Equal(t, http.StatusAccepted, w.Code)
+
+				var accepted struct {
+					TaskID string `json:"task_id"`
+				}
+				require.NoError(t, json.Unmarshal(w.Body.Bytes(), &accepted))
+				require.NotEmpty(t, accepted.TaskID)
+
+				var got dispatchCapture
+				select {
+				case got = <-captured:
+				case <-time.After(time.Second):
+					t.Fatal("timed out waiting for async image dispatch")
+				}
+				require.NoError(t, got.err)
+				require.Equal(t, platform, got.platform)
+				require.Equal(t, platform, got.targetPlatform)
+				require.Equal(t, upstreamModel, got.upstreamModel)
+				require.Equal(t, publicModel, got.publicModel)
+				require.Equal(t, "/v1/images/generations", got.path)
+
+				if format == "json" {
+					require.JSONEq(t, string(requestBody), string(got.body))
+				} else {
+					mediaType, params, err := mime.ParseMediaType(got.contentType)
+					require.NoError(t, err)
+					require.Equal(t, "multipart/form-data", mediaType)
+					reader := multipart.NewReader(bytes.NewReader(got.body), params["boundary"])
+					fields := make(map[string]string)
+					for {
+						part, err := reader.NextPart()
+						if err == io.EOF {
+							break
+						}
+						require.NoError(t, err)
+						value, err := io.ReadAll(part)
+						require.NoError(t, err)
+						fields[part.FormName()] = string(value)
+						require.NoError(t, part.Close())
+					}
+					require.Equal(t, publicModel, fields["model"])
+					require.Equal(t, "cat", fields["prompt"])
+				}
+
+				require.Eventually(t, func() bool {
+					task, err := tasks.Get(context.Background(), service.ImageTaskOwner{UserID: 7, APIKeyID: 9}, accepted.TaskID)
+					return err == nil && task.Status == service.ImageTaskStatusCompleted
+				}, time.Second, 10*time.Millisecond)
+			})
+		}
+	}
 }
 
 // fakeGeminiImageForwarder stands in for GatewayHandler.GeminiImages: it records

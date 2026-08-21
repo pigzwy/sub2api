@@ -1305,13 +1305,13 @@ func TestForwardGrokMediaImagesGenerationStripsUnsupportedSize(t *testing.T) {
 	require.Equal(t, "1024x1024", result.ImageInputSize)
 }
 
-func TestForwardGrokMediaImagesEditMultipartConvertsToJSON(t *testing.T) {
+func TestForwardGrokMediaImagesEditMultipartAppliesCompositeAndAccountModelMapping(t *testing.T) {
 	t.Setenv(xai.EnvAllowUnsafeURLOverrides, "true")
 	gin.SetMode(gin.TestMode)
 
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
-	require.NoError(t, writer.WriteField("model", "grok-imagine-edit"))
+	require.NoError(t, writer.WriteField("model", "studio-grok-edit"))
 	require.NoError(t, writer.WriteField("prompt", "edit this private image"))
 	partHeader := textproto.MIMEHeader{}
 	partHeader.Set("Content-Disposition", `form-data; name="image"; filename="input.png"`)
@@ -1348,7 +1348,14 @@ func TestForwardGrokMediaImagesEditMultipartConvertsToJSON(t *testing.T) {
 	}}
 	svc := &OpenAIGatewayService{httpUpstream: upstream}
 
-	result, err := svc.ForwardGrokMedia(context.Background(), c, account, GrokMediaEndpointImagesEdits, "", buf.Bytes(), writer.FormDataContentType())
+	ctx := WithCompositeRouteDecision(context.Background(), CompositeRouteDecision{
+		Matched:        true,
+		Source:         CompositeRouteSourceExplicit,
+		PublicModel:    "studio-grok-edit",
+		TargetPlatform: PlatformGrok,
+		UpstreamModel:  "grok-imagine-edit",
+	})
+	result, err := svc.ForwardGrokMedia(ctx, c, account, GrokMediaEndpointImagesEdits, "", buf.Bytes(), writer.FormDataContentType())
 	require.NoError(t, err)
 	require.Equal(t, "https://xai.test/v1/images/edits", upstream.lastReq.URL.String())
 	require.Equal(t, "application/json", upstream.lastReq.Header.Get("Content-Type"))
@@ -1357,8 +1364,61 @@ func TestForwardGrokMediaImagesEditMultipartConvertsToJSON(t *testing.T) {
 	require.Equal(t, "edit this private image", gjson.GetBytes(upstream.lastBody, "prompt").String())
 	require.True(t, strings.HasPrefix(gjson.GetBytes(upstream.lastBody, "image.url").String(), "data:image/png;base64,"))
 	require.False(t, gjson.GetBytes(upstream.lastBody, "image.image_url").Exists())
-	require.Equal(t, "grok-imagine-edit", result.BillingModel)
+	require.Equal(t, "studio-grok-edit", result.Model)
 	require.Equal(t, "vendor-image-edit", result.UpstreamModel)
+}
+
+func TestForwardGrokMediaVideoMultipartAppliesCompositeAndAccountModelMapping(t *testing.T) {
+	t.Setenv(xai.EnvAllowUnsafeURLOverrides, "true")
+	gin.SetMode(gin.TestMode)
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	require.NoError(t, writer.WriteField("model", "studio-grok-video"))
+	require.NoError(t, writer.WriteField("prompt", "waves"))
+	require.NoError(t, writer.WriteField("resolution", "720p"))
+	require.NoError(t, writer.Close())
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos/generations", bytes.NewReader(buf.Bytes()))
+	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+
+	account := &Account{
+		ID:          63,
+		Name:        "grok",
+		Platform:    PlatformGrok,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":       "api-key",
+			"base_url":      "https://xai.test/v1",
+			"model_mapping": map[string]any{"grok-imagine-video-1.5": "vendor-video-model"},
+		},
+	}
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(`{"request_id":"video-request-composite"}`)),
+	}}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	ctx := WithCompositeRouteDecision(context.Background(), CompositeRouteDecision{
+		Matched:        true,
+		Source:         CompositeRouteSourceExplicit,
+		PublicModel:    "studio-grok-video",
+		TargetPlatform: PlatformGrok,
+		UpstreamModel:  "grok-imagine-video-1.5",
+	})
+
+	result, err := svc.ForwardGrokMedia(ctx, c, account, GrokMediaEndpointVideosGenerations, "", buf.Bytes(), writer.FormDataContentType())
+	require.NoError(t, err)
+	require.Equal(t, "https://xai.test/v1/videos/generations", upstream.lastReq.URL.String())
+	upstreamInfo := ParseGrokMediaRequest(upstream.lastReq.Header.Get("Content-Type"), upstream.lastBody)
+	require.Equal(t, "vendor-video-model", upstreamInfo.Model)
+	require.Equal(t, "waves", upstreamInfo.Prompt)
+	require.Equal(t, "studio-grok-video", result.Model)
+	require.Equal(t, "vendor-video-model", result.UpstreamModel)
+	require.Equal(t, "video-request-composite", result.ResponseID)
 }
 
 func TestForwardGrokMediaVideoGenerationReturnsUsageAndResponseID(t *testing.T) {

@@ -73,12 +73,12 @@ func (h *GatewayHandler) GeminiImages(c *gin.Context) {
 		return
 	}
 
-	model := strings.TrimSpace(parsed.Model)
-	if model == "" {
+	requestModel, upstreamModel := geminiImageRequestModels(c, parsed.Model)
+	if upstreamModel == "" {
 		geminiImagesError(c, http.StatusBadRequest, "invalid_request_error", "model is required")
 		return
 	}
-	if !service.IsSafeGeminiModelPathSegment(model) {
+	if !service.IsSafeGeminiModelPathSegment(upstreamModel) {
 		geminiImagesError(c, http.StatusBadRequest, "invalid_request_error", "Invalid model")
 		return
 	}
@@ -86,7 +86,7 @@ func (h *GatewayHandler) GeminiImages(c *gin.Context) {
 	// Ops parity with the OpenAI/Grok image handlers: record model + request type
 	// on the caller's context so ops error logs identify the request. The nested
 	// generateContent forward only sets these on its private sub-context.
-	setOpsRequestContext(c, model, false)
+	setOpsRequestContext(c, requestModel, false)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(false, false)))
 
 	geminiBody, err := service.BuildGeminiImageGenerateRequest(parsed)
@@ -95,7 +95,7 @@ func (h *GatewayHandler) GeminiImages(c *gin.Context) {
 		return
 	}
 
-	status, header, respBody := h.forwardGeminiGenerateContent(c, model, geminiBody)
+	status, header, respBody := h.forwardGeminiGenerateContent(c, upstreamModel, geminiBody)
 
 	// Non-2xx: relay the upstream/gemini error verbatim so callers see the real cause
 	// (billing already ran inside the forwarding path).
@@ -126,6 +126,17 @@ func (h *GatewayHandler) GeminiImages(c *gin.Context) {
 	}
 
 	c.Data(http.StatusOK, "application/json", openaiBody)
+}
+
+func geminiImageRequestModels(c *gin.Context, parsedModel string) (requestModel, upstreamModel string) {
+	upstreamModel = strings.TrimSpace(parsedModel)
+	requestModel = clientRequestedModel(c, upstreamModel)
+	if c != nil && c.Request != nil {
+		if resolvedModel, ok := service.ResolvedUpstreamModelFromContext(c.Request.Context()); ok {
+			upstreamModel = resolvedModel
+		}
+	}
+	return requestModel, upstreamModel
 }
 
 // forwardGeminiGenerateContent invokes the existing native Gemini generateContent

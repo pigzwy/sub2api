@@ -81,10 +81,7 @@ func (h *AsyncImageHandler) Submit(c *gin.Context) {
 		imageTaskError(c, service.ErrImageTaskForbidden)
 		return
 	}
-	platform := ""
-	if apiKey.Group != nil {
-		platform = apiKey.Group.Platform
-	}
+	platform := effectiveAPIKeyPlatform(c, apiKey)
 	if !h.supportsPlatform(platform) {
 		imageTaskJSONError(c, http.StatusNotFound, "not_found_error", "Images API is not supported for this platform")
 		return
