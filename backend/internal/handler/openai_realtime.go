@@ -17,8 +17,8 @@ import (
 )
 
 // OpenAIRealtime 暴露 OpenAI 公开 Realtime 语音 WS（/v1/realtime?model=...）。
-// 仅 platform=openai 且开启 allow_realtime 的分组可用；调度只会选中显式
-// 勾选 realtime 能力的 API-Key 账号（见 OpenAIEndpointCapabilityRealtime）。
+// OpenAI 分组及解析到 OpenAI 的复合分组需开启 allow_realtime；调度只会
+// 选中显式勾选 realtime 能力的 API-Key 账号（见 OpenAIEndpointCapabilityRealtime）。
 // 每个 response.done 逐回合按 token 落账，连接时长本身不计费。
 func (h *OpenAIGatewayHandler) OpenAIRealtime(c *gin.Context) {
 	if c == nil || c.Request == nil || !isOpenAIWSUpgradeRequest(c.Request) {
@@ -26,7 +26,7 @@ func (h *OpenAIGatewayHandler) OpenAIRealtime(c *gin.Context) {
 		return
 	}
 	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
-	if !ok || apiKey.Group == nil || apiKey.Group.Platform != service.PlatformOpenAI {
+	if !ok || !realtimeTargetPlatformAllowed(c, apiKey, service.PlatformOpenAI) {
 		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Realtime API is not supported for this platform")
 		return
 	}
@@ -68,17 +68,15 @@ func (h *OpenAIGatewayHandler) OpenAIRealtime(c *gin.Context) {
 	}
 	defer userRelease()
 
-	model := strings.TrimSpace(c.Query("model"))
-	if model == "" {
-		model = "gpt-realtime"
-	}
+	requestModel, upstreamModel := realtimeRequestModels(c, "gpt-realtime")
 	reqLog := requestLogger(
 		c,
 		"handler.openai_gateway.openai_realtime",
 		zap.Int64("user_id", subject.UserID),
 		zap.Int64("api_key_id", apiKey.ID),
 		zap.Any("group_id", apiKey.GroupID),
-		zap.String("model", model),
+		zap.String("model", requestModel),
+		zap.String("routing_model", upstreamModel),
 	)
 
 	// Realtime 是语音媒体路径：按 audio token 逐回合结算，与利润门比较的
@@ -93,7 +91,7 @@ func (h *OpenAIGatewayHandler) OpenAIRealtime(c *gin.Context) {
 		apiKey.GroupID,
 		"",
 		"",
-		model,
+		upstreamModel,
 		nil,
 		service.OpenAIUpstreamTransportHTTPSSE,
 		service.OpenAIEndpointCapabilityRealtime,
@@ -105,7 +103,7 @@ func (h *OpenAIGatewayHandler) OpenAIRealtime(c *gin.Context) {
 		// 503 带机器可读归因码：配置态（能力未勾选/无账号）与瞬时态分开，
 		// 下游据 error.code 精确翻译，避免把配置问题提示成"稍后再试"。
 		// 逐账号摘要只进日志：管理员据此直接定位该改哪个账号。
-		reason, poolSummary := h.gatewayService.DiagnoseOpenAIRealtimeUnavailable(c.Request.Context(), apiKey.GroupID, model, apiKey.Group)
+		reason, poolSummary := h.gatewayService.DiagnoseOpenAIRealtimeUnavailable(c.Request.Context(), apiKey.GroupID, upstreamModel, apiKey.Group)
 		// select_err 是选号函数的原始错误：渠道模型限制等"账号过滤之前"的
 		// 拒绝只体现在这里，逐账号判定会全是 sched=ok。
 		reqLog.Info("openai_realtime.pool_diagnosis",
@@ -153,7 +151,7 @@ func (h *OpenAIGatewayHandler) OpenAIRealtime(c *gin.Context) {
 		h.errorResponse(c, http.StatusBadGateway, "upstream_error", "Realtime credential unavailable")
 		return
 	}
-	upstreamURL, err := h.gatewayService.BuildOpenAIRealtimeUpstreamURL(account, c.Request.URL.RawQuery, model)
+	upstreamURL, err := h.gatewayService.BuildOpenAIRealtimeUpstreamURL(account, c.Request.URL.RawQuery, upstreamModel)
 	if err != nil {
 		h.errorResponse(c, http.StatusBadGateway, "upstream_error", "Invalid realtime upstream configuration")
 		return
@@ -173,17 +171,18 @@ func (h *OpenAIGatewayHandler) OpenAIRealtime(c *gin.Context) {
 		inboundEndpoint:    GetInboundEndpoint(c),
 		upstreamEndpoint:   GetUpstreamEndpoint(c, account.Platform),
 		quotaPlatform:      service.QuotaPlatform(c.Request.Context(), apiKey),
-		requestPayloadHash: service.HashUsageRequestPayload([]byte("realtime:" + model)),
-		channelUsageFields: clientRequestedUsageFields(c, service.ChannelMappingResult{}, model, ""),
+		requestPayloadHash: service.HashUsageRequestPayload([]byte("realtime:" + requestModel)),
+		channelUsageFields: clientRequestedUsageFields(c, service.ChannelMappingResult{}, requestModel, upstreamModel),
 	}
 	requestCtx := c.Request.Context()
 	started := time.Now()
 	onTurn := func(turn service.OpenAIRealtimeTurnUsage) {
 		result := &service.OpenAIForwardResult{
-			RequestID: service.StableOpenAIRealtimeBillingRequestID(turn.ResponseID),
-			Usage:     turn.Usage,
-			Model:     model,
-			Stream:    true,
+			RequestID:     service.StableOpenAIRealtimeBillingRequestID(turn.ResponseID),
+			Usage:         turn.Usage,
+			Model:         upstreamModel,
+			UpstreamModel: upstreamModel,
+			Stream:        true,
 			// OpenAIWSMode 令 RecordUsage 直接采用上游 response id 作为幂等键，
 			// 避免同会话多回合被请求级 request_id 去重合并成一条。
 			OpenAIWSMode: true,
@@ -205,8 +204,29 @@ func (h *OpenAIGatewayHandler) OpenAIRealtime(c *gin.Context) {
 func realtimeEnabledForAPIKey(apiKey *service.APIKey) bool {
 	return apiKey != nil &&
 		apiKey.Group != nil &&
-		apiKey.Group.Platform == service.PlatformOpenAI &&
+		(apiKey.Group.Platform == service.PlatformOpenAI || apiKey.Group.Platform == service.PlatformComposite) &&
 		apiKey.Group.AllowRealtime
+}
+
+func realtimeTargetPlatformAllowed(c *gin.Context, apiKey *service.APIKey, platform string) bool {
+	return apiKey != nil && apiKey.Group != nil && effectiveAPIKeyPlatform(c, apiKey) == platform
+}
+
+func realtimeRequestModels(c *gin.Context, defaultModel string) (requestModel, upstreamModel string) {
+	requestModel = strings.TrimSpace(defaultModel)
+	if c != nil {
+		if model := strings.TrimSpace(c.Query("model")); model != "" {
+			requestModel = model
+		}
+	}
+	requestModel = clientRequestedModel(c, requestModel)
+	upstreamModel = requestModel
+	if c != nil && c.Request != nil {
+		if model, ok := service.ResolvedUpstreamModelFromContext(c.Request.Context()); ok {
+			upstreamModel = model
+		}
+	}
+	return requestModel, upstreamModel
 }
 
 type openAIRealtimeUsageMeta struct {

@@ -133,6 +133,182 @@ func TestCompositeTargetPlatformMiddlewareUsesExplicitRouteAndRewritesBody(t *te
 	require.Equal(t, http.StatusNoContent, w.Code)
 }
 
+func TestCompositeTargetPlatformMiddlewareResolvesRealtimeQuery(t *testing.T) {
+	routes := []service.CompositeModelRoute{
+		{
+			ID:             1,
+			GroupID:        1,
+			PublicModel:    "studio-openai-realtime",
+			MatchType:      service.CompositeRouteMatchExact,
+			TargetPlatform: service.PlatformOpenAI,
+			UpstreamModel:  "gpt-realtime-2.1",
+			Endpoint:       service.CompositeRouteEndpointAny,
+			Priority:       100,
+			Enabled:        true,
+		},
+		{
+			ID:             2,
+			GroupID:        1,
+			PublicModel:    "studio-grok-realtime",
+			MatchType:      service.CompositeRouteMatchExact,
+			TargetPlatform: service.PlatformGrok,
+			UpstreamModel:  "grok-voice-latest",
+			Endpoint:       service.CompositeRouteEndpointAny,
+			Priority:       100,
+			Enabled:        true,
+		},
+	}
+	tests := []struct {
+		name           string
+		path           string
+		publicModel    string
+		targetPlatform string
+		upstreamModel  string
+	}{
+		{
+			name:           "v1 openai",
+			path:           "/v1/realtime",
+			publicModel:    "studio-openai-realtime",
+			targetPlatform: service.PlatformOpenAI,
+			upstreamModel:  "gpt-realtime-2.1",
+		},
+		{
+			name:           "v1 grok detector",
+			path:           "/v1/realtime",
+			publicModel:    "grok-voice-latest",
+			targetPlatform: service.PlatformGrok,
+			upstreamModel:  "grok-voice-latest",
+		},
+		{
+			name:           "root openai detector",
+			path:           "/realtime",
+			publicModel:    "gpt-realtime-2.1",
+			targetPlatform: service.PlatformOpenAI,
+			upstreamModel:  "gpt-realtime-2.1",
+		},
+		{
+			name:           "root grok",
+			path:           "/realtime",
+			publicModel:    "studio-grok-realtime",
+			targetPlatform: service.PlatformGrok,
+			upstreamModel:  "grok-voice-latest",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			router := gin.New()
+			resolver := service.NewCompositeRouteResolver(compositeRouteRepoStub{routes: routes})
+			router.Use(gin.HandlerFunc(servermiddleware.APIKeyAuthMiddleware(func(c *gin.Context) {
+				groupID := int64(1)
+				c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{
+					GroupID: &groupID,
+					Group:   &service.Group{ID: groupID, Platform: service.PlatformComposite},
+				})
+				c.Next()
+			})))
+			router.Use(compositeTargetPlatformMiddleware(resolver))
+			router.GET(tc.path, func(c *gin.Context) {
+				require.Equal(t, tc.publicModel, c.Query("model"), "query model must remain client-visible")
+				require.Equal(t, tc.targetPlatform, getGroupPlatform(c))
+
+				platform, ok := service.ResolvedTargetPlatformFromContext(c.Request.Context())
+				require.True(t, ok)
+				require.Equal(t, tc.targetPlatform, platform)
+
+				upstreamModel, ok := service.ResolvedUpstreamModelFromContext(c.Request.Context())
+				require.True(t, ok)
+				require.Equal(t, tc.upstreamModel, upstreamModel)
+
+				publicModel, ok := service.RequestedPublicModelFromContext(c.Request.Context())
+				require.True(t, ok)
+				require.Equal(t, tc.publicModel, publicModel)
+				c.Status(http.StatusNoContent)
+			})
+
+			req := httptest.NewRequest(http.MethodGet, tc.path+"?model="+tc.publicModel, nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusNoContent, w.Code)
+		})
+	}
+}
+
+func TestCompositeTargetPlatformMiddlewareKeepsOtherGETQueriesUntouched(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	resolver := service.NewCompositeRouteResolver(compositeRouteRepoStub{routes: []service.CompositeModelRoute{
+		{
+			ID:             1,
+			GroupID:        1,
+			PublicModel:    "gpt-realtime-2.1",
+			MatchType:      service.CompositeRouteMatchExact,
+			TargetPlatform: service.PlatformOpenAI,
+			UpstreamModel:  "gpt-realtime-2.1",
+			Endpoint:       service.CompositeRouteEndpointAny,
+			Priority:       100,
+			Enabled:        true,
+		},
+	}})
+	router.Use(gin.HandlerFunc(servermiddleware.APIKeyAuthMiddleware(func(c *gin.Context) {
+		groupID := int64(1)
+		c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{
+			GroupID: &groupID,
+			Group:   &service.Group{ID: groupID, Platform: service.PlatformComposite},
+		})
+		c.Next()
+	})))
+	router.Use(compositeTargetPlatformMiddleware(resolver))
+	router.GET("/v1/models", func(c *gin.Context) {
+		_, resolved := service.ResolvedTargetPlatformFromContext(c.Request.Context())
+		require.False(t, resolved)
+		require.Equal(t, service.PlatformComposite, getGroupPlatform(c))
+		c.Status(http.StatusNoContent)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/models?model=gpt-realtime-2.1", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusNoContent, w.Code)
+}
+
+func TestCompositeTargetPlatformMiddlewareRealtimeQueryFailsClosed(t *testing.T) {
+	for _, target := range []string{
+		"/v1/realtime",
+		"/realtime?model=unknown-realtime-model",
+	} {
+		t.Run(target, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			router := gin.New()
+			router.Use(gin.HandlerFunc(servermiddleware.APIKeyAuthMiddleware(func(c *gin.Context) {
+				groupID := int64(1)
+				c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{
+					GroupID: &groupID,
+					Group:   &service.Group{ID: groupID, Platform: service.PlatformComposite},
+				})
+				c.Next()
+			})))
+			router.Use(compositeTargetPlatformMiddleware(service.NewCompositeRouteResolver(nil)))
+			path := strings.SplitN(target, "?", 2)[0]
+			router.GET(path, func(c *gin.Context) {
+				_, resolved := service.ResolvedTargetPlatformFromContext(c.Request.Context())
+				require.False(t, resolved)
+				require.Equal(t, service.PlatformComposite, getGroupPlatform(c))
+				c.Status(http.StatusNoContent)
+			})
+
+			req := httptest.NewRequest(http.MethodGet, target, nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusNoContent, w.Code)
+		})
+	}
+}
+
 func TestCompositeTargetPlatformMiddlewareRewritesNestedLiveModel(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

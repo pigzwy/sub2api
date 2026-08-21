@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	coderws "github.com/coder/websocket"
 )
 
@@ -34,6 +35,18 @@ func TestGrokRealtimeBillingResultRequiresObservedAudio(t *testing.T) {
 	}
 }
 
+func TestGrokRealtimeSelectionModelUsesCompositeUpstreamModel(t *testing.T) {
+	composite := &service.APIKey{Group: &service.Group{Platform: service.PlatformComposite}}
+	if got := grokRealtimeSelectionModel(composite, "grok-voice-latest"); got != "grok-voice-latest" {
+		t.Fatalf("composite selection model = %q, want resolved upstream model", got)
+	}
+
+	native := &service.APIKey{Group: &service.Group{Platform: service.PlatformGrok}}
+	if got := grokRealtimeSelectionModel(native, "grok-voice-latest"); got != "grok-4.5" {
+		t.Fatalf("native Grok selection model = %q, want compatibility key", got)
+	}
+}
+
 func TestGrokRealtimeBillingResultUsesForcedUniqueID(t *testing.T) {
 	first := grokRealtimeBillingResult("grok-voice-latest", 90*time.Second, true)
 	second := grokRealtimeBillingResult("grok-voice-latest", 90*time.Second, true)
@@ -48,5 +61,8 @@ func TestGrokRealtimeBillingResultUsesForcedUniqueID(t *testing.T) {
 	}
 	if first.AudioUsage == nil || first.AudioUsage.Mode != "realtime" || first.AudioUsage.DurationOrUnits != 1.5 {
 		t.Fatalf("unexpected audio usage: %#v", first.AudioUsage)
+	}
+	if first.Model != "grok-voice-latest" || first.UpstreamModel != "grok-voice-latest" {
+		t.Fatalf("unexpected realtime billing models: model=%q upstream=%q", first.Model, first.UpstreamModel)
 	}
 }

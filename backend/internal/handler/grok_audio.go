@@ -20,15 +20,19 @@ import (
 )
 
 // GrokRealtime exposes xAI's native Voice Realtime WebSocket.
-// Only Grok-platform API keys may use this endpoint.
+// Grok groups and composite groups resolved to Grok may use this endpoint.
 func (h *OpenAIGatewayHandler) GrokRealtime(c *gin.Context) {
 	if c == nil || c.Request == nil || !isOpenAIWSUpgradeRequest(c.Request) {
 		h.errorResponse(c, http.StatusUpgradeRequired, "invalid_request_error", "WebSocket upgrade required (Upgrade: websocket)")
 		return
 	}
 	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
-	if !ok || apiKey.Group == nil || apiKey.Group.Platform != service.PlatformGrok {
+	if !ok || !realtimeTargetPlatformAllowed(c, apiKey, service.PlatformGrok) {
 		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Realtime API is not supported for this platform")
+		return
+	}
+	if apiKey.Group.Platform == service.PlatformComposite && !realtimeEnabledForAPIKey(apiKey) {
+		h.errorResponse(c, http.StatusForbidden, "permission_error", "Realtime is not enabled for this group")
 		return
 	}
 	if !h.ensureResponsesDependencies(c, nil) {
@@ -44,12 +48,17 @@ func (h *OpenAIGatewayHandler) GrokRealtime(c *gin.Context) {
 		return
 	}
 
+	requestModel, upstreamModel := realtimeRequestModels(c, "grok-voice-latest")
+	// Grok Realtime is billed as audio minutes, so the text-model profit gate is
+	// not applicable. Keep this aligned with OpenAI Realtime and Grok media.
+	c.Request = c.Request.WithContext(service.WithOpenAIProfitControlSuppressed(c.Request.Context()))
+	selectionModel := grokRealtimeSelectionModel(apiKey, upstreamModel)
 	selection, _, err := h.gatewayService.SelectAccountWithSchedulerForCapability(
 		c.Request.Context(),
 		apiKey.GroupID,
 		"",
 		"",
-		"grok-4.5",
+		selectionModel,
 		nil,
 		service.OpenAIUpstreamTransportHTTPSSE,
 		// Grok only advertises chat_completions + media capabilities on HEAD.
@@ -65,7 +74,10 @@ func (h *OpenAIGatewayHandler) GrokRealtime(c *gin.Context) {
 	}
 
 	var streamStarted bool
-	reqLog := requestLogger(c, "handler.openai_gateway.grok_realtime")
+	reqLog := requestLogger(c, "handler.openai_gateway.grok_realtime",
+		zap.String("model", requestModel),
+		zap.String("routing_model", upstreamModel),
+	)
 	release, slotStatus := h.acquireResponsesAccountSlot(c, apiKey.GroupID, "", selection, true, &streamStarted, reqLog)
 	if slotStatus != openAISlotAcquireOK {
 		return
@@ -84,12 +96,8 @@ func (h *OpenAIGatewayHandler) GrokRealtime(c *gin.Context) {
 	}
 	defer func() { _ = conn.CloseNow() }()
 
-	model := c.Query("model")
-	if strings.TrimSpace(model) == "" {
-		model = "grok-voice-latest"
-	}
 	started := time.Now()
-	audioObserved, proxyErr := h.gatewayService.ProxyGrokRealtime(c.Request.Context(), c, conn, selection.Account, token, model)
+	audioObserved, proxyErr := h.gatewayService.ProxyGrokRealtime(c.Request.Context(), c, conn, selection.Account, token, upstreamModel)
 	elapsed := time.Since(started)
 	if proxyErr != nil {
 		reqLog.Info("grok_realtime.proxy_failed", zap.Error(proxyErr))
@@ -98,9 +106,19 @@ func (h *OpenAIGatewayHandler) GrokRealtime(c *gin.Context) {
 			return
 		}
 	}
-	if result := grokRealtimeBillingResult(model, elapsed, audioObserved); result != nil {
+	if result := grokRealtimeBillingResult(upstreamModel, elapsed, audioObserved); result != nil {
 		h.recordGrokVoiceUsage(c, apiKey, selection.Account, subscription, "realtime", nil, result)
 	}
+}
+
+func grokRealtimeSelectionModel(apiKey *service.APIKey, upstreamModel string) string {
+	if apiKey != nil && apiKey.Group != nil && apiKey.Group.Platform == service.PlatformComposite {
+		if model := strings.TrimSpace(upstreamModel); model != "" {
+			return model
+		}
+	}
+	// Preserve the native Grok group's existing text-capability selection key.
+	return "grok-4.5"
 }
 
 func grokRealtimeBillingResult(model string, elapsed time.Duration, audioObserved bool) *service.OpenAIForwardResult {
@@ -108,10 +126,11 @@ func grokRealtimeBillingResult(model string, elapsed time.Duration, audioObserve
 		return nil
 	}
 	return &service.OpenAIForwardResult{
-		RequestID:  service.StableGrokRealtimeBillingRequestID(""),
-		Model:      model,
-		Duration:   elapsed,
-		AudioUsage: &service.AudioUsage{Mode: "realtime", DurationOrUnits: elapsed.Minutes()},
+		RequestID:     service.StableGrokRealtimeBillingRequestID(""),
+		Model:         model,
+		UpstreamModel: model,
+		Duration:      elapsed,
+		AudioUsage:    &service.AudioUsage{Mode: "realtime", DurationOrUnits: elapsed.Minutes()},
 	}
 }
 

@@ -458,6 +458,7 @@ Authorization: Bearer sk-...                 # 仅支持请求头；不支持 WS
 - 模型以 query 为准（网关拼上游 URL 时强制覆盖 model），一个连接一个模型；`session.update` 里改 model 会透传但计费仍按 query 模型。
 - 升级前 HTTP 错误：426 缺 Upgrade 头；401 无效 key；403 分组未开开关；404 平台不支持；402/429 余额配额（带 `Retry-After`）；429 用户并发（`users.concurrency`，跨全部请求类型共享）；503 分组内没有勾选 realtime 能力的 API-Key 账号。升级后上游故障：WS close 1011。
 - 上游选择：账号 `base_url` 为空直连 `wss://api.openai.com/v1/realtime`；配置 `base_url` 即对接第三方 OpenAI 兼容中转（与 Responses 转发同一套 `validateUpstreamBaseURL` + `buildOpenAIEndpointURL` 约定，https→wss 换 scheme）。
+- 复合分组：`GET /v1/realtime` 与 `/realtime` 从 `?model=` 调用既有复合路由解析器，按解析结果分派 OpenAI 或 Grok。公开模型别名留在请求审计，`upstream_model` 用于实际选号、上游 WS URL 与计费；缺少模型或无法解析时保持 404，不隐式猜测平台。复合分组必须开启 `allow_realtime`；普通 Grok 分组保持原有准入。`allow_live` 只控制独立的 Live/WebRTC 接口，与本接口无关。
 
 **计费**
 
@@ -486,7 +487,7 @@ backend/migrations/228_usage_log_audio_tokens.sql
 
 **侵入上游的文件**
 
-- 路由：`server/routes/gateway.go` 两处 `GET /realtime` 闭包改为按 `getGroupPlatform` 分流（grok / openai / 404）。
+- 路由：`server/routes/gateway.go` 两处 `GET /realtime` 闭包按 `getGroupPlatform` 分流（grok / openai / 404）；复合路由中间件仅对 `/realtime`、`/v1/realtime` 两个 GET 读取 query model，其他 GET 的既有跳过行为不变。这是本功能对上游路由文件的侵入点。
 - 能力：`service/account.go` 新增 `OpenAIEndpointCapabilityRealtime` 常量与 `SupportsOpenAIEndpointCapability` 的 case（apikey-only + 显式勾选；未加 case 的新能力会命中 `default: return false` 被全量排除）。
 - 计费：`service/billing_service.go`、`service/pricing_service.go`、`service/openai_gateway_service.go`（`OpenAIUsage`）、`service/openai_gateway_usage.go`、`service/usage_log.go`。
 - usage_logs 列序全家：`repository/usage_log_repo_insert.go`（argTypes / prepare args / 8 个列清单 / 2 处 `$N` 占位符尾）、`usage_log_repo_query.go`（select 常量 + scan）、`usage_log_session_id_unit_test.go`、`usage_log_repo_request_type_test.go`。
@@ -503,7 +504,7 @@ backend/migrations/228_usage_log_audio_tokens.sql
 
 **已知边界**
 
-- composite 复合分组不支持 realtime：composite 解析中间件跳过 GET 请求（模型在 query 而非 body），且两个 realtime handler 检查原始分组平台。要支持需中间件从 `?model=` 解析 + handler 改用有效平台，未列入当前范围。
+- composite 复合分组的 realtime 已支持 query model 路由到 OpenAI/Grok；TTS 虽然请求体带 model，但 Grok handler 的复合准入尚未开放，`GET /custom-voices*` 又没有模型可供路由，两者仍未纳入本次范围。
 - 音频内容不经文本安全审计（现有审计链只覆盖文本）；`session.update` 文本可审但当前与 grok 直通保持一致未挂钩。
 - Live（WebRTC/Codex 订阅号通道）与本功能无关，仍为零计费（上游 TODO，`service/openai_live.go` 内注释）。
 - `gpt-realtime-2.1` 价格按 `gpt-realtime-2` 官方价填写，如上游价格表后续收录该型号，以上游同步为准。

@@ -533,7 +533,16 @@ func compositeTargetPlatformMiddleware(resolver *service.CompositeRouteResolver)
 			c.Next()
 			return
 		}
-		if c.Request == nil || c.Request.Method == http.MethodGet {
+		if c.Request == nil {
+			c.Next()
+			return
+		}
+		if c.Request.Method == http.MethodGet {
+			if isCompositeRealtimeQueryPath(c.Request.URL.Path) {
+				if _, ok := resolveCompositeRouteForRequest(c, resolver, apiKey.Group.ID, c.Query("model")); !ok {
+					return
+				}
+			}
 			c.Next()
 			return
 		}
@@ -554,14 +563,11 @@ func compositeTargetPlatformMiddleware(resolver *service.CompositeRouteResolver)
 
 		model := compositeRequestModelFromBody(c.GetHeader("Content-Type"), body)
 		if model != "" {
-			decision, err := resolver.Resolve(c.Request.Context(), apiKey.Group.ID, model, compositeRouteEndpointForPath(c.Request.URL.Path))
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"type": "server_error", "message": "Failed to resolve composite model route"}})
-				c.Abort()
+			decision, ok := resolveCompositeRouteForRequest(c, resolver, apiKey.Group.ID, model)
+			if !ok {
 				return
 			}
 			if decision.Matched {
-				c.Request = c.Request.WithContext(service.WithCompositeRouteDecision(c.Request.Context(), decision))
 				if upstreamModel := strings.TrimSpace(decision.UpstreamModel); upstreamModel != "" && upstreamModel != model && gjson.ValidBytes(body) {
 					if _, modelPath := compositeJSONRequestModel(body); modelPath != "" {
 						if rewritten, rewriteErr := sjson.SetBytes(body, modelPath, upstreamModel); rewriteErr == nil {
@@ -574,6 +580,28 @@ func compositeTargetPlatformMiddleware(resolver *service.CompositeRouteResolver)
 		resetRequestBody(c, body)
 		c.Next()
 	}
+}
+
+func resolveCompositeRouteForRequest(c *gin.Context, resolver *service.CompositeRouteResolver, groupID int64, model string) (service.CompositeRouteDecision, bool) {
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return service.CompositeRouteDecision{}, true
+	}
+	decision, err := resolver.Resolve(c.Request.Context(), groupID, model, compositeRouteEndpointForPath(c.Request.URL.Path))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"type": "server_error", "message": "Failed to resolve composite model route"}})
+		c.Abort()
+		return service.CompositeRouteDecision{}, false
+	}
+	if decision.Matched {
+		c.Request = c.Request.WithContext(service.WithCompositeRouteDecision(c.Request.Context(), decision))
+	}
+	return decision, true
+}
+
+func isCompositeRealtimeQueryPath(path string) bool {
+	path = strings.TrimRight(strings.TrimSpace(path), "/")
+	return path == "/realtime" || path == "/v1/realtime"
 }
 
 func compositeRequestModelFromBody(contentType string, body []byte) string {
