@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -14,6 +17,33 @@ import (
 )
 
 func handlerCatalogPrice(value float64) *float64 { return &value }
+
+type modelPricingAudioResolverStub struct{}
+
+func (modelPricingAudioResolverStub) AddEffectiveAudioTokenModelPricing(
+	_ context.Context,
+	catalog *service.EffectiveGroupModelPricingCatalog,
+	_ *service.Group,
+	model string,
+	tokenMultiplier float64,
+	_ time.Time,
+) bool {
+	if model != "gpt-realtime-2.1" {
+		return false
+	}
+	catalog.Models[model] = service.EffectiveGroupModelPrice{
+		MatchType:   service.GroupModelPricingMatchExact,
+		BillingMode: service.BillingModeToken,
+		Displayable: true,
+		Unit:        service.GroupModelPricingUnitToken,
+		Prices: map[string]float64{
+			service.GroupModelPricingAudioInputPriceKey:     32e-6 * tokenMultiplier,
+			service.GroupModelPricingAudioOutputPriceKey:    64e-6 * tokenMultiplier,
+			service.GroupModelPricingAudioCacheReadPriceKey: 0.4e-6 * tokenMultiplier,
+		},
+	}
+	return true
+}
 
 func modelPricingTestGroup(id int64, exclusive bool, model string, price float64) service.Group {
 	return service.Group{
@@ -47,6 +77,7 @@ func TestGatewayHandlerKeyModelPricingReturnsEffectivePricesOnly(t *testing.T) {
 	group := modelPricingTestGroup(71, false, "gpt-image-2", 0.2)
 	group.ImageRateIndependent = true
 	group.ImageRateMultiplier = 1.5
+	group.AudioRealtimePricePerMin = handlerCatalogPrice(0.08)
 	group.ModelPricing = append(group.ModelPricing, service.ChannelModelPricing{
 		Models:          []string{"grok-imagine-video"},
 		BillingMode:     service.BillingModeVideo,
@@ -63,7 +94,9 @@ func TestGatewayHandlerKeyModelPricingReturnsEffectivePricesOnly(t *testing.T) {
 	apiKey := &service.APIKey{ID: 10, UserID: 20, Key: "sk-sensitive-value", GroupID: &groupID, Group: &group}
 	c, w := newKeyModelPricingContext(apiKey)
 
-	newKeyBillingHandler(nil).KeyModelPricing(c)
+	h := newKeyBillingHandler(nil)
+	h.modelPricingResolver = modelPricingAudioResolverStub{}
+	h.KeyModelPricing(c)
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Equal(t, "no-store", w.Header().Get("Cache-Control"))
@@ -77,9 +110,20 @@ func TestGatewayHandlerKeyModelPricingReturnsEffectivePricesOnly(t *testing.T) {
 	require.True(t, got.PricesIncludeMultiplier)
 	require.Equal(t, 1.5, got.Multipliers.Image)
 	require.Equal(t, 1.0, got.Multipliers.Video)
+	require.Equal(t, 1.0, got.Multipliers.Token)
 	require.InDelta(t, 0.3, got.Models["gpt-image-2"].Prices["2K"], 1e-12)
 	require.Equal(t, 0.04, got.Models["grok-imagine-video"].Prices["720p"])
 	require.True(t, got.Models["gpt-image-2"].Displayable)
+	require.Equal(t, service.GroupModelPricingUnitToken, got.Models["gpt-realtime-2.1"].Unit)
+	require.Equal(t, 32e-6, got.Models["gpt-realtime-2.1"].Prices[service.GroupModelPricingAudioInputPriceKey])
+	require.Equal(t, 64e-6, got.Models["gpt-realtime-2.1"].Prices[service.GroupModelPricingAudioOutputPriceKey])
+	require.Equal(t, 0.4e-6, got.Models["gpt-realtime-2.1"].Prices[service.GroupModelPricingAudioCacheReadPriceKey])
+	require.Equal(t, service.GroupAudioPricingUnitMinute, got.Audio[service.GroupAudioPricingGrokRealtime].Unit)
+	require.Equal(t, service.GroupAudioPricingSourceGroup, got.Audio[service.GroupAudioPricingGrokRealtime].Source)
+	require.Equal(t, 0.08, got.Audio[service.GroupAudioPricingGrokRealtime].Prices["default"])
+	require.Equal(t, service.GroupAudioPricingUnitMillionCharacters, got.Audio[service.GroupAudioPricingTTS].Unit)
+	require.Equal(t, service.GroupAudioPricingUnitHour, got.Audio[service.GroupAudioPricingSTT].Unit)
+	require.False(t, got.ObservedAt.IsZero())
 	require.False(t, got.Models["text-model"].Displayable)
 	require.False(t, got.Models["legacy-request-model"].Displayable)
 	var raw struct {
@@ -94,6 +138,93 @@ func TestGatewayHandlerKeyModelPricingReturnsEffectivePricesOnly(t *testing.T) {
 	require.NotContains(t, w.Body.String(), group.Name)
 	require.NotContains(t, w.Body.String(), "channel")
 	require.NotContains(t, w.Body.String(), "account")
+}
+
+func TestRequestedAudioPricingModelsIncludesDefaultsAndSafeQueries(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodGet,
+		"/v1/sub2api/model-pricing?model=gpt-4o-realtime-preview&model=text-only&models=gpt-realtime-2.1,gpt-custom-realtime",
+		nil,
+	)
+
+	models := requestedAudioPricingModels(c)
+
+	require.Contains(t, models, "gpt-realtime-2.1")
+	require.Contains(t, models, "gpt-realtime")
+	require.Contains(t, models, "gpt-realtime-mini")
+	require.Contains(t, models, "gpt-4o-realtime-preview")
+	require.Contains(t, models, "gpt-custom-realtime")
+	require.NotContains(t, models, "text-only")
+	require.Equal(t, 1, countString(models, "gpt-realtime-2.1"))
+}
+
+func TestRequestedAudioPricingModelsBoundsCustomQueries(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("caps unique models", func(t *testing.T) {
+		values := make([]string, 0, 40)
+		for i := 0; i < 40; i++ {
+			values = append(values, "custom-realtime-"+strconv.Itoa(i))
+		}
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodGet,
+			"/v1/sub2api/model-pricing?models="+strings.Join(values, ","), nil)
+
+		models := requestedAudioPricingModels(c)
+
+		require.Len(t, models, maxRequestedAudioPricingModels)
+		require.Contains(t, models, "custom-realtime-0")
+		require.NotContains(t, models, "custom-realtime-39")
+	})
+
+	t.Run("skips oversized list", func(t *testing.T) {
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodGet,
+			"/v1/sub2api/model-pricing?models="+strings.Repeat("x", maxRequestedAudioPricingListBytes+1), nil)
+
+		models := requestedAudioPricingModels(c)
+
+		require.NotEmpty(t, models)
+		for _, model := range models {
+			require.True(t, strings.HasPrefix(model, "gpt-realtime"))
+		}
+	})
+}
+
+func TestBuildGroupModelPricingResponseAppliesPeakOnlyToTokenAudio(t *testing.T) {
+	realtime := 0.08
+	group := &service.Group{
+		ID:                       71,
+		SubscriptionType:         service.SubscriptionTypeSubscription,
+		AudioRealtimePricePerMin: &realtime,
+		PeakRateEnabled:          true,
+		PeakStart:                "00:00",
+		PeakEnd:                  "23:59",
+		PeakRateMultiplier:       2,
+	}
+	pricingAt := time.Date(2026, time.August, 21, 12, 0, 0, 0, time.UTC)
+
+	got := buildGroupModelPricingResponse(
+		context.Background(), group, 0.5, modelPricingAudioResolverStub{},
+		[]string{"gpt-realtime-2.1"}, pricingAt,
+	)
+
+	require.Equal(t, 0.5, got.Multipliers.ResolvedGroup)
+	require.Equal(t, 1.0, got.Multipliers.Token)
+	require.Equal(t, 0.04, got.Audio[service.GroupAudioPricingGrokRealtime].Prices["default"])
+	require.Equal(t, 32e-6, got.Models["gpt-realtime-2.1"].Prices[service.GroupModelPricingAudioInputPriceKey])
+	require.Equal(t, pricingAt, got.ObservedAt)
+}
+
+func countString(values []string, target string) int {
+	count := 0
+	for _, value := range values {
+		if value == target {
+			count++
+		}
+	}
+	return count
 }
 
 func TestGatewayHandlerKeyModelPricingUsesUserOverrideAndEmptyIsExplicit(t *testing.T) {
@@ -189,7 +320,9 @@ func newJWTModelPricingHandler(groups []service.Group, rates map[int64]float64) 
 		nil,
 		nil,
 	)
-	return NewAPIKeyHandler(svc)
+	h := NewAPIKeyHandler(svc)
+	h.modelPricingResolver = modelPricingAudioResolverStub{}
+	return h
 }
 
 func newJWTModelPricingContext(groupID string, authenticated bool) (*gin.Context, *httptest.ResponseRecorder) {
@@ -217,6 +350,9 @@ func TestAPIKeyHandlerGroupModelPricingEnforcesJWTGroupAccess(t *testing.T) {
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
 		require.Equal(t, 0.5, got.Multipliers.ResolvedGroup)
 		require.Equal(t, 0.1, got.Models["gpt-image-2"].Prices["2K"])
+		require.Equal(t, service.GroupModelPricingUnitToken, got.Models["gpt-realtime-2.1"].Unit)
+		require.Equal(t, 16e-6, got.Models["gpt-realtime-2.1"].Prices[service.GroupModelPricingAudioInputPriceKey])
+		require.Equal(t, service.GroupAudioPricingUnitMinute, got.Audio[service.GroupAudioPricingGrokRealtime].Unit)
 	})
 
 	t.Run("exclusive group is not disclosed", func(t *testing.T) {

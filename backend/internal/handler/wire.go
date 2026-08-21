@@ -197,6 +197,7 @@ func ProvideHandlers(
 	asyncImageHandler *AsyncImageHandler,
 	batchImageHandler *BatchImageHandler,
 	checkinHandler *CheckinHandler,
+	modelPricingResolver *service.ModelPricingResolver,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 ) *Handlers {
@@ -204,6 +205,8 @@ func ProvideHandlers(
 	// forwarder here (post-construction) so the async image executor can dispatch
 	// gemini-platform tasks without a Wire provider dependency cycle.
 	asyncImageHandler.SetGeminiForwarder(gatewayHandler)
+	apiKeyHandler.modelPricingResolver = modelPricingResolver
+	gatewayHandler.modelPricingResolver = modelPricingResolver
 	return &Handlers{
 		Auth:             authHandler,
 		User:             userHandler,

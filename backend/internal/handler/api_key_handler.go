@@ -20,7 +20,8 @@ import (
 
 // APIKeyHandler handles API key-related requests
 type APIKeyHandler struct {
-	apiKeyService *service.APIKeyService
+	apiKeyService        *service.APIKeyService
+	modelPricingResolver groupModelAudioTokenPricingResolver
 }
 
 // NewAPIKeyHandler creates a new APIKeyHandler

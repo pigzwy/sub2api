@@ -613,35 +613,96 @@ API-key 入口只读取该 key 绑定的分组，不接受客户端指定 group 
 `GetAvailableGroups`，只允许当前用户实际可绑定的活动标准组、已授权专属组或具有有效
 订阅的订阅组。两者均返回 `Cache-Control: no-store`，不受模型广场开关影响。
 
-响应枚举 `groups.model_pricing` 中全部显式模型规则以保留真实匹配优先级，但只给
-`image` / `video` 规则标记 `displayable=true` 并投影销售价格；`token` / `per_request`
-规则标记 `displayable=false` 且不返回 `prices`，消费方必须显示「价格以实际扣费为准」。
-这是因为 `per_request` 可同时用于图片、音频等请求，脱离请求类型无法安全选择倍率。
-接口不返回渠道、账号、成本价、内部 pricing id 或其他分组配置。图片价格单位为
+响应枚举 `groups.model_pricing` 中全部显式模型规则以保留真实匹配优先级。图片价格单位为
 USD/image，档位固定为 `1K` / `2K` / `4K`；视频价格单位为 USD/second，档位固定为
-`480p` / `720p` / `1080p`。可展示价格已经应用与真实扣费相同的当前用户分组倍率以及
-`image_rate_independent` / `video_rate_independent` 选择，因此 Studio 可直接显示，
-不能再自行重复乘倍率。
+`480p` / `720p` / `1080p`。两者已经应用当前用户分组倍率以及
+`image_rate_independent` / `video_rate_independent` 选择。
+
+OpenAI Realtime 是 token 计费例外：接口默认解析内置清单里的 `gpt-realtime*`，也接受
+重复的 `?model=` 或逗号分隔的 `?models=` 查询（合计最多 32 个，只接受名称含
+`realtime` 的非通配模型）。解析链与真实扣费一致，为 Group → Channel → LiteLLM →
+Fallback；只有 audio input、audio output、audio cache-read 三个专用价格均可确定时，
+才把该模型标记为 `displayable=true`：
+
+```json
+{
+  "billing_mode": "token",
+  "displayable": true,
+  "unit": "token",
+  "prices": {
+    "audio_input": 0.000032,
+    "audio_output": 0.000064,
+    "audio_cache_read": 0.0000004
+  }
+}
+```
+
+三项均为 USD/token，并已应用当前用户分组倍率、当前高峰倍率与渠道分时倍率；Studio
+只能用对应 token 数直接相乘，不能再次乘倍率。任一专用档缺失时接口不拿可能随上下文
+变化的文本 token 价格冒充音频价，而是让模型保持缺席/不可展示。
+
+分组级音频兜底价格放在顶层 `audio`，固定契约如下：
+
+```json
+{
+  "grok_realtime": {"unit":"minute","source":"group","prices":{"default":0.08}},
+  "tts": {"unit":"million_characters","source":"default","prices":{"default":15}},
+  "stt": {"unit":"hour","source":"default","prices":{"default":0.1}}
+}
+```
+
+`source=group` 表示后台显式配置，`source=default` 表示使用网关实际计费的默认价；显式
+配置 0 会以 `source=group` 和价格 0 返回，语义为免费。这三种按量音频价只应用当前
+用户分组基础倍率，不应用仅属于 token 请求的高峰因子。若某模型命中
+`billing_mode=per_request` 的显式模型规则，该规则优先于顶层音频兜底；由于脱离请求
+类型无法安全解释 per-request 单位，该模型仍为 `displayable=false`，消费方必须显示
+「价格以实际扣费为准」。
+
+接口不返回渠道、账号、内部 pricing source/id 或其他分组配置；可展示金额就是当前
+实际扣费使用的销售价格，不是另行公开一份成本表。
 
 契约 `schema_version=1`：`price_scope=effective`、`prices_include_multiplier=true`；
+`multipliers` 同时返回 `resolved_group` / `token` / `image` / `video`，`observed_at` 是本次
+解析高峰和渠道分时价格的 UTC 时间；
 `models` 是以模型名或后缀 `*` 前缀规则为 key 的对象，规则标记 `match_type=exact|prefix`；
 prefix 规则额外返回从 0 开始的全量规则 `priority`，数值越小越先匹配，exact 始终优先于
-prefix。成功响应中模型缺席明确表示该分组没有该显式模型规则，整个分组未配置模型规则时
-返回 `"models": {}`；请求失败使用非 2xx。接口不把渠道/内置回退价伪装成分组配置价。
+prefix。成功响应中某个模型缺席表示接口没有可安全展示的有效价格；请求失败使用非 2xx。
+旧客户端可以忽略新增的 `audio`、`multipliers.token` 与 `observed_at` 字段，原有图片/视频
+结构不变。
 
 API-key 路径与 `/v1/sub2api/billing` 一样属于只读计费元数据：仍执行 Key、用户、分组和
 IP 鉴权，但不执行余额、配额、过期或订阅消费检查，也不刷新 `last_used_at`。该例外只对
 精确 GET 路径生效。
 
 实现新增 `service/group_model_pricing_catalog.go` 与
-`handler/group_model_pricing.go`；对上游的侵入点为 `routes/gateway.go` 和
+`handler/group_model_pricing.go`，并向两个 handler 注入既有 `ModelPricingResolver`；
+对上游的侵入点为 `routes/gateway.go` 和
 `routes/user.go` 各增加一条 GET 路由，外加 `server/middleware/api_key_auth.go`
 把只读计费元数据端点放进"只鉴权、不执行计费"的白名单（与 `/v1/usage`、异步生图任务
 查询同类：额度耗尽的 Key 也应当能查到自己要付多少钱）。无数据库迁移、设置项或 Redis key。
 
-测试覆盖老板当前七个媒体模型的价格表、图片/视频独立倍率、用户专属倍率、档位默认价
-回退、全量通配优先级、不可直接展示的 per-request 规则、空配置、API-key 端到端路由，
-以及 JWT 对未授权专属组的 404 防泄露。
+测试覆盖老板当前七个媒体模型的价格表、OpenAI Realtime 三档音频 token 价格、Grok
+Realtime/TTS/STT 的配置/默认/显式免费语义、token 高峰倍率与按量音频倍率隔离、查询
+边界、图片/视频独立倍率、用户专属倍率、档位默认价回退、全量通配优先级、不可直接展示
+的 per-request 规则、API-key/JWT 两条成功链路，以及 JWT 对未授权专属组的 404 防泄露。
+
+---
+
+## 15. 复合分组下的图片档位计费（运营须知，非代码）
+
+三家上游对"分辨率"的支持完全不同，界面看起来一样，实际语义不一样：
+
+| 平台 | `size` 到底做什么 | 依据 |
+|---|---|---|
+| gpt-image | **原样透传给 OpenAI**，真正决定输出尺寸 | `internal/service/openai_images.go` |
+| gemini | 走原生 `v1beta`，档位在 `imageConfig.imageSize`，真正生效 | `internal/service/gemini_images_adapter.go:122` |
+| **Grok** | **转发前被删掉**，只用于计费归档 | `internal/service/grok_media.go:1226` `sanitizeGrokMediaForwardBody` |
+
+**Grok 那条必须记住**：xAI 的图片接口不接受 `size`，网关的 `sanitizeGrokMediaForwardBody` 会在转发前 `sjson.DeleteBytes(body, "size")`。所以 Grok 的输出尺寸由模型自己决定，界面上那个 1K/2K/4K 选择器**只影响按哪一档计费，不改变产出**。
+
+**因此 Grok 的三档价格必须保持同值**（2026-08-21 老板拍板）。否则就变成"用户随手选中哪档就付多少钱，而选择根本不影响他拿到什么"——既说不通，出账目纠纷时也极难解释。调价时**三个字段要一起改**。
+
+`size` 的归档规则见 `internal/service/image_billing_size.go`：既认档位名（`1k`/`2k`/`4k`），也认常见像素串，其余按最长边归档；**`"auto"` 和空值归档失败，兜底为 2K**。这解释了为什么"Auto 比例 + 选 4K"会按 2K 计费——Studio 侧已针对 gpt-image 禁用了该组合并明示，Grok 因三档同价不受影响。
 
 ---
 

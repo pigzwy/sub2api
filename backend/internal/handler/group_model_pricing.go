@@ -1,11 +1,16 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -13,10 +18,32 @@ import (
 
 const groupModelPricingSchemaVersion = 1
 
+const maxRequestedAudioPricingModels = 32
+
+const maxRequestedAudioPricingListBytes = 8192
+
+type groupModelAudioTokenPricingResolver interface {
+	AddEffectiveAudioTokenModelPricing(
+		ctx context.Context,
+		catalog *service.EffectiveGroupModelPricingCatalog,
+		group *service.Group,
+		model string,
+		tokenMultiplier float64,
+		pricingAt time.Time,
+	) bool
+}
+
 type groupModelPricingMultipliersResponse struct {
 	ResolvedGroup float64 `json:"resolved_group"`
+	Token         float64 `json:"token"`
 	Image         float64 `json:"image"`
 	Video         float64 `json:"video"`
+}
+
+type groupAudioPriceResponse struct {
+	Unit   string             `json:"unit"`
+	Source string             `json:"source"`
+	Prices map[string]float64 `json:"prices"`
 }
 
 type groupModelPriceResponse struct {
@@ -37,6 +64,8 @@ type groupModelPricingResponse struct {
 	PricesIncludeMultiplier bool                                 `json:"prices_include_multiplier"`
 	Multipliers             groupModelPricingMultipliersResponse `json:"multipliers"`
 	Models                  map[string]groupModelPriceResponse   `json:"models"`
+	Audio                   map[string]groupAudioPriceResponse   `json:"audio"`
+	ObservedAt              time.Time                            `json:"observed_at"`
 }
 
 // KeyModelPricing returns the effective explicit media prices for the group
@@ -66,7 +95,11 @@ func (h *GatewayHandler) KeyModelPricing(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, buildGroupModelPricingResponse(apiKey.Group, resolvedRate))
+	pricingAt := timezone.Now()
+	c.JSON(http.StatusOK, buildGroupModelPricingResponse(
+		c.Request.Context(), apiKey.Group, resolvedRate, h.modelPricingResolver,
+		requestedAudioPricingModels(c), pricingAt,
+	))
 }
 
 // GetGroupModelPricing returns the same contract for a JWT-authenticated user,
@@ -116,11 +149,37 @@ func (h *APIKeyHandler) GetGroupModelPricing(c *gin.Context) {
 		resolvedRate = userRate
 	}
 
-	c.JSON(http.StatusOK, buildGroupModelPricingResponse(selected, resolvedRate))
+	pricingAt := timezone.Now()
+	c.JSON(http.StatusOK, buildGroupModelPricingResponse(
+		c.Request.Context(), selected, resolvedRate, h.modelPricingResolver,
+		requestedAudioPricingModels(c), pricingAt,
+	))
 }
 
-func buildGroupModelPricingResponse(group *service.Group, resolvedRate float64) groupModelPricingResponse {
+func buildGroupModelPricingResponse(
+	ctx context.Context,
+	group *service.Group,
+	resolvedRate float64,
+	resolver groupModelAudioTokenPricingResolver,
+	audioModels []string,
+	pricingAt time.Time,
+) groupModelPricingResponse {
 	catalog := service.BuildEffectiveGroupModelPricingCatalog(group, resolvedRate)
+	baseMultiplier := catalog.ResolvedGroupMultiplier
+	tokenMultiplier := catalog.ResolvedGroupMultiplier
+	if group != nil {
+		tokenMultiplier *= group.PeakMultiplierAt(pricingAt)
+	}
+	if tokenMultiplier < 0 {
+		tokenMultiplier = 0
+	}
+	catalog.TokenMultiplier = tokenMultiplier
+	service.AddEffectiveGroupAudioPricing(&catalog, group, baseMultiplier)
+	if resolver != nil {
+		for _, model := range audioModels {
+			resolver.AddEffectiveAudioTokenModelPricing(ctx, &catalog, group, model, tokenMultiplier, pricingAt)
+		}
+	}
 	models := make(map[string]groupModelPriceResponse, len(catalog.Models))
 	for model, pricing := range catalog.Models {
 		models[model] = groupModelPriceResponse{
@@ -130,6 +189,14 @@ func buildGroupModelPricingResponse(group *service.Group, resolvedRate float64) 
 			Displayable: pricing.Displayable,
 			Unit:        pricing.Unit,
 			Prices:      pricing.Prices,
+		}
+	}
+	audio := make(map[string]groupAudioPriceResponse, len(catalog.Audio))
+	for mode, pricing := range catalog.Audio {
+		audio[mode] = groupAudioPriceResponse{
+			Unit:   pricing.Unit,
+			Source: pricing.Source,
+			Prices: pricing.Prices,
 		}
 	}
 	groupID := int64(0)
@@ -145,9 +212,61 @@ func buildGroupModelPricingResponse(group *service.Group, resolvedRate float64) 
 		PricesIncludeMultiplier: true,
 		Multipliers: groupModelPricingMultipliersResponse{
 			ResolvedGroup: catalog.ResolvedGroupMultiplier,
+			Token:         catalog.TokenMultiplier,
 			Image:         catalog.ImageMultiplier,
 			Video:         catalog.VideoMultiplier,
 		},
-		Models: models,
+		Models:     models,
+		Audio:      audio,
+		ObservedAt: pricingAt.UTC(),
 	}
+}
+
+func requestedAudioPricingModels(c *gin.Context) []string {
+	seen := make(map[string]struct{})
+	models := make([]string, 0, maxRequestedAudioPricingModels)
+	add := func(value string) {
+		if len(models) >= maxRequestedAudioPricingModels {
+			return
+		}
+		model := strings.ToLower(strings.TrimSpace(value))
+		if model == "" || len(model) > 200 || !strings.Contains(model, "realtime") || strings.Contains(model, "*") {
+			return
+		}
+		if _, exists := seen[model]; exists {
+			return
+		}
+		seen[model] = struct{}{}
+		models = append(models, model)
+	}
+	for _, model := range openai.DefaultModels {
+		if strings.HasPrefix(strings.ToLower(model.ID), "gpt-realtime") {
+			add(model.ID)
+		}
+	}
+	if c != nil {
+		for _, model := range c.QueryArray("model") {
+			if len(models) >= maxRequestedAudioPricingModels {
+				break
+			}
+			add(model)
+		}
+		for _, raw := range c.QueryArray("models") {
+			if len(models) >= maxRequestedAudioPricingModels {
+				break
+			}
+			if len(raw) > maxRequestedAudioPricingListBytes {
+				continue
+			}
+			for raw != "" && len(models) < maxRequestedAudioPricingModels {
+				model, rest, found := strings.Cut(raw, ",")
+				add(model)
+				if !found {
+					break
+				}
+				raw = rest
+			}
+		}
+	}
+	return models
 }

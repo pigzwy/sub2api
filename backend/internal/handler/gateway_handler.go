@@ -58,6 +58,7 @@ type GatewayHandler struct {
 	maxAccountSwitchesGemini  int
 	cfg                       *config.Config
 	settingService            *service.SettingService
+	modelPricingResolver      groupModelAudioTokenPricingResolver
 }
 
 // NewGatewayHandler creates a new GatewayHandler

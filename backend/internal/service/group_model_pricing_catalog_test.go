@@ -1,7 +1,9 @@
 package service
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -204,4 +206,93 @@ func TestBuildEffectiveGroupModelPricingCatalogMirrorsTierFallbackAndClampsMulti
 	require.Zero(t, clamped.ResolvedGroupMultiplier)
 	require.Zero(t, clamped.ImageMultiplier)
 	require.Zero(t, clamped.Models["image-model"].Prices[ImageBillingSize2K])
+}
+
+func TestAddEffectiveGroupAudioPricingUsesConfiguredAndDefaultPrices(t *testing.T) {
+	realtime := 0.08
+	freeTTS := 0.0
+	group := &Group{
+		AudioRealtimePricePerMin:     &realtime,
+		AudioTTSPricePerMillionChars: &freeTTS,
+	}
+	catalog := BuildEffectiveGroupModelPricingCatalog(group, 0.5)
+
+	AddEffectiveGroupAudioPricing(&catalog, group, 0.5)
+
+	require.Equal(t, 0.5, catalog.TokenMultiplier)
+	require.Equal(t, GroupAudioPricingUnitMinute, catalog.Audio[GroupAudioPricingGrokRealtime].Unit)
+	require.Equal(t, GroupAudioPricingSourceGroup, catalog.Audio[GroupAudioPricingGrokRealtime].Source)
+	require.Equal(t, 0.04, catalog.Audio[GroupAudioPricingGrokRealtime].Prices["default"])
+	require.Equal(t, GroupAudioPricingUnitMillionCharacters, catalog.Audio[GroupAudioPricingTTS].Unit)
+	require.Equal(t, GroupAudioPricingSourceGroup, catalog.Audio[GroupAudioPricingTTS].Source)
+	require.Zero(t, catalog.Audio[GroupAudioPricingTTS].Prices["default"])
+	require.Equal(t, GroupAudioPricingUnitHour, catalog.Audio[GroupAudioPricingSTT].Unit)
+	require.Equal(t, GroupAudioPricingSourceDefault, catalog.Audio[GroupAudioPricingSTT].Source)
+	require.Equal(t, 0.05, catalog.Audio[GroupAudioPricingSTT].Prices["default"])
+}
+
+func TestAddEffectiveGroupAudioPricingDoesNotChangeTokenMultiplier(t *testing.T) {
+	group := &Group{}
+	catalog := BuildEffectiveGroupModelPricingCatalog(group, 0.5)
+	catalog.TokenMultiplier = 1.25
+
+	AddEffectiveGroupAudioPricing(&catalog, group, 0.5)
+
+	require.Equal(t, 1.25, catalog.TokenMultiplier)
+	require.Equal(t, defaultAudioRealtimePricePerMin*0.5, catalog.Audio[GroupAudioPricingGrokRealtime].Prices["default"])
+}
+
+func TestAddEffectiveAudioTokenModelPricingUsesResolvedBillingPrices(t *testing.T) {
+	billing := NewBillingService(nil, nil)
+	billing.fallbackPrices["gpt-realtime-test"] = &ModelPricing{
+		InputPricePerToken:          2e-6,
+		OutputPricePerToken:         4e-6,
+		CacheReadPricePerToken:      1e-7,
+		AudioInputPricePerToken:     32e-6,
+		AudioOutputPricePerToken:    64e-6,
+		AudioCacheReadPricePerToken: 0.4e-6,
+	}
+	resolver := NewModelPricingResolver(nil, billing)
+	group := &Group{ID: 71}
+	catalog := BuildEffectiveGroupModelPricingCatalog(group, 0.5)
+
+	added := resolver.AddEffectiveAudioTokenModelPricing(
+		context.Background(), &catalog, group, "gpt-realtime-test", 0.5, time.Now(),
+	)
+
+	require.True(t, added)
+	model := catalog.Models["gpt-realtime-test"]
+	require.True(t, model.Displayable)
+	require.Equal(t, BillingModeToken, model.BillingMode)
+	require.Equal(t, GroupModelPricingUnitToken, model.Unit)
+	require.Equal(t, 16e-6, model.Prices[GroupModelPricingAudioInputPriceKey])
+	require.Equal(t, 32e-6, model.Prices[GroupModelPricingAudioOutputPriceKey])
+	require.Equal(t, 0.2e-6, model.Prices[GroupModelPricingAudioCacheReadPriceKey])
+}
+
+func TestAddEffectiveAudioTokenModelPricingRejectsPerRequestAndTextOnlyModels(t *testing.T) {
+	price := 0.1
+	group := &Group{ID: 71, ModelPricing: []ChannelModelPricing{{
+		Models:          []string{"per-request-realtime"},
+		BillingMode:     BillingModePerRequest,
+		PerRequestPrice: &price,
+	}}}
+	billing := NewBillingService(nil, nil)
+	billing.fallbackPrices["text-realtime"] = &ModelPricing{InputPricePerToken: 1e-6, OutputPricePerToken: 2e-6}
+	billing.fallbackPrices["partial-audio-realtime"] = &ModelPricing{
+		AudioInputPricePerToken:  32e-6,
+		AudioOutputPricePerToken: 64e-6,
+	}
+	resolver := NewModelPricingResolver(nil, billing)
+	catalog := BuildEffectiveGroupModelPricingCatalog(group, 1)
+
+	require.False(t, resolver.AddEffectiveAudioTokenModelPricing(
+		context.Background(), &catalog, group, "per-request-realtime", 1, time.Now(),
+	))
+	require.False(t, resolver.AddEffectiveAudioTokenModelPricing(
+		context.Background(), &catalog, group, "text-realtime", 1, time.Now(),
+	))
+	require.False(t, resolver.AddEffectiveAudioTokenModelPricing(
+		context.Background(), &catalog, group, "partial-audio-realtime", 1, time.Now(),
+	))
 }
