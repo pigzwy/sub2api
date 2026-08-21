@@ -503,6 +503,13 @@ backend/migrations/228_usage_log_audio_tokens.sql
 
 **对接方**：Pig Studio 工作台语音页——浏览器 → Studio Nitro 后端（持分组密钥，纯转发）→ 本网关。Studio 侧配置 `MEDIA_GROUP_VOICE_OPENAI` / `MEDIA_GROUP_VOICE_GROK`（分组 id）。接口契约（仅请求头鉴权、全量透传、query 定模型、错误码语义、计费口径、并发语义）已双侧钉死并有测试锁定。
 
+**账号能力位的配套改动**（realtime 是显式开通能力，默认集合里没有它）：
+`service/openai_bulk_account_settings.go` 的能力枚举加入 `realtime`；
+`service/api_key_auth_cache_impl.go` 在鉴权缓存快照里携带 `AllowRealtime`，
+否则命中缓存的请求读不到分组的 realtime 开关；前端
+`components/account/{Create,Edit,BulkEdit}AccountModal.vue` 三处能力下拉加入该项。
+**注意**：未勾选时保存会回落为默认两项，批量编辑时尤其容易把已开通的账号改回去。
+
 **已知边界**
 
 - composite 复合分组的 realtime 已支持 query model 路由到 OpenAI/Grok；TTS 虽然请求体带 model，但 Grok handler 的复合准入尚未开放，`GET /custom-voices*` 又没有模型可供路由，两者仍未纳入本次范围。
@@ -623,8 +630,10 @@ IP 鉴权，但不执行余额、配额、过期或订阅消费检查，也不�
 精确 GET 路径生效。
 
 实现新增 `service/group_model_pricing_catalog.go` 与
-`handler/group_model_pricing.go`；对上游的侵入点仅为 `routes/gateway.go` 和
-`routes/user.go` 各增加一条 GET 路由。无数据库迁移、设置项或 Redis key。
+`handler/group_model_pricing.go`；对上游的侵入点为 `routes/gateway.go` 和
+`routes/user.go` 各增加一条 GET 路由，外加 `server/middleware/api_key_auth.go`
+把只读计费元数据端点放进"只鉴权、不执行计费"的白名单（与 `/v1/usage`、异步生图任务
+查询同类：额度耗尽的 Key 也应当能查到自己要付多少钱）。无数据库迁移、设置项或 Redis key。
 
 测试覆盖老板当前七个媒体模型的价格表、图片/视频独立倍率、用户专属倍率、档位默认价
 回退、全量通配优先级、不可直接展示的 per-request 规则、空配置、API-key 端到端路由，
