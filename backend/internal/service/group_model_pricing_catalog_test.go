@@ -270,15 +270,18 @@ func TestAddEffectiveGroupAudioPricingLimitsCompositeToEnabledRealtime(t *testin
 }
 
 func TestAddEffectiveAudioTokenModelPricingUsesResolvedBillingPrices(t *testing.T) {
-	billing := NewBillingService(nil, nil)
-	billing.fallbackPrices["gpt-realtime-test"] = &ModelPricing{
-		InputPricePerToken:          2e-6,
-		OutputPricePerToken:         4e-6,
-		CacheReadPricePerToken:      1e-7,
-		AudioInputPricePerToken:     32e-6,
-		AudioOutputPricePerToken:    64e-6,
-		AudioCacheReadPricePerToken: 0.4e-6,
-	}
+	pricingService := &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+		"gpt-realtime-test": {
+			InputCostPerToken:                2e-6,
+			OutputCostPerToken:               4e-6,
+			CacheReadInputTokenCost:          1e-7,
+			InputCostPerAudioToken:           32e-6,
+			OutputCostPerAudioToken:          64e-6,
+			CacheReadInputAudioTokenCost:     0.4e-6,
+			CacheCreationInputAudioTokenCost: 0.4e-6,
+		},
+	}}
+	billing := NewBillingService(&config.Config{}, pricingService)
 	resolver := NewModelPricingResolver(nil, billing)
 	group := &Group{ID: 71, Platform: PlatformOpenAI, AllowRealtime: true}
 	catalog := BuildEffectiveGroupModelPricingCatalog(group, 0.5)
@@ -327,12 +330,19 @@ func TestAddEffectiveAudioTokenModelPricingRejectsPerRequestAndTextOnlyModels(t 
 		BillingMode:     BillingModePerRequest,
 		PerRequestPrice: &price,
 	}}}
-	billing := NewBillingService(nil, nil)
-	billing.fallbackPrices["text-realtime"] = &ModelPricing{InputPricePerToken: 1e-6, OutputPricePerToken: 2e-6}
-	billing.fallbackPrices["partial-audio-realtime"] = &ModelPricing{
-		AudioInputPricePerToken:  32e-6,
-		AudioOutputPricePerToken: 64e-6,
-	}
+	pricingService := &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+		"text-realtime": {
+			InputCostPerToken:  1e-6,
+			OutputCostPerToken: 2e-6,
+		},
+		"partial-audio-realtime": {
+			InputCostPerToken:       1e-6,
+			OutputCostPerToken:      2e-6,
+			InputCostPerAudioToken:  32e-6,
+			OutputCostPerAudioToken: 64e-6,
+		},
+	}}
+	billing := NewBillingService(&config.Config{}, pricingService)
 	resolver := NewModelPricingResolver(nil, billing)
 	catalog := BuildEffectiveGroupModelPricingCatalog(group, 1)
 
