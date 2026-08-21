@@ -319,24 +319,47 @@ func openAICompactSupportTier(account *Account) int {
 // 注意：对 spark 影子账号，调用方还须额外调用 parentHealthyForShadow(account, lookup)
 // 检查母账号凭据可用性；该检查未内置于本函数，以避免注入 DB 依赖。
 func isOpenAICompatibleAccountEligibleForRequest(ctx context.Context, account *Account, platform string, requestedModel string, requireCompact bool, requiredCapability OpenAIEndpointCapability) bool {
-	if !isOpenAICompatibleAccountEligibleForRequestBeforeProfit(ctx, account, platform, requestedModel, requireCompact, requiredCapability) {
-		return false
+	eligible, _ := openAICompatibleAccountEligibilityReason(ctx, account, platform, requestedModel, requireCompact, requiredCapability)
+	return eligible
+}
+
+// openAICompatibleAccountEligibilityReason is the diagnostic form of the
+// production eligibility predicate. Keep the bool wrapper above delegating to
+// this function so pool diagnostics cannot drift from the actual selection
+// gate again.
+func openAICompatibleAccountEligibilityReason(ctx context.Context, account *Account, platform string, requestedModel string, requireCompact bool, requiredCapability OpenAIEndpointCapability) (bool, string) {
+	if eligible, reason := openAICompatibleAccountEligibilityBeforeProfitReason(ctx, account, platform, requestedModel, requireCompact, requiredCapability); !eligible {
+		return false, reason
 	}
 	// 分组利润控制：legacy 引擎的粘性/候选循环与 DB recheck 共用
 	// 本判定，任何 fallback 都不能把利润不合格账号重新放回候选。
-	if vetoed, _ := openAIProfitControlVetoReason(ctx, account); vetoed {
-		return false
+	if vetoed, reason := openAIProfitControlVetoReason(ctx, account); vetoed {
+		return false, reason
 	}
-	return true
+	return true, ""
 }
 
 // isOpenAICompatibleAccountEligibleForRequestBeforeProfit applies every
 // ordinary scheduling gate. Legacy selection uses it before classifying the
 // profit veto so earlier failures retain their actual reason.
 func isOpenAICompatibleAccountEligibleForRequestBeforeProfit(ctx context.Context, account *Account, platform string, requestedModel string, requireCompact bool, requiredCapability OpenAIEndpointCapability) bool {
+	eligible, _ := openAICompatibleAccountEligibilityBeforeProfitReason(ctx, account, platform, requestedModel, requireCompact, requiredCapability)
+	return eligible
+}
+
+func openAICompatibleAccountEligibilityBeforeProfitReason(ctx context.Context, account *Account, platform string, requestedModel string, requireCompact bool, requiredCapability OpenAIEndpointCapability) (bool, string) {
 	platform = NormalizeOpenAICompatiblePlatform(platform)
-	if account == nil || account.Platform != platform || !account.IsOpenAICompatible() || !account.IsSchedulableForModelWithContext(ctx, requestedModel) {
-		return false
+	if account == nil {
+		return false, "account_nil"
+	}
+	if account.Platform != platform {
+		return false, "platform_mismatch"
+	}
+	if !account.IsOpenAICompatible() {
+		return false, "not_openai_compatible"
+	}
+	if !account.IsSchedulableForModelWithContext(ctx, requestedModel) {
+		return false, openAIAccountUnschedulableReason(ctx, account, requestedModel)
 	}
 	if account.IsOpenAI() {
 		if paused, reason := shouldAutoPauseOpenAIAccountByQuota(ctx, account); paused {
@@ -348,7 +371,7 @@ func isOpenAICompatibleAccountEligibleForRequestBeforeProfit(ctx context.Context
 				"threshold", reason.threshold,
 				"utilization", reason.utilization,
 			)
-			return false
+			return false, quotaAutoPauseEligibilityReason(reason)
 		}
 	}
 	if account.IsGrok() {
@@ -359,23 +382,86 @@ func isOpenAICompatibleAccountEligibleForRequestBeforeProfit(ctx context.Context
 				"threshold", reason.threshold,
 				"utilization", reason.utilization,
 			)
-			return false
+			return false, quotaAutoPauseEligibilityReason(reason)
 		}
 	}
 	if requestedModel != "" && !account.IsModelSupported(requestedModel) {
-		return false
+		return false, "model_not_supported"
 	}
 	if !account.SupportsOpenAIEndpointCapability(requiredCapability) {
 		if account.IsGrok() && requiredCapability == OpenAIEndpointCapabilityGrokMediaGeneration {
 			_, reason := account.GrokMediaGenerationEligibility()
 			slog.Debug("grok_media_account_ineligible", "account_id", account.ID, "reason", reason)
 		}
-		return false
+		return false, "capability_mismatch"
 	}
 	if requireCompact && openAICompactSupportTier(account) == 0 {
-		return false
+		return false, "compact_unsupported"
 	}
-	return true
+	return true, ""
+}
+
+func quotaAutoPauseEligibilityReason(decision openAIQuotaAutoPauseDecision) string {
+	reason := "quota_auto_pause"
+	if decision.window != "" {
+		reason += "_" + decision.window
+	}
+	return reason
+}
+
+// openAIAccountUnschedulableReason explains the composite account/model gate
+// used by Account.IsSchedulableForModelWithContext. The production predicate
+// remains the source of truth; this helper is called only after that predicate
+// returns false and names the first matching veto for diagnostics.
+func openAIAccountUnschedulableReason(ctx context.Context, account *Account, requestedModel string) string {
+	if account == nil {
+		return "account_nil"
+	}
+	if !account.IsActive() {
+		return "account_inactive"
+	}
+	if !account.Schedulable {
+		return "account_schedulable_disabled"
+	}
+	now := time.Now()
+	if account.AutoPauseOnExpired && account.ExpiresAt != nil && !now.Before(*account.ExpiresAt) {
+		return "account_expired"
+	}
+	if account.OverloadUntil != nil && now.Before(*account.OverloadUntil) {
+		return "account_overloaded"
+	}
+	if account.RateLimitResetAt != nil && now.Before(*account.RateLimitResetAt) {
+		return "account_rate_limit_active"
+	}
+	if account.TempUnschedulableUntil != nil && now.Before(*account.TempUnschedulableUntil) {
+		return "account_temporarily_unschedulable"
+	}
+	if account.IsAPIKeyOrBedrock() && account.IsQuotaExceeded() {
+		return openAIAccountQuotaExceededReason(account)
+	}
+	if account.isModelRateLimitedWithContext(ctx, requestedModel) {
+		return "model_rate_limited"
+	}
+	// A time boundary may expire between the production predicate and this
+	// diagnostic pass. Preserve an explicit fallback instead of claiming a
+	// different gate passed.
+	return "account_or_model_unschedulable"
+}
+
+func openAIAccountQuotaExceededReason(account *Account) string {
+	if account == nil {
+		return "account_quota_exceeded"
+	}
+	if limit := account.GetQuotaLimit(); limit > 0 && account.GetQuotaUsed() >= limit {
+		return "account_quota_exceeded_total"
+	}
+	if limit := account.GetQuotaDailyLimit(); limit > 0 && !account.IsDailyQuotaPeriodExpired() && account.GetQuotaDailyUsed() >= limit {
+		return "account_quota_exceeded_daily"
+	}
+	if limit := account.GetQuotaWeeklyLimit(); limit > 0 && !account.IsWeeklyQuotaPeriodExpired() && account.GetQuotaWeeklyUsed() >= limit {
+		return "account_quota_exceeded_weekly"
+	}
+	return "account_quota_exceeded"
 }
 
 type openAIQuotaAutoPauseDecision struct {

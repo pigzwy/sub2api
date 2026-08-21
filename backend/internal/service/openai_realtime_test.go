@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
@@ -119,6 +120,117 @@ func TestSummarizeOpenAIRealtimePool(t *testing.T) {
 		summarizeOpenAIRealtimePool([]Account{oauth, apikeyWithout, grok}, nil))
 	require.Equal(t, "id=5 type=oauth cap=false conc=0 sched=stub; id=7 type=apikey cap=false conc=2 sched=stub",
 		summarizeOpenAIRealtimePool([]Account{oauth, apikeyWithout}, func(*Account) string { return "stub" }))
+}
+
+func TestSummarizeOpenAIRealtimeSchedPoolIncludesEligibilityReason(t *testing.T) {
+	newRealtimeAccount := func(id int64) Account {
+		return Account{
+			ID:          id,
+			Platform:    PlatformOpenAI,
+			Type:        AccountTypeAPIKey,
+			Status:      StatusActive,
+			Schedulable: true,
+			Concurrency: 10,
+			Credentials: map[string]any{
+				"api_key":             "sk-test",
+				"openai_capabilities": []string{"realtime"},
+			},
+		}
+	}
+
+	healthy := newRealtimeAccount(15046)
+	quotaExceeded := newRealtimeAccount(15047)
+	quotaExceeded.Extra = map[string]any{"quota_limit": 1.0, "quota_used": 1.0}
+	modelRateLimited := newRealtimeAccount(15048)
+	modelRateLimited.Extra = map[string]any{
+		modelRateLimitsKey: map[string]any{
+			"gpt-realtime-2.1": map[string]any{
+				"rate_limit_reset_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339),
+			},
+		},
+	}
+	autoPaused := newRealtimeAccount(15049)
+	autoPaused.Extra = map[string]any{
+		"codex_5h_used_percent":  95.0,
+		"codex_5h_reset_at":      time.Now().Add(time.Hour).UTC().Format(time.RFC3339),
+		"codex_usage_updated_at": time.Now().Add(-time.Minute).UTC().Format(time.RFC3339),
+	}
+	ctx := withOpenAIQuotaAutoPauseSettings(
+		context.Background(),
+		OpsOpenAIAccountQuotaAutoPauseSettings{DefaultThreshold5h: 0.9},
+	)
+
+	summary := summarizeOpenAIRealtimeSchedPool(
+		ctx,
+		[]Account{healthy, quotaExceeded, modelRateLimited, autoPaused},
+		"gpt-realtime-2.1",
+	)
+	require.Contains(t, summary, "id=15046 elig=true")
+	require.NotContains(t, summary, "id=15046 elig=true elig_reason=")
+	require.Contains(t, summary, "id=15047 elig=false elig_reason=account_quota_exceeded_total")
+	require.Contains(t, summary, "id=15048 elig=false elig_reason=model_rate_limited")
+	require.Contains(t, summary, "id=15049 elig=false elig_reason=quota_auto_pause_5h")
+	require.Equal(t,
+		"empty(账号在调度取数阶段即被丢弃：调度快照未收录或调度阈值拦截)",
+		summarizeOpenAIRealtimeSchedPool(context.Background(), nil, "gpt-realtime-2.1"),
+	)
+}
+
+func TestOpenAICompatibleAccountEligibilityReasonMatchesQuotaWindows(t *testing.T) {
+	now := time.Now().UTC()
+	base := Account{
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Status:      StatusActive,
+		Schedulable: true,
+		Credentials: map[string]any{
+			"api_key":             "sk-test",
+			"openai_capabilities": []string{"realtime"},
+		},
+	}
+	tests := []struct {
+		name   string
+		extra  map[string]any
+		reason string
+	}{
+		{
+			name:   "total",
+			extra:  map[string]any{"quota_limit": 5.0, "quota_used": 5.0},
+			reason: "account_quota_exceeded_total",
+		},
+		{
+			name: "daily",
+			extra: map[string]any{
+				"quota_daily_limit": 5.0,
+				"quota_daily_used":  5.0,
+				"quota_daily_start": now.Add(-time.Hour).Format(time.RFC3339),
+			},
+			reason: "account_quota_exceeded_daily",
+		},
+		{
+			name: "weekly",
+			extra: map[string]any{
+				"quota_weekly_limit": 5.0,
+				"quota_weekly_used":  5.0,
+				"quota_weekly_start": now.Add(-time.Hour).Format(time.RFC3339),
+			},
+			reason: "account_quota_exceeded_weekly",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			account := base
+			account.Extra = tt.extra
+			eligible, reason := openAICompatibleAccountEligibilityReason(
+				context.Background(), &account, PlatformOpenAI, "gpt-realtime-2.1", false, OpenAIEndpointCapabilityRealtime,
+			)
+			require.False(t, eligible)
+			require.Equal(t, tt.reason, reason)
+			require.False(t, isOpenAICompatibleAccountEligibleForRequest(
+				context.Background(), &account, PlatformOpenAI, "gpt-realtime-2.1", false, OpenAIEndpointCapabilityRealtime,
+			))
+		})
+	}
 }
 
 // 渠道模型限制在账号过滤之前拒绝：nil channelService 时不得误报，

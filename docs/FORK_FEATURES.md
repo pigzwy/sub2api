@@ -460,6 +460,7 @@ Authorization: Bearer sk-...                 # 仅支持请求头；不支持 WS
 - 升级前 HTTP 错误：426 缺 Upgrade 头；401 无效 key；403 分组未开开关；404 平台不支持；402/429 余额配额（带 `Retry-After`）；429 用户并发（`users.concurrency`，跨全部请求类型共享）；503 分组内没有勾选 realtime 能力的 API-Key 账号。升级后上游故障：WS close 1011。
 - 上游选择：账号 `base_url` 为空直连 `wss://api.openai.com/v1/realtime`；配置 `base_url` 即对接第三方 OpenAI 兼容中转（与 Responses 转发同一套 `validateUpstreamBaseURL` + `buildOpenAIEndpointURL` 约定，https→wss 换 scheme）。
 - 复合分组：`GET /v1/realtime` 与 `/realtime` 从 `?model=` 调用既有复合路由解析器，按解析结果分派 OpenAI 或 Grok。公开模型别名留在请求审计，`upstream_model` 用于实际选号、上游 WS URL 与计费；缺少模型或无法解析时保持 404，不隐式猜测平台。复合分组必须开启 `allow_realtime`；普通 Grok 分组保持原有准入。`allow_live` 只控制独立的 Live/WebRTC 接口，与本接口无关。
+- 选号诊断：失败日志事件 `openai_realtime.pool_diagnosis` 同时输出原始组账号的 `sched=` 与真实候选池的 `elig=`。`elig=false` 必带同源 `elig_reason=`，由生产资格谓词直接返回，覆盖账号总/日/周配额、模型级限流、全局/临时冷却、过期、模型与能力限制、自动暂停、compact 与利润门；避免出现 `sched=ok`、`elig=false` 却无法继续归因的盲区。常用值包括 `account_quota_exceeded_{total,daily,weekly}`、`model_rate_limited`、`account_rate_limit_active`、`account_temporarily_unschedulable`。
 
 **计费**
 

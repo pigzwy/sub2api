@@ -122,12 +122,17 @@ func summarizeOpenAIRealtimePool(accounts []Account, verdict func(*Account) stri
 // （isAccountRequestCompatibleReason），输出的是调度器自己的淘汰码
 // （model_not_supported / channel_upstream_restricted / quota_auto_pause_* /
 // proxy_stream_quarantined / capability_mismatch / runtime_blocked /
-// shadow_parent_unhealthy / 利润控制码）；sched=ok 仍选号失败 = 占槽竞争或
-// 等待超时等瞬时因素。只读一次分组账号列表；任何取数失败都按瞬时态处理。
+// shadow_parent_unhealthy / 利润控制码）。sched_pool 中 elig=false 会追加
+// 生产资格谓词返回的 elig_reason，覆盖账号业务配额、模型级限流和运行时
+// 冷却等 sched 层未检查的 gate。两层均通过仍选号失败，才是占槽竞争或等待
+// 超时等瞬时因素。只读一次分组账号列表；任何取数失败都按瞬时态处理。
 func (s *OpenAIGatewayService) DiagnoseOpenAIRealtimeUnavailable(ctx context.Context, groupID *int64, model string, group *Group) (string, string) {
 	if s == nil || s.accountRepo == nil || groupID == nil {
 		return OpenAIRealtimeUnavailableTransient, ""
 	}
+	// Match the selection entry point: global 5h/7d auto-pause defaults are
+	// carried in context and otherwise disappear from diagnostic evaluation.
+	ctx = s.withOpenAIQuotaAutoPauseContext(ctx)
 	accounts, err := s.accountRepo.ListSchedulableByGroupID(ctx, *groupID)
 	if err != nil {
 		return OpenAIRealtimeUnavailableTransient, ""
@@ -159,17 +164,7 @@ func (s *OpenAIGatewayService) DiagnoseOpenAIRealtimeUnavailable(ctx context.Con
 	if schedAccounts, schedErr := s.listSchedulableAccounts(ctx, groupID, PlatformOpenAI); schedErr != nil {
 		summary += fmt.Sprintf(" | sched_pool_err=%v", schedErr)
 	} else {
-		parts := make([]string, 0, len(schedAccounts))
-		for i := range schedAccounts {
-			acc := &schedAccounts[i]
-			parts = append(parts, fmt.Sprintf("id=%d elig=%t", acc.ID,
-				isOpenAICompatibleAccountEligibleForRequest(ctx, acc, PlatformOpenAI, model, false, OpenAIEndpointCapabilityRealtime)))
-		}
-		if len(parts) == 0 {
-			summary += " | sched_pool=empty(账号在调度取数阶段即被丢弃：调度快照未收录或调度阈值拦截)"
-		} else {
-			summary += " | sched_pool=" + strings.Join(parts, ",")
-		}
+		summary += " | sched_pool=" + summarizeOpenAIRealtimeSchedPool(ctx, schedAccounts, model)
 	}
 
 	// require_privacy_set 与 Realtime 结构冲突：判定在调度器候选循环里，
@@ -194,6 +189,25 @@ func (s *OpenAIGatewayService) DiagnoseOpenAIRealtimeUnavailable(ctx context.Con
 		return OpenAIRealtimeUnavailableChannelRestricted, summary
 	}
 	return classifyOpenAIRealtimeUnavailable(accounts), summary
+}
+
+func summarizeOpenAIRealtimeSchedPool(ctx context.Context, accounts []Account, model string) string {
+	if len(accounts) == 0 {
+		return "empty(账号在调度取数阶段即被丢弃：调度快照未收录或调度阈值拦截)"
+	}
+	parts := make([]string, 0, len(accounts))
+	for i := range accounts {
+		acc := &accounts[i]
+		eligible, reason := openAICompatibleAccountEligibilityReason(
+			ctx, acc, PlatformOpenAI, model, false, OpenAIEndpointCapabilityRealtime,
+		)
+		part := fmt.Sprintf("id=%d elig=%t", acc.ID, eligible)
+		if !eligible {
+			part += " elig_reason=" + reason
+		}
+		parts = append(parts, part)
+	}
+	return strings.Join(parts, ",")
 }
 
 // StableOpenAIRealtimeBillingRequestID 保证 realtime 每回合有独立且带前缀的
