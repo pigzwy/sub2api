@@ -79,7 +79,7 @@ func RegisterGatewayRoutes(
 		return getGroupPlatform(c) == service.PlatformOpenAI
 	}
 	imagesHandler := func(c *gin.Context) {
-		switch getGroupPlatform(c) {
+		switch effectiveMediaPlatform(c) {
 		case service.PlatformOpenAI:
 			h.OpenAIGateway.Images(c)
 		case service.PlatformGrok:
@@ -532,6 +532,23 @@ func getGroupPlatform(c *gin.Context) string {
 // platform is already in the request context. Gating on the group platform alone
 // made composite groups unable to start a video task or use voice at all, even
 // though their Grok accounts were right there.
+// effectiveMediaPlatform returns the provider a media request should be handled
+// by. For a composite group that is whatever its route table resolved this model
+// to; compositeTargetPlatformMiddleware runs on the whole gateway group, so the
+// answer is already in the request context. Dispatching on the group platform
+// alone sent every composite request to the "unsupported platform" branch even
+// when the route table had picked a perfectly good provider.
+func effectiveMediaPlatform(c *gin.Context) string {
+	platform := getGroupPlatform(c)
+	if platform != service.PlatformComposite || c == nil || c.Request == nil {
+		return platform
+	}
+	if resolved, ok := service.ResolvedTargetPlatformFromContext(c.Request.Context()); ok {
+		return resolved
+	}
+	return platform
+}
+
 func grokMediaPlatformAllowed(c *gin.Context) bool {
 	switch getGroupPlatform(c) {
 	case service.PlatformGrok:

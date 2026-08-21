@@ -565,6 +565,16 @@ backend/migrations/228_usage_log_audio_tokens.sql
 
 ---
 
+### 12.1 图片入口同样要按解析后的平台分派
+
+`imagesHandler` 原本 `switch getGroupPlatform(c)`，composite 落到 `default` 直接 404 `Images API is not supported for this platform`——哪怕路由表已经把该模型解析到了 openai/grok/gemini。视频与语音改完后这条是最后一个漏网的媒体入口。
+
+新增 `effectiveMediaPlatform(c)`：composite 分组返回 `ResolvedTargetPlatformFromContext` 的结果，其余分组原样返回分组平台。`imagesHandler` 改为按它分派。
+
+排查提示：后台请求审计里这类失败的「模型」列是空的——请求在路由闸门就被拒了，根本没进转发器，模型名是转发器才填的。看到「模型为空 + 404 not supported for this platform」就往平台闸门查，不要往模型配置查。
+
+---
+
 ## 媒体转存与异步图片对象存储的补充说明
 
 上游 `docs/ASYNC_IMAGE_TASKS.md` 描述的是异步图片任务与 `image_storage`。本分支在其基础上增加了**独立的媒体对象存储**（视频 + TTS 音频），与图片存储互不影响：
