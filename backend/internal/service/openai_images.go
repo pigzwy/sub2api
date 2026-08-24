@@ -796,6 +796,8 @@ func buildOpenAIImagesURL(base string, endpoint string) string {
 	return buildOpenAIEndpointURL(base, endpoint)
 }
 
+// rewriteOpenAIImagesModel prepares an images request body for the upstream: it
+// swaps in the resolved model and drops fields the target model cannot accept.
 func rewriteOpenAIImagesModel(body []byte, contentType string, model string) ([]byte, string, error) {
 	model = strings.TrimSpace(model)
 	if model == "" {
@@ -809,6 +811,17 @@ func rewriteOpenAIImagesModel(body []byte, contentType string, model string) ([]
 	rewritten, err := sjson.SetBytes(body, "model", model)
 	if err != nil {
 		return nil, "", fmt.Errorf("rewrite image request model: %w", err)
+	}
+	// The GPT image family always answers with base64 and rejects response_format
+	// outright ("Unknown parameter: 'response_format'"), so a client-supplied value
+	// must not reach the upstream. Lenient relays drop it for us; strict/official
+	// upstreams 400 the whole request. dall-e models still need it — they default
+	// to returning a URL.
+	if IsGPTImageGenerationModel(model) {
+		rewritten, err = sjson.DeleteBytes(rewritten, "response_format")
+		if err != nil {
+			return nil, "", fmt.Errorf("drop image request response_format: %w", err)
+		}
 	}
 	return rewritten, contentType, nil
 }
@@ -827,6 +840,8 @@ func rewriteOpenAIImagesMultipartModel(body []byte, contentType string, model st
 	var buffer bytes.Buffer
 	writer := multipart.NewWriter(&buffer)
 	modelWritten := false
+	// Same response_format rule as the JSON branch above.
+	dropResponseFormat := IsGPTImageGenerationModel(model)
 
 	for {
 		part, err := reader.NextPart()
@@ -838,6 +853,10 @@ func rewriteOpenAIImagesMultipartModel(body []byte, contentType string, model st
 		}
 
 		formName := strings.TrimSpace(part.FormName())
+		if dropResponseFormat && formName == "response_format" && part.FileName() == "" {
+			_ = part.Close()
+			continue
+		}
 		partHeader := cloneMultipartHeader(part.Header)
 		target, err := writer.CreatePart(partHeader)
 		if err != nil {

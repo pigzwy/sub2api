@@ -3012,10 +3012,15 @@ func (s *AccountTestService) testOpenAIImageAPIKey(c *gin.Context, ctx context.C
 	s.sendEvent(c, TestEvent{Type: "test_start", Model: modelID})
 
 	payload := map[string]any{
-		"model":           modelID,
-		"prompt":          prompt,
-		"n":               1,
-		"response_format": "b64_json",
+		"model":  modelID,
+		"prompt": prompt,
+		"n":      1,
+	}
+	// The GPT image family rejects response_format ("Unknown parameter") and always
+	// returns base64 anyway; only dall-e needs the explicit ask, since it defaults to
+	// returning a URL that this test cannot render.
+	if !IsGPTImageGenerationModel(modelID) {
+		payload["response_format"] = "b64_json"
 	}
 	payloadBytes, _ := json.Marshal(payload)
 
