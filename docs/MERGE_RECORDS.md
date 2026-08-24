@@ -18,6 +18,50 @@
 上游正式实现 > 上游后续安全修复 > 本地旧二开 > 历史兼容代码
 ```
 
+## 2026-08-24：合并上游 v0.1.180
+
+`upstream/main` 推进到 `03e8ab413`（`v0.1.180`）后整体合并，合并后本分支不再落后上游。
+共 480 个文件变更，9 个文件冲突，按本文件开头的规则梯度（上游正式实现 > 本地旧二开）逐个处理。
+
+**淘汰二开、改用上游实现**
+
+- `service/openai_gateway_scheduling.go`：上游自己做了一版 eligibility reason 重构
+  （`openAICompatibleAccountEligibilityFailureReason`，返回 `""` 表示可用），与二开此前的
+  `(bool, string)` 版本重复。按规则 2 整文件取上游，并把二开独有调用点
+  `service/openai_realtime.go` 的 `summarizeOpenAIRealtimeSchedPool` 适配到新 API。
+  **能力损失（已知且接受）**：二开原本能把硬配额耗尽细分到
+  `account_quota_exceeded_{total,daily,weekly}`，上游统一报 `not_schedulable`；
+  `quota_auto_pause_<window>` 是另一套阈值自动暂停机制，不能替代。两个相关测试改为
+  锁定仍然成立的准入保证（三种配额窗口耗尽都必须被拒），不再断言窗口级归因。
+  核验：`git diff upstream/main -- backend/internal/service/openai_gateway_scheduling.go` 为空。
+- `handler/grok_audio.go`：上游重写了 Grok Realtime（4 次重试的选号 + 握手前探测
+  `OpenGrokRealtime`，代理改用 `ProxyGrokRealtimeConn`），比二开版更健壮。取上游实现，
+  仅保留二开独有的利润门抑制（Realtime 按音频分钟计费，文本利润门不适用），
+  并把计费调用对齐到上游的 `model` 变量。二开的 `grokRealtimeSelectionModel`
+  被上游"空模型 + 能力选路"取代。
+
+**两边独立新增、仅文本相撞，全部保留**
+
+- `config/config.go`：二开 `VideoStorage` + 上游 `Plugins`。
+- `pkg/xai/models.go`：取上游的 video-1.5 条目（注意上游把
+  `DefaultImagineVideo15Model` 与 `DefaultImagineVideo15LegacyModel` 的含义对调了），
+  保留二开的 `grok-voice-latest` 目录条目（上游有语音功能但未登记到模型目录）。
+- `service/openai_gateway_grok_test.go`：上游新增 7 个测试 + 二开 2 个，合并保留。
+- `frontend/package.json`：二开 `nanoid` 安全 pin + 上游 `dompurify` pin。
+- `frontend/src/api/admin/index.ts`：二开 `requestAudit` + 上游 `plugins`。
+
+**生成物重新生成而非手工合并**
+
+- `cmd/server/wire_gen.go`：用 `go run github.com/google/wire/cmd/wire ./cmd/server/` 重新生成，
+  同时装配二开（requestAudit / checkin / modelPricingResolver / videoStorage）与
+  上游（plugins / openAIQuotaAutoReset）的 provider。
+- `frontend/pnpm-lock.yaml`：取上游版后按合并的 `package.json` 执行
+  `pnpm install --lockfile-only` 重新生成，两个 override 均在。
+
+**验证**：`go build ./...`、`go vet`、后端 `go test ./...` 全绿；前端
+`vue-tsc --noEmit`、`eslint`、247 个测试文件 / 1779 个用例全绿。
+[FORK_FEATURES.md](./FORK_FEATURES.md) 的十项二开功能逐项核验均在。
+
 ## 2026-08-19：同步生产源码基线并加固静态 SPA 壳
 
 生产工作树先通过只读 `fetch` 与远端 `origin/request-audit` 快进核对到
