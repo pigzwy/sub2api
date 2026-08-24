@@ -18,6 +18,23 @@
 上游正式实现 > 上游后续安全修复 > 本地旧二开 > 历史兼容代码
 ```
 
+## 2026-08-24：合并上游 v0.1.181
+
+`upstream/main` 到 `e2d9b823f`（`v0.1.181`）。含 4 个实质提交：Grok 改用官方 CLI user agent、
+OpenAI Responses 按 item 类型清理 rejected 状态、Gemini 清洗不受支持的 tool schema 字段。
+**零冲突**——上游本次改的 14 个文件里只有 `service/openai_gateway_grok_test.go` 与二开重叠，
+git 自动合并成功，二开加在该文件里的两个测试
+（`TestForwardGrokMedia{ImagesEdit,Video}MultipartAppliesCompositeAndAccountModelMapping`）均存活。
+
+验证：`go build ./...` 通过、后端 `go test ./...` 全绿、gofmt 无新增问题；
+[FORK_FEATURES.md](./FORK_FEATURES.md) 的二开功能逐项核验均在。
+
+**过程记录（值得下次注意）**：合并前查上游状态时，`git fetch` / `git ls-remote` 一度持续返回
+陈旧的 `03e8ab413`（GitHub git 前端副本延迟），据此误判为"无更新"；改用 GitHub API 查
+`/commits/main` 才发现 main 已到更新的提交。**判断上游是否有更新时不要只信 git 一个源**，
+与 API 交叉核对。另外该版本的 Release 被删除后重新发布过（`created_at` 07:16 / `published_at` 11:58），
+git tag 对象未变，仅从 tag 看不出来。
+
 ## 2026-08-24：合并上游 v0.1.180
 
 `upstream/main` 推进到 `03e8ab413`（`v0.1.180`）后整体合并，合并后本分支不再落后上游。
