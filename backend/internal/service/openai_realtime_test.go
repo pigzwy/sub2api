@@ -167,7 +167,10 @@ func TestSummarizeOpenAIRealtimeSchedPoolIncludesEligibilityReason(t *testing.T)
 	)
 	require.Contains(t, summary, "id=15046 elig=true")
 	require.NotContains(t, summary, "id=15046 elig=true elig_reason=")
-	require.Contains(t, summary, "id=15047 elig=false elig_reason=account_quota_exceeded_total")
+	// Upstream's eligibility predicate collapses hard quota exhaustion into
+	// not_schedulable; the per-window attribution the fork used to emit here was
+	// retired when upstream took over the reason API.
+	require.Contains(t, summary, "id=15047 elig=false elig_reason=not_schedulable")
 	require.Contains(t, summary, "id=15048 elig=false elig_reason=model_rate_limited")
 	require.Contains(t, summary, "id=15049 elig=false elig_reason=quota_auto_pause_5h")
 	require.Equal(t,
@@ -176,7 +179,11 @@ func TestSummarizeOpenAIRealtimeSchedPoolIncludesEligibilityReason(t *testing.T)
 	)
 }
 
-func TestOpenAICompatibleAccountEligibilityReasonMatchesQuotaWindows(t *testing.T) {
+// Upstream owns the eligibility reason API and reports hard quota exhaustion as
+// not_schedulable, so this no longer pins per-window attribution. What it still
+// guards is the admission behavior: an account whose total/daily/weekly quota is
+// used up must never be selected.
+func TestOpenAICompatibleAccountEligibilityRejectsExhaustedQuotaWindows(t *testing.T) {
 	now := time.Now().UTC()
 	base := Account{
 		Platform:    PlatformOpenAI,
@@ -196,7 +203,7 @@ func TestOpenAICompatibleAccountEligibilityReasonMatchesQuotaWindows(t *testing.
 		{
 			name:   "total",
 			extra:  map[string]any{"quota_limit": 5.0, "quota_used": 5.0},
-			reason: "account_quota_exceeded_total",
+			reason: "not_schedulable",
 		},
 		{
 			name: "daily",
@@ -205,7 +212,7 @@ func TestOpenAICompatibleAccountEligibilityReasonMatchesQuotaWindows(t *testing.
 				"quota_daily_used":  5.0,
 				"quota_daily_start": now.Add(-time.Hour).Format(time.RFC3339),
 			},
-			reason: "account_quota_exceeded_daily",
+			reason: "not_schedulable",
 		},
 		{
 			name: "weekly",
@@ -214,17 +221,17 @@ func TestOpenAICompatibleAccountEligibilityReasonMatchesQuotaWindows(t *testing.
 				"quota_weekly_used":  5.0,
 				"quota_weekly_start": now.Add(-time.Hour).Format(time.RFC3339),
 			},
-			reason: "account_quota_exceeded_weekly",
+			reason: "not_schedulable",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			account := base
 			account.Extra = tt.extra
-			eligible, reason := openAICompatibleAccountEligibilityReason(
+			reason := openAICompatibleAccountEligibilityFailureReason(
 				context.Background(), &account, PlatformOpenAI, "gpt-realtime-2.1", false, OpenAIEndpointCapabilityRealtime,
 			)
-			require.False(t, eligible)
+			require.NotEmpty(t, reason, "account must be rejected")
 			require.Equal(t, tt.reason, reason)
 			require.False(t, isOpenAICompatibleAccountEligibleForRequest(
 				context.Background(), &account, PlatformOpenAI, "gpt-realtime-2.1", false, OpenAIEndpointCapabilityRealtime,

@@ -198,9 +198,12 @@ func summarizeOpenAIRealtimeSchedPool(ctx context.Context, accounts []Account, m
 	parts := make([]string, 0, len(accounts))
 	for i := range accounts {
 		acc := &accounts[i]
-		eligible, reason := openAICompatibleAccountEligibilityReason(
+		// Upstream owns the eligibility predicate and exposes its first veto point
+		// as a reason string ("" == eligible); this pool summary just renders it.
+		reason := openAICompatibleAccountEligibilityFailureReason(
 			ctx, acc, PlatformOpenAI, model, false, OpenAIEndpointCapabilityRealtime,
 		)
+		eligible := reason == ""
 		part := fmt.Sprintf("id=%d elig=%t", acc.ID, eligible)
 		if !eligible {
 			part += " elig_reason=" + reason
