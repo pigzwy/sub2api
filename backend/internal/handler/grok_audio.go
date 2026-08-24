@@ -151,16 +151,6 @@ func (h *OpenAIGatewayHandler) GrokRealtime(c *gin.Context) {
 	}
 }
 
-func grokRealtimeSelectionModel(apiKey *service.APIKey, upstreamModel string) string {
-	if apiKey != nil && apiKey.Group != nil && apiKey.Group.Platform == service.PlatformComposite {
-		if model := strings.TrimSpace(upstreamModel); model != "" {
-			return model
-		}
-	}
-	// Preserve the native Grok group's existing text-capability selection key.
-	return "grok-4.5"
-}
-
 func grokRealtimeBillingResult(model string, elapsed time.Duration, audioObserved bool) *service.OpenAIForwardResult {
 	if !audioObserved || elapsed <= 0 {
 		return nil

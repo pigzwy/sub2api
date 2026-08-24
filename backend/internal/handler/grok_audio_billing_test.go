@@ -35,18 +35,6 @@ func TestGrokRealtimeBillingResultRequiresObservedAudio(t *testing.T) {
 	}
 }
 
-func TestGrokRealtimeSelectionModelUsesCompositeUpstreamModel(t *testing.T) {
-	composite := &service.APIKey{Group: &service.Group{Platform: service.PlatformComposite}}
-	if got := grokRealtimeSelectionModel(composite, "grok-voice-latest"); got != "grok-voice-latest" {
-		t.Fatalf("composite selection model = %q, want resolved upstream model", got)
-	}
-
-	native := &service.APIKey{Group: &service.Group{Platform: service.PlatformGrok}}
-	if got := grokRealtimeSelectionModel(native, "grok-voice-latest"); got != "grok-4.5" {
-		t.Fatalf("native Grok selection model = %q, want compatibility key", got)
-	}
-}
-
 func TestGrokRealtimeBillingResultUsesForcedUniqueID(t *testing.T) {
 	first := grokRealtimeBillingResult("grok-voice-latest", 90*time.Second, true)
 	second := grokRealtimeBillingResult("grok-voice-latest", 90*time.Second, true)
