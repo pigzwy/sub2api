@@ -18,6 +18,20 @@
 上游正式实现 > 上游后续安全修复 > 本地旧二开 > 历史兼容代码
 ```
 
+## 2026-08-25：合并上游 v0.1.183
+
+`upstream/main` 到 `7634e3c23`（`v0.1.183`），9 个实质提交，**零冲突且与二开零重叠**
+（上游改的 24 个文件与本分支改动集无交集）。内容为 OpenAI OAuth 配额耗尽 429 自动暂停、
+Codex session-id 头、容量溢出时保持粘性绑定、工具调用 item ID 保持类型、Kimi 并发 403 可恢复、
+Antigravity token 上限收敛、channel-monitor-v2 复合平台聚合 SQL、邮箱换绑并发守卫。
+
+验证按 `backend-ci.yml` 逐条对齐：build、vet、`-tags=unit`（= `make test-unit`）、无 tag 全量、
+`golangci-lint run ./...`（0 issues）、`-tags=integration` 与 `-tags=e2e` 编译、
+前端 247 文件/1780 用例与 `vue-tsc --noEmit`，全部通过。二开功能十三项逐条核验均在。
+
+**已知的既有 gofmt 噪声**：`internal/handler/auth_current_user_test.go` 未格式化，但**上游自己的
+版本同样如此**，二开从未改过该文件——核对 gofmt 结果时可忽略，不要误当成本地引入。
+
 ## 2026-08-25：合并上游 v0.1.182
 
 `upstream/main` 到 `aa2c4e8d1`（`v0.1.182`），14 个实质提交，**零冲突**。主要是 OpenAI
