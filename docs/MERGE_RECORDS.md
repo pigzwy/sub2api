@@ -18,6 +18,27 @@
 上游正式实现 > 上游后续安全修复 > 本地旧二开 > 历史兼容代码
 ```
 
+## 2026-08-25：合并上游 v0.1.182
+
+`upstream/main` 到 `aa2c4e8d1`（`v0.1.182`），14 个实质提交，**零冲突**。主要是 OpenAI
+Responses Lite 的工具调用/数值精度修复、Antigravity Sonnet 路由、Anthropic 缓存 TTL 重复
+计费修复、Kimi Code K3 复合路由、支付履约后刷新余额。
+
+上游本次改的 48 个文件里有 4 个与二开重叠（`openai_images.go`、`account_test_service.go`、
+`billing_service.go`、`composite_platform_test.go`），git 全部自动合并。其中前两个正是
+gpt-image `response_format` 修复所在处——已逐条确认三处修复（转发 JSON 分支、转发 multipart
+分支、后台测试路径）均完好；上游对 `openai_images.go` 的改动只是新增 OAuth 逐字提示词常量，
+与该修复不相干。
+
+验证按 `backend-ci.yml` 的步骤逐条对齐：`go build ./...`、`go vet`、
+`go test -tags=unit ./...`（= `make test-unit`）、`go test ./...`、
+`golangci-lint run ./...`（0 issues）、`-tags=integration` 与 `-tags=e2e` 编译、
+前端 `vue-tsc --noEmit` 与 247 文件/1780 用例，全部通过。
+
+**环境注意**：本机 `/tmp` 是 2.9 GB 的 tmpfs，Go 链接 `cmd/server` 时会因空间不足报
+`link: mapping output file failed: no space left on device`。这不是代码问题，导出
+`TMPDIR=/root/gotmp`（落在磁盘上）即可正常编译。
+
 ## 2026-08-24：合并上游 v0.1.181
 
 `upstream/main` 到 `e2d9b823f`（`v0.1.181`）。含 4 个实质提交：Grok 改用官方 CLI user agent、
