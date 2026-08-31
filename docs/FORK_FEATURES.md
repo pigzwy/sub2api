@@ -8,18 +8,17 @@
 
 | 项 | 值 |
 |---|---|
-| 统计日期 | 2026-08-25 |
-| 上游基线 | `7634e3c23`（`v0.1.183`，已合并入本分支） |
-| 分支共同祖先 | `7634e3c23`（`v0.1.183`） |
-| 差异规模 | 233 个文件，+25357 / -396 行 |
-| 其中后端 | 171 个文件，+20872 / -211 行 |
-| 其中前端及其它 | 62 个文件，+4485 / -185 行 |
+| 统计日期 | 2026-08-31 |
+| 上游基线 | `52374af94`（`v0.1.184`，已合并入本分支） |
+| 分支共同祖先 | `52374af94`（`v0.1.184`，本次合并后） |
+| 差异规模 | 233 个文件，+25396 / -394 行 |
+| 其中后端 | 171 个文件，+20869 / -209 行 |
+| 其中前端 | 55 个文件，+2960 / -185 行（其余 7 个为根目录、部署和文档文件） |
 
-合并 `v0.1.183` 后 `request-audit` 不再落后上游（`git rev-list --count HEAD..upstream/main` = 0）。
+合并 `v0.1.184` 后 `request-audit` 不再落后上游（`git rev-list --count HEAD..upstream/main` = 0）。
 
-本次生产源码复核以 `request-audit` 的 `3cb9558ff` 为基线；该提交已同步到
-`origin/request-audit`，且包含最新的 Realtime 能力提示/错误归因修复。下面新增的
-「稳定静态 SPA 壳」改动与该基线一起提交。仓库没有可访问的 GitHub Wiki remote，
+本次生产源码复核以合并后的 `request-audit` 为基线；该提交包含上游
+`v0.1.184` 及本文件列出的独有功能。仓库没有可访问的 GitHub Wiki remote，
 因此本文件和 [MERGE_RECORDS.md](./MERGE_RECORDS.md) 是当前可发布的二开记录。
 
 重新核对清单：
@@ -31,9 +30,8 @@ git diff --stat upstream/main...request-audit          # 差异规模
 git log --no-merges --oneline upstream/main..request-audit  # 本地提交
 ```
 
-本仓库当前未配置可用的 `upstream` remote，因此不在此处继续宣称
-`request-audit` 与上游的实时领先/落后关系。下一次上游合并前，必须按
-`MERGE_RECORDS.md` 的基线校准流程重新添加/核对 remote，并重新计算差异盘点。
+下一次上游合并前，必须按 `MERGE_RECORDS.md` 的基线校准流程核对
+`upstream` remote，并重新计算差异盘点。
 
 ## 功能一览
 

@@ -18,6 +18,36 @@
 上游正式实现 > 上游后续安全修复 > 本地旧二开 > 历史兼容代码
 ```
 
+## 2026-08-31：合并上游 v0.1.184
+
+本次将 `upstream/main` 从 `00d011186` 之后的 170 个提交合入
+`request-audit`，上游基线为 `52374af94031f04df8de6fc91deb77a179e04b06`
+（`v0.1.184`）。合并结果相对上游保留 233 个文件的独有二开差异（新增
+约 25,396 行、删除 394 行）；上游新增的 Codex 路由目录、推理强度与原生
+compaction、WebSocket/Realtime、配额与计费修复、模型目录和前端修复均采用
+上游实现。
+
+本次有 5 个文本冲突，全部集中在用量日志仓储及 OpenAI 用量记录：
+
+- `backend/internal/repository/usage_log_repo_insert.go`
+- `backend/internal/repository/usage_log_repo_query.go`
+- `backend/internal/repository/usage_log_repo_request_type_test.go`
+- `backend/internal/repository/usage_log_session_id_unit_test.go`
+- `backend/internal/service/openai_gateway_usage.go`
+
+处理方式是以上游列序、查询和计费逻辑为主体，同时保留本分支独有的
+Realtime 音频用量字段（`audio_input_tokens`、`audio_input_cost`、
+`audio_output_tokens`、`audio_output_cost`），并同步更新单条/批量写入、扫描和
+测试 fixture。上游新增的 `requested_reasoning_effort` 与
+`native_compaction_v2` 字段也完整保留。未发生迁移文件名冲突；上游本身存在多个
+同数字前缀的迁移，runner 按完整文件名排序并按文件名记录校验和，本次未改动其
+命名或内容。本地未执行 Go 构建、测试或前端构建，质量验证交由推送后的 GitHub
+Actions CI。
+
+本次合并后继续保留且复核装配的独有功能包括请求审计/拦截、视频和音频 S3
+转存、Gemini 图片入口、OpenAI Realtime、签到、模型价格接口和静态 SPA 壳。
+若上游后续提供其中任一等价实现，按本文件开头的规则整套切换到上游版本。
+
 ## 2026-08-25：合并上游 v0.1.183
 
 `upstream/main` 到 `7634e3c23`（`v0.1.183`），9 个实质提交，**零冲突且与二开零重叠**
