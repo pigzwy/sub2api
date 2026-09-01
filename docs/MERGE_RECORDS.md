@@ -18,6 +18,28 @@
 上游正式实现 > 上游后续安全修复 > 本地旧二开 > 历史兼容代码
 ```
 
+## 2026-09-01：合并上游 v0.1.185
+
+本次将 `upstream/main` 从 `52374af94` 推进到
+`a2fb09260a955676f99cdc92f05469febee82a08`（`v0.1.185`），共 26 个提交、
+46 个上游变更文件。上游主要增加价格目录 `override_file` 覆盖与数据驱动长上下文
+阶梯、Codex priority tier、WebSocket 容量降载/陈旧连接回收、数据库启动重试，
+并修复账号统计计价、API Key instructions 和 delegation bootstrap；这些均采用
+上游实现。
+
+唯一文本冲突是 `backend/internal/service/billing_service.go`。冲突两侧不是重复
+功能：上游在同一结构体初始化处加入 xAI 长上下文“达到阈值即进高档”的语义，
+二开在这里接入 OpenAI Realtime 的音频输入、音频输出和音频缓存读取三档价格。
+处理时以上游新的目录驱动计价管线为主体，完整保留
+`LongContextThresholdInclusive`，同时保留二开的
+`AudioInputPricePerToken`、`AudioOutputPricePerToken` 和
+`AudioCacheReadPricePerToken` 字段；旧的硬编码长上下文规则没有恢复。
+
+合并后相对上游仍为 233 个二开差异文件（+25,421 / -396 行）。请求审计/拦截、
+视频和音频 S3、Gemini 图片、OpenAI Realtime、签到、Studio 模型价格接口和静态
+SPA 壳的关键装配均在。本机不执行 Go/前端重型构建，推送后由 GitHub Actions 的
+unit、integration、frontend、golangci-lint、security scan 与镜像构建验证。
+
 ## 2026-08-31：合并上游 v0.1.184
 
 本次将 `upstream/main` 从 `00d011186` 之后的 170 个提交合入
