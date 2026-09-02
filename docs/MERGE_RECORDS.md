@@ -18,6 +18,35 @@
 上游正式实现 > 上游后续安全修复 > 本地旧二开 > 历史兼容代码
 ```
 
+## 2026-09-02：合并上游 v0.2.0
+
+本次将 `upstream/main` 从 `a2fb09260a955676f99cdc92f05469febee82a08`
+推进到 `5097b31457e6dc9f49e5f5c9c72b925ce79543b3`（`v0.2.0`），共 60 个提交、
+148 个上游变更文件。上游新增分组级 OpenAI Fast / free Fast、按模型推理强度映射、
+推理强度超限拒绝或降级、Kimi Responses、Claude Fable 5.1，以及渠道缓存计价、
+WebSocket、调度和模型价格界面修复；这些功能全部采用上游实现，没有恢复本地旧逻辑。
+
+本次共有 20 个文本冲突，全部来自二开的 `groups.allow_realtime` 与上游新增的
+`groups.force_openai_fast` / `groups.free_openai_fast` 在同一 Group schema、Ent 生成代码、
+repository、admin service、鉴权缓存及中英文文案中的相邻改动。三个字段语义正交：
+Realtime 控制 `/v1/realtime` 准入，force Fast 控制请求使用 priority tier，free Fast 控制
+Fast 请求按 Standard 价格向用户计费。因此以 v0.2.0 的 Fast/reasoning 管线为主体，
+同时保留上游没有的 Realtime 字段，并把三字段完整贯通 create/update/select/scan、
+管理员 DTO、分组复制与 API-key auth cache。Ent runtime descriptor 的最终索引为
+`allow_realtime=48`、`force_openai_fast=49`、`free_openai_fast=50`，其后字段顺延且与
+schema/generated Fields 顺序一致。
+
+上游已有的异步图片对象存储继续完全以上游为准；本分支仅保留上游没有的视频/音频
+对象存储扩展。静态复核确认请求审计/本地直答、Gemini Images、OpenAI Realtime 与音频
+计费、签到、Studio 模型售价接口及稳定 SPA 壳仍在，v0.2.0 未出现这些能力的等价实现。
+合并后的工作树相对上游仍有 233 个二开差异文件（+25,465 / -411 行）。
+
+新增迁移 `232_channel_cache_write_1h_pricing.sql`、
+`232_group_force_openai_fast.sql`、`232_group_reasoning_effort_over_limit.sql` 和
+`233_group_free_openai_fast.sql` 均为安全加列/配置迁移，不删除现有业务数据。
+本机仅执行 `gofmt`、冲突标记扫描和 `git diff --check`；Go/前端构建与完整测试交由
+推送后的 GitHub Actions CI。
+
 ## 2026-09-01：合并上游 v0.1.185
 
 本次将 `upstream/main` 从 `52374af94` 推进到
