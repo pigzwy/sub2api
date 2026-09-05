@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -129,7 +130,11 @@ func TestPrepareUsageLogInsert_UpstreamRequestIDArgWiring(t *testing.T) {
 	})
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
 
-	idx := len(prepared.args) - 4
+	columns := strings.Split(usageLogSelectColumns, ", ")
+	columnIndex := slices.Index(columns, "upstream_request_id")
+	require.Positive(t, columnIndex, "SELECT must contain upstream_request_id after id")
+	require.Equal(t, "session_id", columns[columnIndex+1])
+	idx := columnIndex - 1 // INSERT omits the leading id column.
 	arg, ok := prepared.args[idx].(sql.NullString)
 	require.True(t, ok, "upstream_request_id arg should be sql.NullString, got %T", prepared.args[idx])
 	require.True(t, arg.Valid)
