@@ -102,6 +102,8 @@ func TestForwardGrokMediaContentUsesUpstreamCredentialAndStreamsRange(t *testing
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
+	require.Equal(t, "video/mp4", result.UpstreamHeaders.Get("Content-Type"))
+	require.Equal(t, "video/mp4", result.ResponseHeaders.Get("Content-Type"))
 	require.Equal(t, http.StatusPartialContent, recorder.Code)
 	require.Equal(t, "video-payload", recorder.Body.String())
 	require.Len(t, upstream.requests, 2)

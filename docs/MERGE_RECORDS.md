@@ -18,6 +18,25 @@
 上游正式实现 > 上游后续安全修复 > 本地旧二开 > 历史兼容代码
 ```
 
+## 2026-09-05：合并上游 v0.2.1
+
+上游基线从 `5097b3145` 推进到 `ab99d56e9626e6cd731592dae8553c9758a0efa2`
+（v0.2.1），新增 82 个提交，297 个上游变更文件（+12,622 / -1,033 行）。
+采用上游 GPT-6 Astra、ultrafast service tier、固定账号 Codex 模型清单、
+Anthropic 推理强度计价、定价文件热重载、图片 URL 回填 Base64 及下载安全检查、
+上游请求 ID 查询、精简账号列表、支付对账和调度/WS 修复。
+
+三处文本冲突位于用量日志 INSERT、SELECT 及 Grok media：完整保留上游
+`upstream_request_id` 与二开的音频四列，统一 66 个写入参数及 67 个查询列（含 id），
+同步列序守护测试；视频内容结果采用上游内联构造并保留 `UpstreamHeaders`，删除本地
+同义 helper，独有 S3 转存与重定向继续保留。另修复自动合并未提示的 Ent runtime
+索引偏移：`codex_models_manifest_config` 为 schema 字段 56，其后字段顺延至 63。
+
+上游迁移新增请求 ID 列及并发索引、渠道 max 推理倍率列和分组 Codex 配置列。
+同数字前缀的迁移保持上游原名，runner 按完整文件名登记，不重命名已有迁移。
+请求审计、Realtime 音频计费、媒体 S3、Gemini 图片和 Studio 价格接口继续保留。
+本机仅做 gofmt 与静态核验；完整测试、lint 和镜像构建交由 GitHub Actions。
+
 ## 2026-09-02：合并上游 v0.2.0
 
 本次将 `upstream/main` 从 `a2fb09260a955676f99cdc92f05469febee82a08`

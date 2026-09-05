@@ -32,12 +32,17 @@ func newSessionIDUsageLog(sessionID *string) *service.UsageLog {
 // arg slice / arg-type table so the five INSERT column lists stay in sync. The tail
 // order is session_id, native_compaction_v2, audio fields, then created_at.
 func TestPrepareUsageLogInsert_SessionIDArgWiring(t *testing.T) {
-	require.Len(t, usageLogInsertArgTypes, 65)
+	require.Len(t, usageLogInsertArgTypes, 66)
 	sessionID := "sess-persisted-123"
-	prepared := prepareUsageLogInsert(newSessionIDUsageLog(&sessionID))
+	upstreamRequestID := "upstream-request-123"
+	usage := newSessionIDUsageLog(&sessionID)
+	usage.UpstreamRequestID = &upstreamRequestID
+	prepared := prepareUsageLogInsert(usage)
 
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes),
 		"prepared args must match the arg-type table length")
+	require.Equal(t, sql.NullString{String: upstreamRequestID, Valid: true}, prepared.args[len(prepared.args)-8])
+	require.Contains(t, usageLogSelectColumns, "upstream_request_id, session_id, native_compaction_v2, audio_input_tokens, audio_input_cost, audio_output_tokens, audio_output_cost, created_at")
 
 	// created_at is last; session_id precedes native_compaction_v2 and audio fields.
 	sessionArg := prepared.args[len(prepared.args)-7]

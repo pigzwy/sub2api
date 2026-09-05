@@ -756,6 +756,7 @@ func (s *OpenAIGatewayService) ForwardGrokMedia(
 	}
 	return &OpenAIForwardResult{
 		RequestID:            requestIDHeader,
+		UpstreamHeaders:      resp.Header,
 		ResponseID:           usage.ResponseID,
 		Usage:                usage.Usage,
 		Model:                resultModel,
@@ -903,7 +904,22 @@ func (s *OpenAIGatewayService) forwardGrokMediaVideoContent(
 	// Content download is an alternate completion observation: when status body is
 	// official done+video.url, attach billable units so the handler can claim once
 	// (same path as status polling). Pending snapshot is merged in the handler.
-	return grokVideoContentResult(statusBody, requestID, contentRequestID, contentResp.Header, startTime), nil
+	result := &OpenAIForwardResult{
+		RequestID:       contentRequestID,
+		UpstreamHeaders: contentResp.Header,
+		ResponseHeaders: contentResp.Header.Clone(),
+		Duration:        time.Since(startTime),
+	}
+	if billed := ExtractGrokVideoBillingFromStatusBody(statusBody, nil, requestID); billed != nil {
+		result.ResponseID = firstNonEmpty(billed.ResponseID, strings.TrimSpace(requestID))
+		result.Model = billed.Model
+		result.BillingModel = billed.BillingModel
+		result.UpstreamModel = billed.UpstreamModel
+		result.VideoCount = billed.VideoCount
+		result.VideoResolution = billed.VideoResolution
+		result.VideoDurationSeconds = billed.VideoDurationSeconds
+	}
+	return result, nil
 }
 
 func (s *OpenAIGatewayService) offloadCompletedGrokVideo(
@@ -968,29 +984,6 @@ func (s *OpenAIGatewayService) fetchGrokVideoOffloadSource(
 		account.ApplyHeaderOverrides(req.Header)
 	}
 	return s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
-}
-
-func grokVideoContentResult(
-	statusBody []byte,
-	requestID, upstreamRequestID string,
-	responseHeaders http.Header,
-	startTime time.Time,
-) *OpenAIForwardResult {
-	result := &OpenAIForwardResult{
-		RequestID:       upstreamRequestID,
-		ResponseHeaders: responseHeaders.Clone(),
-		Duration:        time.Since(startTime),
-	}
-	if billed := ExtractGrokVideoBillingFromStatusBody(statusBody, nil, requestID); billed != nil {
-		result.ResponseID = firstNonEmpty(billed.ResponseID, strings.TrimSpace(requestID))
-		result.Model = billed.Model
-		result.BillingModel = billed.BillingModel
-		result.UpstreamModel = billed.UpstreamModel
-		result.VideoCount = billed.VideoCount
-		result.VideoResolution = billed.VideoResolution
-		result.VideoDurationSeconds = billed.VideoDurationSeconds
-	}
-	return result
 }
 
 func writeGrokVideoOffloadRedirect(c *gin.Context, rawURL string) {
@@ -1362,6 +1355,8 @@ func (s *OpenAIGatewayService) handleGrokMediaErrorResponse(
 	if isGrokContentPolicyRejection(resp.StatusCode, body) {
 		clientMsg := grokContentPolicyClientMessage(body)
 		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+			ProxyID:            opsUpstreamProxyID(account),
+			ProxyName:          opsUpstreamProxyName(account),
 			Platform:           account.Platform,
 			AccountID:          account.ID,
 			AccountName:        account.Name,
@@ -1392,6 +1387,8 @@ func (s *OpenAIGatewayService) handleGrokMediaErrorResponse(
 
 	if !account.ShouldHandleErrorCode(resp.StatusCode) {
 		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+			ProxyID:            opsUpstreamProxyID(account),
+			ProxyName:          opsUpstreamProxyName(account),
 			Platform:           account.Platform,
 			AccountID:          account.ID,
 			AccountName:        account.Name,
@@ -1411,6 +1408,8 @@ func (s *OpenAIGatewayService) handleGrokMediaErrorResponse(
 		kind = "failover"
 	}
 	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+		ProxyID:            opsUpstreamProxyID(account),
+		ProxyName:          opsUpstreamProxyName(account),
 		Platform:           account.Platform,
 		AccountID:          account.ID,
 		AccountName:        account.Name,
