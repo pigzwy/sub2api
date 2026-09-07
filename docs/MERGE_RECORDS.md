@@ -18,6 +18,31 @@
 上游正式实现 > 上游后续安全修复 > 本地旧二开 > 历史兼容代码
 ```
 
+## 2026-09-07：合并上游 v0.2.2
+
+上游从 `ab99d56e9` 推进到 `b7dba62678a834080564966c002fd0ca2b328b7a`
+（v0.2.2），102 个提交，261 个变更文件（+13,430 / -2,005 行）。采用上游
+分组模型白名单、simple mode 基础分组、Astra 推理模式/Ultra 元数据、Claude CLI
+版本与 Fable 5.1 兼容、WS 续聊/配额恢复、模型不存在时故障转移、计费修复，以及
+备份和迁移共享 advisory lock 的实现。
+
+四个冲突文件为 `cmd/server/wire_gen.go`、`ent/runtime/runtime.go`、
+`server/routes/gateway.go` 和 `GroupsView.vue`。备份服务仍提前装配供媒体存储使用，
+但构造器采用上游的 `NewPgDumper(cfg, db)`；Ent 白名单字段保持索引 55；前端采用
+上游白名单与 Codex ref 重置方式，保留 `allow_realtime`。根路由统一采用上游
+`rootRoute` 以执行白名单准入，同时保留 OpenAI Realtime、Gemini Images 和价格接口。
+删除本地旧模型解析 helper，采用上游 `requestmodel`；保留 Realtime query 路由并
+补测白名单放行公开别名、拒绝未授权 WebSocket 模型。
+
+升级注意：迁移 `235_group_model_allowlist.sql` 将 `models_list_config` 重命名为
+`model_allowlist`，配置数据原样保留，语义升级为实际请求准入。此前启用了模型展示
+列表的分组，升级后未列入白名单的模型会返回 404；生产更新前应核对图片、视频和
+语音的公开模型名是否完整列入。此迁移不删除数据，但旧版应用使用旧列名，不能
+把迁移后的数据库直接配回旧镜像而不处理 schema 兼容。
+
+本机仅执行 gofmt 和静态核验，完整验证交由 GitHub CI。上游 Astra 提示词文本的
+行尾空格保留原样，不为格式噪声引入额外 fork 差异。
+
 ## 2026-09-05：合并上游 v0.2.1
 
 上游基线从 `5097b3145` 推进到 `ab99d56e9626e6cd731592dae8553c9758a0efa2`
