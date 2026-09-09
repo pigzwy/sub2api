@@ -614,15 +614,32 @@ export default {
     anonymousHint: '登录后可查看你的专属分组与专属倍率',
     catalog: {
       category: '分类',
+      ruleTitle: '计价规则',
+      ruleFx: '官方价格按 $1 = ¥7 折算',
+      ruleFormula: '分组价格 = 官方价格 × 分组倍率 ÷ 7',
+      ruleExample: '如 {model} 输入价格，官方价格 {official}，分组价格 {group}',
       rule: '计价规则：官方价格按 $1 = ¥7 折算，分组价格 = 官方价格 × 分组倍率 ÷ 7。',
       priceList: '价格列表',
+      priceModeHint: '切换后价格列表中的价格展示会相应变化',
+      groupIntro: '分组介绍',
       rateLine: '{rate}x 倍率',
       discountLine: '相当于约 {zhe} 折',
       markupLine: '高于官方参考价',
       sameLine: '与官方同价',
       zheBadge: '{zhe}折',
       groupPrice: '分组价格',
-      officialPrice: '官方价格'
+      officialPrice: '官方价格',
+      platforms: {
+        anthropic: 'Claude',
+        openai: 'ChatGPT',
+        grok: 'Grok',
+        gemini: 'Gemini',
+        zhipu: '智谱',
+        kimi: 'Kimi',
+        deepseek: 'DeepSeek',
+        antigravity: 'Antigravity',
+        composite: '综合'
+      }
     },
     filters: {
       platformLabel: '平台',

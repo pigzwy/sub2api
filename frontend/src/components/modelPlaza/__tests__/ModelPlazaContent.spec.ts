@@ -100,13 +100,25 @@ const i18n = createI18n({
         anonymousHint: 'anon',
         catalog: {
           category: '分类',
+          ruleTitle: '计价规则',
+          ruleFx: 'fx',
+          ruleFormula: 'formula',
+          ruleExample: '如 {model} 输入价格，官方价格 {official}，分组价格 {group}',
           rule: 'rule',
           priceList: '价格列表',
+          priceModeHint: 'hint',
+          groupIntro: '分组介绍',
           rateLine: '{rate}x 倍率',
           discountLine: '相当于约 {zhe} 折',
           markupLine: '高于官方参考价',
           sameLine: '与官方同价',
           zheBadge: '{zhe}折',
+          groupPrice: '分组价格',
+          officialPrice: '官方价格',
+          platforms: {
+            anthropic: 'Claude',
+            openai: 'ChatGPT',
+          },
         },
         filters: {
           platformLabel: '平台',
@@ -129,14 +141,6 @@ const i18n = createI18n({
           unitPerMillion: '$ / 1M',
         },
       },
-      admin: {
-        groups: {
-          platforms: {
-            anthropic: 'Anthropic',
-            openai: 'OpenAI',
-          },
-        },
-      },
     },
   },
 })
@@ -150,6 +154,7 @@ function mountContent(embedded: boolean) {
         PlazaModelPricingTable: { template: '<div class="price-table-stub" />' },
         PlazaPriceSheet: { template: '<div class="price-sheet-stub" />' },
         Icon: true,
+        PlatformIcon: true,
         GroupBadge: { template: '<span class="group-badge-stub" />' },
       },
     },
@@ -163,12 +168,13 @@ describe('ModelPlazaContent catalog', () => {
     expect(wrapper.findAll('.group-badge-stub').length).toBe(4)
   })
 
-  it('lists every enabled group by its admin name', async () => {
+  it('lists the first category groups by their admin names', async () => {
     const wrapper = mountContent(true)
-    const tabs = wrapper.get('[data-testid="plaza-group-tabs"]').text()
-    expect(tabs).toContain('精品线路')
-    expect(tabs).toContain('default')
-    expect(tabs).toContain('codex')
+    const cards = wrapper.get('[data-testid="plaza-group-cards"]').text()
+    expect(cards).toContain('精品线路')
+    expect(cards).toContain('default')
+    expect(cards).toContain('vip')
+    expect(cards).not.toContain('codex')
     expect(wrapper.findAll('.price-sheet-stub')).toHaveLength(1)
     expect(wrapper.get('[data-testid="plaza-group-name"]').text()).toBe('精品线路')
   })
@@ -176,9 +182,9 @@ describe('ModelPlazaContent catalog', () => {
   it('switches category to the matching groups', async () => {
     const wrapper = mountContent(true)
     const categories = wrapper.findAll('[data-testid="plaza-platform-tabs"] button')
-    expect(categories.length).toBeGreaterThanOrEqual(3)
-    await categories[categories.length - 1].trigger('click')
-    expect(wrapper.get('[data-testid="plaza-group-tabs"]').text()).toContain('codex')
-    expect(wrapper.get('[data-testid="plaza-group-tabs"]').text()).not.toContain('default')
+    expect(categories).toHaveLength(2)
+    await categories[1].trigger('click')
+    expect(wrapper.get('[data-testid="plaza-group-cards"]').text()).toContain('codex')
+    expect(wrapper.get('[data-testid="plaza-group-cards"]').text()).not.toContain('default')
   })
 })

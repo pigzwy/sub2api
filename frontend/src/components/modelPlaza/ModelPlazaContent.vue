@@ -94,6 +94,7 @@ import PlazaCatalog from './PlazaCatalog.vue'
 import PlazaFilterBar from './PlazaFilterBar.vue'
 import PlazaGroupSection from './PlazaGroupSection.vue'
 import type { ModelPlazaGroup, ModelPlazaResponse } from '@/api/modelPlaza'
+import { sortPlazaPlatforms } from './plazaCatalog'
 import { useAuthStore } from '@/stores/auth'
 
 const props = defineProps<{
@@ -128,18 +129,19 @@ function effectiveRate(g: ModelPlazaGroup): number {
 }
 
 const platforms = computed(() =>
-  [...new Set((props.response?.groups ?? []).map((g) => g.platform).filter(Boolean))].sort()
+  sortPlazaPlatforms([...new Set((props.response?.groups ?? []).map((g) => g.platform).filter(Boolean))])
 )
 
-/** 后台目录默认看全部启用分组,标题用分组管理里的名称;点分类再过滤。 */
+/** 后台目录按参考页：先落在第一个分类，分组卡片用后台名称。 */
 watch(
   [() => props.embedded, platforms],
   ([embedded, list]) => {
     if (!embedded) return
-    if (selectedPlatform.value !== 'all' && !list.includes(selectedPlatform.value)) {
-      selectedPlatform.value = 'all'
+    if (selectedPlatform.value === 'all' || !list.includes(selectedPlatform.value)) {
+      selectedPlatform.value = list[0] ?? 'all'
     }
   },
+  { immediate: true },
 )
 
 const platformGroups = computed(() => {

@@ -20,13 +20,13 @@ describe('plazaCatalog', () => {
     expect(savingsPercent(4, 35)).toBe(89)
   })
 
-  it('maps platforms to the same labels as group admin', () => {
+  it('maps category tabs to the reference brand labels', () => {
     const t = (key: string) => ({
-      'admin.groups.platforms.anthropic': 'Anthropic',
-      'admin.groups.platforms.openai': 'OpenAI',
+      'modelPlaza.catalog.platforms.anthropic': 'Claude',
+      'modelPlaza.catalog.platforms.openai': 'ChatGPT',
     }[key] ?? key)
-    expect(plazaTabLabel('anthropic', t)).toBe('Anthropic')
-    expect(plazaTabLabel('openai', t)).toBe('OpenAI')
+    expect(plazaTabLabel('anthropic', t)).toBe('Claude')
+    expect(plazaTabLabel('openai', t)).toBe('ChatGPT')
     expect(plazaTabLabel('unknown', t)).toBe('unknown')
   })
 })

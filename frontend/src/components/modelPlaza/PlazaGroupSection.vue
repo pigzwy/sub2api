@@ -4,18 +4,9 @@
     :class="layout === 'sheet' ? 'border-gray-200 dark:border-dark-700/70' : platformBorderStrongClass(group.platform)"
     :data-testid="`plaza-group-section-${group.id}`"
   >
-    <!-- 目录页只展示后台分组名和说明,不再套 GroupBadge -->
-    <header v-if="layout === 'sheet'" class="px-5 pt-4">
-      <p data-testid="plaza-group-name" class="text-sm font-medium text-gray-900 dark:text-white">
-        {{ group.name }}
-      </p>
-      <p v-if="group.description" class="mt-1 text-sm text-gray-500 dark:text-dark-400">
-        {{ group.description }}
-      </p>
-      <p
-        v-if="peakNote"
-        class="mt-1.5 inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400"
-      >
+    <!-- 目录页分组名在卡片上，这里只保留高峰说明 -->
+    <header v-if="layout === 'sheet' && peakNote" class="px-5 pt-4">
+      <p class="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
         <Icon name="clock" size="xs" class="h-3 w-3" />
         {{ peakNote }}
       </p>

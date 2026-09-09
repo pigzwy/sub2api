@@ -609,15 +609,32 @@ export default {
     anonymousHint: 'Sign in to see your exclusive groups and personal rates',
     catalog: {
       category: 'Category',
+      ruleTitle: 'Pricing rules',
+      ruleFx: 'Official prices use $1 = ¥7',
+      ruleFormula: 'Group price = official price × group rate ÷ 7',
+      ruleExample: 'e.g. {model} input: official {official}, group {group}',
       rule: 'Pricing rule: official prices use $1 = ¥7; group price = official price × group rate ÷ 7.',
       priceList: 'Price list',
+      priceModeHint: 'The price list updates when you switch this toggle',
+      groupIntro: 'Group intro',
       rateLine: '{rate}x rate',
       discountLine: 'about {zhe} zhe',
       markupLine: 'above the official reference',
       sameLine: 'same as official',
       zheBadge: '{zhe} zhe',
       groupPrice: 'Group price',
-      officialPrice: 'Official price'
+      officialPrice: 'Official price',
+      platforms: {
+        anthropic: 'Claude',
+        openai: 'ChatGPT',
+        grok: 'Grok',
+        gemini: 'Gemini',
+        zhipu: 'Zhipu',
+        kimi: 'Kimi',
+        deepseek: 'DeepSeek',
+        antigravity: 'Antigravity',
+        composite: 'Composite'
+      }
     },
     filters: {
       platformLabel: 'Platform',

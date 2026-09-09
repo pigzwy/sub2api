@@ -53,17 +53,38 @@ export function formatYuan(amount: number | null): string {
   return `¥${amount.toFixed(2)}`
 }
 
-/** 分类标签与「分组管理」平台名同一套，不把平台名伪装成分组名。 */
+/** 分类 Tab 顺序与参考页一致；只展示数据里实际出现的平台。 */
+export const PLAZA_PLATFORM_ORDER = [
+  'anthropic',
+  'openai',
+  'grok',
+  'gemini',
+  'zhipu',
+  'kimi',
+  'deepseek',
+  'antigravity',
+  'composite',
+] as const
+
+export function sortPlazaPlatforms(platforms: string[]): string[] {
+  return [...platforms].sort((a, b) => {
+    const ai = PLAZA_PLATFORM_ORDER.indexOf(a as (typeof PLAZA_PLATFORM_ORDER)[number])
+    const bi = PLAZA_PLATFORM_ORDER.indexOf(b as (typeof PLAZA_PLATFORM_ORDER)[number])
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi) || a.localeCompare(b)
+  })
+}
+
+/** 分类用参考页品牌名（Claude / ChatGPT）；分组卡片仍只用后台分组 name。 */
 const PLATFORM_I18N_KEY: Record<string, string> = {
-  anthropic: 'admin.groups.platforms.anthropic',
-  openai: 'admin.groups.platforms.openai',
-  grok: 'admin.groups.platforms.grok',
-  gemini: 'admin.groups.platforms.gemini',
-  zhipu: 'admin.groups.platforms.zhipu',
-  kimi: 'admin.groups.platforms.kimi',
-  deepseek: 'admin.groups.platforms.deepseek',
-  antigravity: 'admin.groups.platforms.antigravity',
-  composite: 'admin.groups.platforms.composite',
+  anthropic: 'modelPlaza.catalog.platforms.anthropic',
+  openai: 'modelPlaza.catalog.platforms.openai',
+  grok: 'modelPlaza.catalog.platforms.grok',
+  gemini: 'modelPlaza.catalog.platforms.gemini',
+  zhipu: 'modelPlaza.catalog.platforms.zhipu',
+  kimi: 'modelPlaza.catalog.platforms.kimi',
+  deepseek: 'modelPlaza.catalog.platforms.deepseek',
+  antigravity: 'modelPlaza.catalog.platforms.antigravity',
+  composite: 'modelPlaza.catalog.platforms.composite',
 }
 
 export function plazaTabLabel(platform: string, t: (key: string) => string): string {
