@@ -753,7 +753,7 @@ Realtime/TTS/STT 的配置/默认/显式免费语义、token 高峰倍率与按�
 **入口与配置**
 
 - 管理后台 `系统设置 → 支付设置`：`payment_balance_recharge_multiplier`、`payment_balance_recharge_packages`。
-- 用户页 `/purchase` 充值 Tab：档位卡片 → 确认框选通道和下单。
+- 用户页 `/purchase` 充值 Tab：档位卡片 → 确认框先选支付方式（同一栏可以混 CNY/USD）→ 独立确认后下单。
 - `GET /api/v1/payment/checkout-info` 返回带 `credit` / `bonus` 的档位列表，供前端展示；下单仍只传金额。
 
 **关键文件**
@@ -772,16 +772,20 @@ frontend/src/components/payment/RechargePackageSettingsEditor.vue
 
 **资金与 UX 边界**
 
-- 确认框切换 RMB / USDT 时必须同步 `selectedMethod`，预览币种与下单支付方式一致。
+- `paymentMethodLane` 只区分 USDT/加密通道与其他方式；RMB 栏里仍可能同时有支付宝 CNY 和 Stripe USD。
+- 确认框里选择支付方式与确认付款分开。切换方式后先更新币种、应付、手续费和到账预览，再由用户点独立确认按钮下单。
+- 下单使用用户刚确认的同一支付方式；确认框打开或提交期间不会自动改选。
+- 未选中可用方式时不能提交；提交中锁定选择并忽略重复确认。
 - 档位售价按支付币种精度展示，不能把 `10.49` 收成整数 `10`。
 - 未再使用的 `AmountInput.vue` 保持上游原样式，避免无引用的样式分叉。
-- 支付渠道、回调、兑现、退款核心流程不重写。
+- 支付渠道、回调验签、兑现、幂等和退款核心流程不重写。
 
 **测试**
 
 - 后端：`recharge_packages_test.go` 覆盖倍率 + 赠送、以及「另一档有赠送时零赠送档仍走倍率」。
-- 后端：`payment_fulfillment_test.go` 覆盖「赠送套餐下单快照 → 回调到账 → 重复回调不重复入账」。
-- 前端 CI 白名单（根 `Makefile` 的 `FRONTEND_CRITICAL_VITEST`）登记 `rechargePackages`、`RechargeCheckoutDialog`、`RechargeCreditLine`、`RechargePackageSettingsEditor`、`RechargePackageGrid`、`currency` 与既有 `PaymentView`。
+- 后端：`payment_order_credit_snapshot_test.go` 走配置服务写入倍率 0.14 / 档位 200+赠送 5 → 真实 `PaymentService.CreateOrder`（EasyPay popup + 离线 load balancer，无真实付费）→ 订单 `Amount=33`、`PayAmount=200` → 改配置后再成功回调仍到账 33，重复回调不加余额，实付不符不到账。
+- 后端：`payment_fulfillment_test.go` 的 `TestBonusPackageNotificationCreditsOrderSnapshotAndIgnoresReplay` 只覆盖「已落库订单行 + 回调履约」，不代替上面的 CreateOrder 链路。
+- 前端 CI 白名单（根 `Makefile` 的 `FRONTEND_CRITICAL_VITEST`）登记 `rechargePackages`、`RechargeCheckoutDialog`、`RechargeCreditLine`、`RechargePackageSettingsEditor`、`RechargePackageGrid`、`currency` 与既有 `PaymentView`。PaymentView 覆盖支付宝 CNY 切到 Stripe USD 先改预览再确认，以及不可用方式 / 重复确认。
 
 ---
 

@@ -39,6 +39,7 @@
               <button
                 type="button"
                 data-testid="pay-lane-rmb"
+                :disabled="submitting"
                 class="flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all"
                 :class="lane === 'rmb'
                   ? 'bg-white text-gray-900 shadow dark:bg-dark-700 dark:text-white'
@@ -50,6 +51,7 @@
               <button
                 type="button"
                 data-testid="pay-lane-usdt"
+                :disabled="submitting"
                 class="flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all"
                 :class="lane === 'usdt'
                   ? 'bg-white text-gray-900 shadow dark:bg-dark-700 dark:text-white'
@@ -72,8 +74,13 @@
                   type="button"
                   :data-testid="`checkout-method-${method.type}`"
                   :disabled="!method.available || submitting"
-                  :class="['btn w-full justify-center py-3 text-base font-medium', methodButtonClass(method.type)]"
-                  @click="emit('confirm', method.type)"
+                  :aria-pressed="selected === method.type"
+                  :class="[
+                    'btn w-full justify-center py-3 text-base font-medium',
+                    methodButtonClass(method.type),
+                    selected === method.type ? 'ring-2 ring-primary-500 ring-offset-2 dark:ring-offset-dark-900' : '',
+                  ]"
+                  @click="selectMethod(method)"
                 >
                   <img :src="methodIcon(method.type)" :alt="methodLabel(method)" class="h-6 w-6 object-contain" />
                   <span>{{ methodLabel(method) }}</span>
@@ -85,6 +92,20 @@
                 <img :src="wxpayIcon" alt="" class="h-5 w-5 object-contain" />
               </div>
             </div>
+
+            <button
+              type="button"
+              data-testid="checkout-confirm"
+              :disabled="!canConfirm"
+              :class="['btn w-full justify-center py-3 text-base font-medium', confirmButtonClass]"
+              @click="confirmSelected"
+            >
+              <span v-if="submitting" class="flex items-center justify-center gap-2">
+                <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+                {{ t('common.processing') }}
+              </span>
+              <span v-else>{{ t('payment.createOrder') }} {{ payAmountLabel }}</span>
+            </button>
 
             <p v-if="error" class="text-xs text-amber-600 dark:text-amber-300">{{ error }}</p>
           </div>
@@ -115,6 +136,7 @@ const props = defineProps<{
   feeRate: number
   multiplier: number
   currency: string
+  selected: string
   lane: PaymentMethodLane
   rmbMethods: PaymentMethodOption[]
   usdtMethods: PaymentMethodOption[]
@@ -124,6 +146,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: []
+  select: [type: string]
   confirm: [type: string]
   'update:lane': [lane: PaymentMethodLane]
 }>()
@@ -132,6 +155,25 @@ const { t } = useI18n()
 
 const showLaneToggle = computed(() => props.rmbMethods.length > 0 && props.usdtMethods.length > 0)
 const visibleMethods = computed(() => (props.lane === 'usdt' ? props.usdtMethods : props.rmbMethods))
+const selectedMethod = computed(() =>
+  visibleMethods.value.find((method) => method.type === props.selected),
+)
+const canConfirm = computed(() =>
+  !props.submitting && !!selectedMethod.value?.available,
+)
+const confirmButtonClass = computed(() =>
+  selectedMethod.value ? methodButtonClass(selectedMethod.value.type) : 'btn-primary',
+)
+
+function selectMethod(method: PaymentMethodOption) {
+  if (!method.available || props.submitting) return
+  emit('select', method.type)
+}
+
+function confirmSelected() {
+  if (!canConfirm.value || !props.selected) return
+  emit('confirm', props.selected)
+}
 
 function methodLabel(method: PaymentMethodOption): string {
   return method.display_name || t(`payment.methods.${method.type}`, method.type)

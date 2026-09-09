@@ -112,6 +112,8 @@ export function isUsdtPaymentMethod(type: string, currency?: string | null): boo
     || normalizedType.includes('stablecoin')
 }
 
+// paymentMethodLane only separates USDT/crypto from everything else.
+// The "rmb" lane can still mix CNY and USD methods (e.g. Alipay + Stripe).
 export function paymentMethodLane(type: string, currency?: string | null): PaymentMethodLane {
   return isUsdtPaymentMethod(type, currency) ? 'usdt' : 'rmb'
 }

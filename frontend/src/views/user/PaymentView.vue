@@ -76,13 +76,15 @@
               :fee-rate="feeRate"
               :multiplier="balanceRechargeMultiplier"
               :currency="selectedCurrency"
+              :selected="selectedMethod"
               :lane="payLane"
               :rmb-methods="rmbMethods"
               :usdt-methods="usdtMethods"
               :submitting="submitting"
               :error="amountError"
-              @close="showPayDialog = false"
+              @close="closeRechargeCheckout"
               @update:lane="selectPayLane"
+              @select="selectCheckoutMethod"
               @confirm="confirmRechargeCheckout"
             />
             </template>
@@ -725,8 +727,11 @@ const canSubmitSubscription = computed(() =>
     && selectedLimit.value?.available !== false
 )
 
+let rechargeConfirmLock = false
+
 // Auto-switch to first available method when current selection can't handle the amount
 watch(() => [validAmount.value, selectedMethod.value, payLane.value] as const, ([amt, method]) => {
+  if (showPayDialog.value || submitting.value || rechargeConfirmLock) return
   if (amt <= 0 || amountFitsMethod(amt, method)) return
   const laneMethods = payLane.value === 'usdt' ? usdtMethods.value : rmbMethods.value
   const preferred = [...laneMethods, ...methodOptions.value].find((m) => m.available)
@@ -737,6 +742,7 @@ watch(() => [validAmount.value, selectedMethod.value, payLane.value] as const, (
 })
 
 function selectPayLane(lane: PaymentMethodLane) {
+  if (submitting.value || rechargeConfirmLock) return
   payLane.value = lane
   const laneMethods = lane === 'usdt' ? usdtMethods.value : rmbMethods.value
   if (laneMethods.some((method) => method.type === selectedMethod.value)) {
@@ -746,6 +752,19 @@ function selectPayLane(lane: PaymentMethodLane) {
   if (preferred) {
     selectedMethod.value = preferred.type
   }
+}
+
+function selectCheckoutMethod(type: string) {
+  if (submitting.value || rechargeConfirmLock) return
+  const method = methodOptions.value.find((item) => item.type === type)
+  if (!method?.available) return
+  selectedMethod.value = method.type
+  payLane.value = paymentMethodLane(method.type, method.currency)
+}
+
+function closeRechargeCheckout() {
+  if (submitting.value || rechargeConfirmLock) return
+  showPayDialog.value = false
 }
 
 // Payment button class: follows selected payment method color
@@ -819,12 +838,22 @@ function openRechargeCheckout(selectedAmount: number) {
 }
 
 async function confirmRechargeCheckout(type: string) {
-  selectedMethod.value = type
-  payLane.value = paymentMethodLane(type, visibleMethods.value[type]?.currency)
-  await nextTick()
-  await handleSubmitRecharge()
-  if (paymentPhase.value === 'paying') {
-    showPayDialog.value = false
+  if (rechargeConfirmLock || submitting.value) return
+  const requestType = type || selectedMethod.value
+  const method = methodOptions.value.find((item) => item.type === requestType)
+  if (!method?.available || !amountFitsMethod(validAmount.value, requestType)) return
+  rechargeConfirmLock = true
+  selectedMethod.value = requestType
+  payLane.value = paymentMethodLane(requestType, method.currency)
+  try {
+    await nextTick()
+    if (selectedMethod.value !== requestType) return
+    await handleSubmitRecharge()
+    if (paymentPhase.value === 'paying') {
+      showPayDialog.value = false
+    }
+  } finally {
+    rechargeConfirmLock = false
   }
 }
 

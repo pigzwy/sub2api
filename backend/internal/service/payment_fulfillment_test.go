@@ -935,6 +935,10 @@ func TestDuplicatePaymentNotificationDoesNotReprocessCompletedBalanceOrder(t *te
 	require.Empty(t, redeemRepo.useCalls, "a duplicate notification must not redeem the balance code again")
 }
 
+// TestBonusPackageNotificationCreditsOrderSnapshotAndIgnoresReplay covers
+// callback fulfillment against an already-persisted order row. It does not
+// call CreateOrder or PaymentConfigService; see
+// TestCreateOrderSnapshotsBonusCreditBeforeFulfillment for that path.
 func TestBonusPackageNotificationCreditsOrderSnapshotAndIgnoresReplay(t *testing.T) {
 	ctx := context.Background()
 	client := newPaymentConfigServiceTestClient(t)

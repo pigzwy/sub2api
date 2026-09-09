@@ -493,6 +493,117 @@ describe('PaymentView recharge rate preview', () => {
       payment_type: 'usdt_trc20',
     }))
   })
+
+  it('updates CNY/USD preview before creating a Stripe order', async () => {
+    const method: MethodLimit = {
+      daily_limit: 0,
+      daily_used: 0,
+      daily_remaining: 0,
+      single_min: 0,
+      single_max: 0,
+      fee_rate: 0,
+      available: true,
+    }
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
+      methods: {
+        alipay: { ...method, currency: 'CNY' },
+        stripe: { ...method, currency: 'USD' },
+      },
+    }))
+    createOrder.mockReset().mockResolvedValue({
+      order_id: 92,
+      amount: 100,
+      pay_amount: 100,
+      qr_code: 'qr',
+      expires_at: '2099-01-01T00:10:00.000Z',
+      payment_type: 'stripe',
+      result_type: 'qr_ready',
+    })
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    wrapper.getComponent(RechargePackageGrid).vm.$emit('select', 100)
+    await flushPromises()
+
+    const dialog = wrapper.getComponent(RechargeCheckoutDialog)
+    expect(wrapper.get('[data-testid="selected-payment-method"]').text()).toBe('alipay')
+    expect(dialog.props('currency')).toBe('CNY')
+    expect(dialog.props('payAmountLabel')).toBe(formatPaymentAmount(100, 'CNY'))
+    expect(dialog.props('selected')).toBe('alipay')
+
+    dialog.vm.$emit('select', 'stripe')
+    await flushPromises()
+
+    expect(createOrder).not.toHaveBeenCalled()
+    expect(wrapper.get('[data-testid="selected-payment-method"]').text()).toBe('stripe')
+    expect(dialog.props('currency')).toBe('USD')
+    expect(dialog.props('payAmountLabel')).toBe(formatPaymentAmount(100, 'USD'))
+    expect(dialog.props('selected')).toBe('stripe')
+
+    dialog.vm.$emit('confirm', 'stripe')
+    dialog.vm.$emit('confirm', 'stripe')
+    await flushPromises()
+
+    expect(createOrder).toHaveBeenCalledTimes(1)
+    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({
+      amount: 100,
+      order_type: 'balance',
+      payment_type: 'stripe',
+    }))
+  })
+
+  it('does not create an order for an unavailable checkout method', async () => {
+    const method: MethodLimit = {
+      daily_limit: 0,
+      daily_used: 0,
+      daily_remaining: 0,
+      single_min: 0,
+      single_max: 0,
+      fee_rate: 0,
+      available: true,
+    }
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
+      methods: {
+        alipay: { ...method, currency: 'CNY' },
+        stripe: { ...method, currency: 'USD', available: false },
+      },
+    }))
+    createOrder.mockReset()
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    wrapper.getComponent(RechargePackageGrid).vm.$emit('select', 100)
+    await flushPromises()
+
+    const dialog = wrapper.getComponent(RechargeCheckoutDialog)
+    dialog.vm.$emit('select', 'stripe')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="selected-payment-method"]').text()).toBe('alipay')
+
+    dialog.vm.$emit('confirm', 'stripe')
+    await flushPromises()
+    expect(createOrder).not.toHaveBeenCalled()
+  })
 })
 
 describe('PaymentView subscription confirmation amounts', () => {
