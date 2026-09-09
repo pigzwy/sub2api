@@ -84,7 +84,7 @@ import { platformAccentColor } from '@/utils/platformColors'
 import type { ModelPlazaGroup } from '@/api/modelPlaza'
 import { formatZhe, plazaTabLabel } from './plazaCatalog'
 
-const props = defineProps<{
+defineProps<{
   platforms: string[]
   platform: string
   groups: ModelPlazaGroup[]
