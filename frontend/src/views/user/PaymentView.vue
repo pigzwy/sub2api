@@ -37,9 +37,16 @@
           <template v-if="activeTab === 'recharge'">
             <!-- Recharge Account Card -->
             <div class="card p-5">
-              <p class="text-xs font-medium text-gray-400 dark:text-gray-500">{{ t('payment.rechargeAccount') }}</p>
-              <p class="mt-1 text-base font-semibold text-gray-900 dark:text-white">{{ user?.username || '' }}</p>
-              <p class="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">{{ t('payment.currentBalance') }}: {{ user?.balance?.toFixed(2) || '0.00' }}</p>
+              <div class="flex items-end justify-between gap-4">
+                <div class="min-w-0">
+                  <p class="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ t('payment.rechargeAccount') }}</p>
+                  <p class="mt-1 truncate text-base font-semibold text-gray-900 dark:text-white">{{ user?.username || '' }}</p>
+                </div>
+                <div class="shrink-0 text-right">
+                  <p class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.currentBalance') }}</p>
+                  <p class="mt-0.5 text-xl font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{{ user?.balance?.toFixed(2) || '0.00' }}</p>
+                </div>
+              </div>
             </div>
             <div v-if="enabledMethods.length === 0" class="card py-16 text-center">
               <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>

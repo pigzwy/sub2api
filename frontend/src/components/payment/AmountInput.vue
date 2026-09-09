@@ -1,43 +1,82 @@
 <template>
-  <div class="space-y-4">
+  <div class="space-y-5">
     <!-- Quick Amount Buttons -->
     <div>
-      <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+      <label class="mb-3 block text-sm font-medium text-gray-700 dark:text-gray-300">
         {{ t('payment.quickAmounts') }}
       </label>
-      <div class="grid grid-cols-3 gap-2">
+      <div data-testid="quick-amount-grid" class="grid grid-cols-3 gap-2.5 sm:gap-3">
         <button
           v-for="amt in filteredAmounts"
           :key="amt"
           type="button"
+          :data-testid="`quick-amount-${amt}`"
+          :aria-pressed="modelValue === amt"
           :class="[
-            'rounded-lg border-2 px-4 py-3 text-center font-medium transition-colors',
+            'group relative overflow-hidden rounded-xl border px-2 py-3.5 text-center transition-all duration-200 sm:px-3',
             modelValue === amt
-              ? 'border-primary-500 bg-primary-50 text-primary-700 dark:border-primary-400 dark:bg-primary-900/40 dark:text-primary-300'
-              : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-200 dark:hover:border-dark-500',
+              ? 'border-primary-500 bg-primary-50 shadow-sm ring-2 ring-primary-500/15 dark:border-primary-400 dark:bg-primary-500/15 dark:ring-primary-400/20'
+              : 'border-gray-200 bg-gray-50/80 hover:-translate-y-0.5 hover:border-primary-300 hover:bg-white dark:border-dark-600 dark:bg-dark-800/80 dark:hover:border-primary-500/40 dark:hover:bg-dark-700',
           ]"
           @click="selectAmount(amt)"
         >
-          {{ amt }}
+          <span
+            v-if="modelValue === amt"
+            class="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary-500 text-white dark:bg-primary-400"
+            aria-hidden="true"
+          >
+            <Icon name="check" size="xs" :stroke-width="2.4" />
+          </span>
+          <span class="flex items-baseline justify-center gap-0.5">
+            <span
+              :class="[
+                'text-xs font-medium',
+                modelValue === amt
+                  ? 'text-primary-500 dark:text-primary-300'
+                  : 'text-gray-400 dark:text-gray-500',
+              ]"
+            >$</span>
+            <span
+              :class="[
+                'text-lg font-semibold tabular-nums tracking-tight',
+                modelValue === amt
+                  ? 'text-primary-700 dark:text-primary-100'
+                  : 'text-gray-800 dark:text-gray-100',
+              ]"
+            >
+              {{ formatQuickAmount(amt) }}
+            </span>
+          </span>
         </button>
       </div>
     </div>
 
     <!-- Custom Amount Input -->
     <div>
-      <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+      <label class="mb-3 block text-sm font-medium text-gray-700 dark:text-gray-300">
         {{ t('payment.customAmount') }}
       </label>
-      <div class="relative">
-        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-500">
+      <div
+        :class="[
+          'relative rounded-xl transition-shadow',
+          isCustomAmount ? 'ring-2 ring-primary-500/20 dark:ring-primary-400/20' : '',
+        ]"
+      >
+        <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-medium text-gray-400 dark:text-dark-400">
           $
         </span>
         <input
           type="text"
           inputmode="decimal"
+          data-testid="custom-amount-input"
           :value="customText"
           :placeholder="placeholderText"
-          class="input w-full py-3 pl-8 pr-4"
+          :class="[
+            'input w-full py-3 pl-8 pr-4',
+            isCustomAmount
+              ? 'border-primary-500 focus:border-primary-500 dark:border-primary-400'
+              : '',
+          ]"
           @input="handleInput"
         />
       </div>
@@ -48,6 +87,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import Icon from '@/components/icons/Icon.vue'
 
 const props = withDefaults(defineProps<{
   amounts?: number[]
@@ -64,13 +104,17 @@ const emit = defineEmits<{
   'update:modelValue': [value: number | null]
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const customText = ref('')
 
 // 0 = no limit
 const filteredAmounts = computed(() =>
   props.amounts.filter((a) => (props.min <= 0 || a >= props.min) && (props.max <= 0 || a <= props.max))
+)
+
+const isCustomAmount = computed(() =>
+  props.modelValue !== null && !filteredAmounts.value.includes(props.modelValue)
 )
 
 const placeholderText = computed(() => {
@@ -81,6 +125,18 @@ const placeholderText = computed(() => {
 })
 
 const AMOUNT_PATTERN = /^\d*(\.\d{0,2})?$/
+
+function localeTag(): string {
+  const raw = locale as unknown
+  const value = typeof raw === 'string'
+    ? raw
+    : (raw && typeof raw === 'object' && 'value' in raw ? String((raw as { value?: string }).value || '') : '')
+  return value.startsWith('zh') ? 'zh-CN' : 'en-US'
+}
+
+function formatQuickAmount(amt: number): string {
+  return amt.toLocaleString(localeTag(), { maximumFractionDigits: 2 })
+}
 
 function selectAmount(amt: number) {
   customText.value = String(amt)
