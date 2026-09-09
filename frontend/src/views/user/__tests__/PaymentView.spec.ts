@@ -298,6 +298,11 @@ describe('PaymentView subscription plan grid', () => {
 })
 
 describe('PaymentView recharge rate preview', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    createOrder.mockReset()
+  })
+
   it('uses the selected payment method currency in both locale templates', async () => {
     translate.mockClear()
     routeState.path = '/purchase'
@@ -431,6 +436,7 @@ describe('PaymentView recharge rate preview', () => {
   })
 
   it('keeps checkout amount currency aligned with the selected pay lane', async () => {
+    window.localStorage.clear()
     const method: MethodLimit = {
       daily_limit: 0,
       daily_used: 0,
@@ -495,6 +501,7 @@ describe('PaymentView recharge rate preview', () => {
   })
 
   it('updates CNY/USD preview before creating a Stripe order', async () => {
+    window.localStorage.clear()
     const method: MethodLimit = {
       daily_limit: 0,
       daily_used: 0,
@@ -563,6 +570,7 @@ describe('PaymentView recharge rate preview', () => {
   })
 
   it('does not create an order for an unavailable checkout method', async () => {
+    window.localStorage.clear()
     const method: MethodLimit = {
       daily_limit: 0,
       daily_used: 0,
