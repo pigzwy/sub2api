@@ -964,6 +964,7 @@ func TestBonusPackageNotificationCreditsOrderSnapshotAndIgnoresReplay(t *testing
 		SetRechargeCode("PAY-BONUS-" + strconv.FormatInt(time.Now().UnixNano(), 10)).
 		SetOutTradeNo("sub2_bonus_" + strconv.FormatInt(time.Now().UnixNano(), 10)).
 		SetPaymentType(payment.TypeAlipay).
+		SetPaymentTradeNo("").
 		SetOrderType(payment.OrderTypeBalance).
 		SetStatus(OrderStatusPending).
 		SetExpiresAt(time.Now().Add(time.Hour)).
