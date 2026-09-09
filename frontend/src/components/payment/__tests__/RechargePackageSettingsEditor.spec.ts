@@ -21,8 +21,9 @@ describe('RechargePackageSettingsEditor', () => {
       global: { plugins: [i18n] },
     })
 
-    expect(wrapper.findAll('input').length).toBeGreaterThan(0)
-    await wrapper.get('button').trigger('click')
-    expect(wrapper.emitted('update:modelValue')?.length).toBeGreaterThan(0)
+    expect(wrapper.find('table').exists()).toBe(true)
+    expect(wrapper.findAll('tbody tr')).toHaveLength(1)
+    await wrapper.get('[data-testid="recharge-package-add"]').trigger('click')
+    expect(wrapper.emitted('update:modelValue')?.[0]?.[0]).toHaveLength(2)
   })
 })
