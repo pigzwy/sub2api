@@ -49,11 +49,7 @@
       <ul class="mt-4 space-y-2 text-sm text-gray-600 dark:text-gray-300">
         <li class="flex items-start gap-2">
           <Icon name="check" size="sm" class="mt-0.5 shrink-0 text-emerald-500" />
-          <RechargeCreditLine
-            :base-amount="pkg.amount"
-            :credit-amount="creditOf(pkg)"
-            :bonus="bonusOf(pkg)"
-          />
+          <span>{{ t('payment.getCredit', { amount: formatUsd(creditOf(pkg)) }) }}</span>
         </li>
         <li class="flex items-start gap-2">
           <Icon name="check" size="sm" class="mt-0.5 shrink-0 text-emerald-500" />
