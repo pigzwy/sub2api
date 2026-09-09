@@ -40,12 +40,10 @@
         :platform="selectedPlatform"
         :groups="platformGroups"
         :group-id="selectedGroupId"
-        :search="searchQuery"
         :show-default-rule="!descriptionHtml"
         :price-mode="priceMode"
         @update:platform="selectedPlatform = $event"
         @update:group-id="selectedGroupId = $event"
-        @update:search="searchQuery = $event"
         @update:price-mode="priceMode = $event"
       />
       <!-- 独立页仍用筛选芯片,可一次看多个分组 -->

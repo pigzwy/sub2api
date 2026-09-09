@@ -8,10 +8,10 @@ describe('plazaCatalog', () => {
     expect(formatZhe(1)).toBe('10')
   })
 
-  it('formats catalog 折 against official CNY', () => {
-    expect(formatCatalogZhe(0.8)).toBe('1.1')
-    expect(formatCatalogZhe(2)).toBe('2.9')
-    expect(formatCatalogZhe(5)).toBe('7.1')
+  it('formats catalog 折 from the group rate', () => {
+    expect(formatCatalogZhe(0.8)).toBe('8')
+    expect(formatCatalogZhe(0.2)).toBe('2')
+    expect(formatCatalogZhe(1.5)).toBe('15')
   })
 
   it('converts token prices to the catalog yuan pair', () => {

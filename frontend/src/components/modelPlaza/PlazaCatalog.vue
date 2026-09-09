@@ -35,45 +35,31 @@
     </div>
 
     <div>
-      <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center justify-between gap-3">
         <h2 class="inline-flex items-center gap-1.5 text-base font-semibold text-gray-900 dark:text-white">
           <Icon name="checkCircle" size="sm" class="h-4 w-4 text-amber-500" />
           {{ t('modelPlaza.catalog.priceList') }}
         </h2>
-        <div class="flex flex-wrap items-center gap-3">
-          <div class="text-right">
-            <div class="inline-flex rounded-lg bg-gray-100 p-0.5 text-xs dark:bg-dark-800">
-              <button
-                type="button"
-                :class="priceModeClass('group')"
-                @click="emit('update:priceMode', 'group')"
-              >
-                {{ t('modelPlaza.catalog.groupPrice') }}
-              </button>
-              <button
-                type="button"
-                :class="priceModeClass('official')"
-                @click="emit('update:priceMode', 'official')"
-              >
-                {{ t('modelPlaza.catalog.officialPrice') }}
-              </button>
-            </div>
-            <p class="mt-1 text-[11px] text-gray-400 dark:text-dark-500">
-              {{ t('modelPlaza.catalog.priceModeHint') }}
-            </p>
-          </div>
-          <input
-            :value="search"
-            type="search"
-            class="input h-9 w-44 text-sm"
-            :placeholder="t('modelPlaza.filters.searchPlaceholder')"
-            @input="emit('update:search', ($event.target as HTMLInputElement).value)"
-          />
+        <div class="inline-flex rounded-lg bg-gray-100 p-0.5 text-xs dark:bg-dark-800">
+          <button
+            type="button"
+            :class="priceModeClass('group')"
+            @click="emit('update:priceMode', 'group')"
+          >
+            {{ t('modelPlaza.catalog.groupPrice') }}
+          </button>
+          <button
+            type="button"
+            :class="priceModeClass('official')"
+            @click="emit('update:priceMode', 'official')"
+          >
+            {{ t('modelPlaza.catalog.officialPrice') }}
+          </button>
         </div>
       </div>
 
       <div
-        class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
+        class="mt-3 flex gap-3 overflow-x-auto pb-1"
         data-testid="plaza-group-cards"
       >
         <button
@@ -82,31 +68,33 @@
           type="button"
           :data-testid="`plaza-group-card-${g.id}`"
           :class="[
-            'relative rounded-2xl border p-4 text-left transition-colors',
+            'w-56 shrink-0 rounded-2xl border p-4 text-left transition-colors',
             groupId === g.id
               ? 'border-amber-500 bg-amber-50/90 shadow-[0_0_0_3px_rgba(245,158,11,0.15)] dark:border-amber-400/70 dark:bg-amber-500/10'
-              : 'border-gray-200 bg-white hover:border-gray-300 dark:border-dark-700 dark:bg-dark-800/50 dark:hover:border-dark-500',
+              : 'border-gray-200 bg-white hover:border-gray-300 dark:border-dark-600 dark:bg-dark-800/70 dark:hover:border-dark-500',
           ]"
           @click="emit('update:groupId', g.id)"
         >
-          <div class="absolute right-3 top-3 flex items-center gap-1.5">
-            <Icon
-              v-if="groupId === g.id"
-              name="checkCircle"
-              size="sm"
-              class="h-4 w-4 text-emerald-500"
-            />
-            <span class="rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-semibold text-white">
-              {{ t('modelPlaza.catalog.zheBadge', { zhe: formatCatalogZhe(effectiveRate(g)) }) }}
-            </span>
+          <div class="flex items-start justify-between gap-2">
+            <p
+              class="min-w-0 text-sm font-semibold leading-5 text-gray-900 dark:text-white"
+              :data-testid="groupId === g.id ? 'plaza-group-name' : undefined"
+            >
+              {{ g.name }}
+            </p>
+            <div class="flex shrink-0 items-center gap-1">
+              <Icon
+                v-if="groupId === g.id"
+                name="checkCircle"
+                size="sm"
+                class="h-4 w-4 text-emerald-500"
+              />
+              <span class="rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-semibold text-white">
+                {{ t('modelPlaza.catalog.zheBadge', { zhe: formatCatalogZhe(effectiveRate(g)) }) }}
+              </span>
+            </div>
           </div>
-          <p
-            class="pr-24 text-sm font-semibold text-gray-900 dark:text-white"
-            :data-testid="groupId === g.id ? 'plaza-group-name' : undefined"
-          >
-            {{ g.name }}
-          </p>
-          <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+          <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-dark-400">
             {{ rateCaption(g) }}
           </p>
         </button>
@@ -114,7 +102,7 @@
 
       <p
         v-if="selectedGroup"
-        class="mt-3 text-sm text-gray-500 dark:text-dark-400"
+        class="mt-3 text-sm leading-6 text-gray-500 dark:text-dark-400"
         data-testid="plaza-group-intro"
       >
         <span class="font-medium text-gray-700 dark:text-dark-200">{{ t('modelPlaza.catalog.groupIntro') }}：</span>
@@ -144,7 +132,6 @@ const props = defineProps<{
   platform: string
   groups: ModelPlazaGroup[]
   groupId: number | 'all'
-  search: string
   showDefaultRule: boolean
   priceMode: 'group' | 'official'
 }>()
@@ -152,7 +139,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:platform': [value: string]
   'update:groupId': [value: number]
-  'update:search': [value: string]
   'update:priceMode': [value: 'group' | 'official']
 }>()
 
