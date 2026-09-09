@@ -34,30 +34,23 @@ export function rechargeBonusAmount(amount: number, multiplier: number): number 
   return roundMoney(creditedRechargeAmount(amount, multiplier) - amount)
 }
 
-export function packagesHaveBonus(packages: RechargePackage[]): boolean {
-  return packages.some((pkg) => Number(pkg.bonus) > 0)
-}
-
 export function packageCreditAmount(
   pkg: RechargePackage,
-  packages: RechargePackage[],
+  _packages: RechargePackage[],
   multiplier: number,
 ): number {
   if (Number.isFinite(pkg.credit)) {
     return roundMoney(Number(pkg.credit))
   }
-  if (packagesHaveBonus(packages)) {
-    return roundMoney(pkg.amount + (Number(pkg.bonus) || 0))
-  }
-  return creditedRechargeAmount(pkg.amount, multiplier)
+  return roundMoney(creditedRechargeAmount(pkg.amount, multiplier) + (Number(pkg.bonus) || 0))
 }
 
 export function packageBonusAmount(
   pkg: RechargePackage,
-  packages: RechargePackage[],
-  multiplier: number,
+  _packages: RechargePackage[] = [],
+  _multiplier = 1,
 ): number {
-  return roundMoney(packageCreditAmount(pkg, packages, multiplier) - pkg.amount)
+  return roundMoney(Number(pkg.bonus) || 0)
 }
 
 export function filterRechargePackages(
@@ -119,6 +112,8 @@ export function isUsdtPaymentMethod(type: string, currency?: string | null): boo
     || normalizedType.includes('stablecoin')
 }
 
+// paymentMethodLane only separates USDT/crypto from everything else.
+// The "rmb" lane can still mix CNY and USD methods (e.g. Alipay + Stripe).
 export function paymentMethodLane(type: string, currency?: string | null): PaymentMethodLane {
   return isUsdtPaymentMethod(type, currency) ? 'usdt' : 'rmb'
 }

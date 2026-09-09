@@ -23,6 +23,7 @@ const PAYMENT_CURRENCY_SYMBOLS: Record<string, string> = {
 
 export function normalizePaymentCurrency(currency?: string | null): string {
   const normalized = String(currency || '').trim().toUpperCase()
+  if (normalized === 'USDT') return 'USDT'
   return /^[A-Z]{3}$/.test(normalized) ? normalized : DEFAULT_PAYMENT_CURRENCY
 }
 
@@ -31,14 +32,28 @@ export function currencySymbol(currency?: string | null): string {
   return PAYMENT_CURRENCY_SYMBOLS[normalized] || normalized
 }
 
-function paymentCurrencyFractionDigits(currency: string): number {
+export function paymentCurrencyFractionDigits(currency?: string | null): number {
+  const normalized = normalizePaymentCurrency(currency)
   try {
     return new Intl.NumberFormat(undefined, {
       style: 'currency',
-      currency,
+      currency: normalized,
     }).resolvedOptions().maximumFractionDigits ?? 2
   } catch {
     return 2
+  }
+}
+
+export function formatPaymentNumber(amount: number, currency?: string | null, locale?: string): string {
+  const fractionDigits = paymentCurrencyFractionDigits(currency)
+  const value = Number.isFinite(amount) ? amount : 0
+  try {
+    return new Intl.NumberFormat(locale || undefined, {
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
+    }).format(value)
+  } catch {
+    return value.toFixed(fractionDigits)
   }
 }
 

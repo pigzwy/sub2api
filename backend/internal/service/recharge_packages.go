@@ -179,15 +179,6 @@ func FindRechargePackageByAmount(packages []RechargePackage, amount float64) (Re
 	return RechargePackage{}, false
 }
 
-func RechargePackagesHaveBonus(packages []RechargePackage) bool {
-	for _, pkg := range packages {
-		if decimal.NewFromFloat(pkg.Bonus).Round(2).IsPositive() {
-			return true
-		}
-	}
-	return false
-}
-
 func BuildCheckoutRechargePackages(packages []RechargePackage, multiplier float64) []CheckoutRechargePackage {
 	if len(packages) == 0 {
 		packages = DefaultRechargePackages()
@@ -195,11 +186,10 @@ func BuildCheckoutRechargePackages(packages []RechargePackage, multiplier float6
 	out := make([]CheckoutRechargePackage, 0, len(packages))
 	for _, pkg := range packages {
 		credit := calculateCreditedBalance(pkg.Amount, multiplier, packages)
-		bonus := decimal.NewFromFloat(credit).Sub(decimal.NewFromFloat(pkg.Amount)).Round(2).InexactFloat64()
 		out = append(out, CheckoutRechargePackage{
 			ID:            pkg.ID,
 			Amount:        pkg.Amount,
-			Bonus:         bonus,
+			Bonus:         pkg.Bonus,
 			Credit:        credit,
 			Badge:         pkg.Badge,
 			Name:          pkg.Name,

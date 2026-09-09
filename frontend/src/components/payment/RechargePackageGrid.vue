@@ -30,7 +30,7 @@
       </p>
       <div class="mt-5 flex flex-wrap items-end gap-2">
         <p class="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
-          <span class="mr-0.5 text-xl font-semibold text-gray-400 dark:text-gray-500">{{ currencySymbol(currency) }}</span>{{ formatIntegerAmount(pkg.amount) }}
+          <span class="mr-0.5 text-xl font-semibold text-gray-400 dark:text-gray-500">{{ currencySymbol(currency) }}</span>{{ formatPackageAmount(pkg.amount) }}
         </p>
         <span
           v-if="bonusOf(pkg) > 0"
@@ -80,7 +80,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import RechargeCreditLine from './RechargeCreditLine.vue'
-import { currencySymbol } from './currency'
+import { currencySymbol, formatPaymentNumber } from './currency'
 import {
   localizedPackageDescription,
   localizedPackageName,
@@ -116,8 +116,8 @@ function bonusOf(pkg: RechargePackage): number {
   return packageBonusAmount(pkg, props.packages, props.multiplier)
 }
 
-function formatIntegerAmount(amount: number): string {
-  return amount.toLocaleString(undefined, { maximumFractionDigits: 0 })
+function formatPackageAmount(amount: number): string {
+  return formatPaymentNumber(amount, props.currency, localeCode.value)
 }
 
 function formatUsd(amount: number): string {
