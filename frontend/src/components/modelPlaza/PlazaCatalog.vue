@@ -1,26 +1,28 @@
 <template>
   <div class="space-y-4">
     <div
-      class="flex gap-1 overflow-x-auto border-b border-gray-200 dark:border-dark-700"
+      class="rounded-2xl border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-800"
       data-testid="plaza-platform-tabs"
     >
-      <button
-        type="button"
-        :class="tabClass(platform === 'all')"
-        @click="emit('update:platform', 'all')"
-      >
-        {{ t('modelPlaza.filters.all') }}
-      </button>
-      <button
-        v-for="p in platforms"
-        :key="p"
-        type="button"
-        :class="tabClass(platform === p)"
-        @click="emit('update:platform', p)"
-      >
-        <PlatformIcon :platform="p as GroupPlatform" size="sm" />
-        {{ plazaTabLabel(p, t) }}
-      </button>
+      <div class="flex gap-3 overflow-x-auto">
+        <button
+          v-for="p in platforms"
+          :key="p"
+          type="button"
+          :class="platformCardClass(p)"
+          @click="emit('update:platform', p)"
+        >
+          <span
+            class="flex h-10 w-10 items-center justify-center rounded-xl"
+            :class="platformBadgeLightClass(p)"
+          >
+            <PlatformIcon :platform="p as GroupPlatform" size="lg" :class="platformIconClass(p)" />
+          </span>
+          <span class="text-sm font-semibold" :class="platformTextClass(p)">
+            {{ plazaTabLabel(p, t) }}
+          </span>
+        </button>
+      </div>
     </div>
 
     <div
@@ -130,6 +132,7 @@ import Icon from '@/components/icons/Icon.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import type { GroupPlatform } from '@/types'
 import type { ModelPlazaGroup } from '@/api/modelPlaza'
+import { platformBadgeLightClass, platformIconClass, platformTextClass } from '@/utils/platformColors'
 import {
   formatCatalogZhe,
   formatYuan,
@@ -184,12 +187,13 @@ function rateCaption(g: ModelPlazaGroup): string {
   return `${t('modelPlaza.catalog.rateLine', { rate })} · ${t('modelPlaza.catalog.discountLine', { zhe: formatCatalogZhe(rate) })}`
 }
 
-function tabClass(active: boolean): string {
+function platformCardClass(p: string): string {
+  const active = props.platform === p
   return [
-    'inline-flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors',
+    'inline-flex min-w-[148px] shrink-0 items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors',
     active
-      ? 'border-amber-500 text-amber-600 dark:border-amber-400 dark:text-amber-300'
-      : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-dark-400 dark:hover:text-white',
+      ? 'border-amber-500 bg-amber-50 shadow-[0_0_0_1px_rgba(245,158,11,0.35)] dark:border-amber-400 dark:bg-amber-500/10'
+      : 'border-gray-200 bg-gray-50 hover:border-gray-300 dark:border-dark-600 dark:bg-dark-900/60 dark:hover:border-dark-500',
   ].join(' ')
 }
 

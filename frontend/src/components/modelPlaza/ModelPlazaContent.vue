@@ -130,15 +130,16 @@ const platforms = computed(() =>
   sortPlazaPlatforms([...new Set((props.response?.groups ?? []).map((g) => g.platform).filter(Boolean))])
 )
 
-/** 默认「全部」，卡片展示所有启用分组；点分类再按平台过滤。 */
+/** 后台目录按分类看分组：默认第一个平台，卡片列出该平台全部启用分组。 */
 watch(
   [() => props.embedded, platforms],
   ([embedded, list]) => {
     if (!embedded) return
-    if (selectedPlatform.value !== 'all' && !list.includes(selectedPlatform.value)) {
-      selectedPlatform.value = 'all'
+    if (!selectedPlatform.value || selectedPlatform.value === 'all' || !list.includes(selectedPlatform.value)) {
+      selectedPlatform.value = list[0] ?? ''
     }
   },
+  { immediate: true },
 )
 
 const platformGroups = computed(() => {
