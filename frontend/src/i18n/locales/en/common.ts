@@ -179,7 +179,7 @@ export default {
     groups: 'Groups',
     channels: 'Channels',
     availableChannels: 'Available Channels',
-    modelPlaza: 'Model Plaza',
+    modelPlaza: 'Model Pricing',
     subscriptions: 'Subscriptions',
     accounts: 'Accounts',
     plugins: 'Plugins',

@@ -33,8 +33,22 @@
       {{ t('modelPlaza.loadFailed') }}
     </div>
     <template v-else>
-      <!-- 筛选区:平台 → 分组 → 倍率 -->
+      <!-- 后台:分类 Tab + 分组卡片,只展开当前选中分组 -->
+      <PlazaCatalog
+        v-if="embedded"
+        :platforms="platforms"
+        :platform="selectedPlatform"
+        :groups="platformGroups"
+        :group-id="selectedGroupId"
+        :search="searchQuery"
+        :show-default-rule="!descriptionHtml"
+        @update:platform="selectedPlatform = $event"
+        @update:group-id="selectedGroupId = $event"
+        @update:search="searchQuery = $event"
+      />
+      <!-- 独立页仍用筛选芯片,可一次看多个分组 -->
       <PlazaFilterBar
+        v-else
         :platforms="platforms"
         :groups="groupOptions"
         :rates="rates"
@@ -68,6 +82,7 @@ import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import Icon from '@/components/icons/Icon.vue'
+import PlazaCatalog from './PlazaCatalog.vue'
 import PlazaFilterBar from './PlazaFilterBar.vue'
 import PlazaGroupSection from './PlazaGroupSection.vue'
 import type { ModelPlazaGroup, ModelPlazaResponse } from '@/api/modelPlaza'
@@ -105,6 +120,39 @@ function effectiveRate(g: ModelPlazaGroup): number {
 
 const platforms = computed(() =>
   [...new Set((props.response?.groups ?? []).map((g) => g.platform).filter(Boolean))].sort()
+)
+
+/** 后台目录按分类点选,默认落到第一个有模型的平台。 */
+watch(
+  [() => props.embedded, platforms],
+  ([embedded, list]) => {
+    if (!embedded || list.length === 0) return
+    if (selectedPlatform.value === 'all' || !list.includes(selectedPlatform.value)) {
+      selectedPlatform.value = list[0]
+    }
+  },
+  { immediate: true },
+)
+
+const platformGroups = computed(() => {
+  let groups = props.response?.groups ?? []
+  if (selectedPlatform.value !== 'all') {
+    groups = groups.filter((g) => g.platform === selectedPlatform.value)
+  }
+  return [...groups].sort(
+    (a, b) => effectiveRate(a) - effectiveRate(b) || a.name.localeCompare(b.name),
+  )
+})
+
+watch(
+  [() => props.embedded, platformGroups],
+  ([embedded, groups]) => {
+    if (!embedded) return
+    if (!groups.some((g) => g.id === selectedGroupId.value)) {
+      selectedGroupId.value = groups[0]?.id ?? 'all'
+    }
+  },
+  { immediate: true },
 )
 
 const groupOptions = computed(() =>

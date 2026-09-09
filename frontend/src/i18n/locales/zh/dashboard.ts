@@ -605,13 +605,33 @@ export default {
 
   // Model Plaza (public group/model pricing showcase)
   modelPlaza: {
-    title: '模型广场',
-    description: '按分组浏览可用模型与价格',
+    title: '模型价格',
+    description: '按分类和分组倍率查看模型价格',
     loading: '加载中...',
     empty: '暂无可展示的分组',
-    loadFailed: '加载模型广场失败',
+    loadFailed: '加载模型价格失败',
     noSearchResult: '没有匹配的模型',
     anonymousHint: '登录后可查看你的专属分组与专属倍率',
+    catalog: {
+      rule: '计价规则：分组价格 = 官方价格 × 分组倍率，单位 $ / 1M tokens。',
+      priceList: '价格列表',
+      rateLine: '{rate}x 倍率',
+      discountLine: '相当于约 {zhe} 折',
+      markupLine: '高于官方参考价',
+      sameLine: '与官方同价',
+      zheBadge: '{zhe}折',
+      platforms: {
+        anthropic: 'Claude',
+        openai: 'ChatGPT',
+        grok: 'Grok',
+        gemini: 'Gemini',
+        zhipu: '智谱',
+        kimi: 'Kimi',
+        deepseek: 'DeepSeek',
+        antigravity: 'Antigravity',
+        composite: '综合'
+      }
+    },
     filters: {
       platformLabel: '平台',
       groupLabel: '分组',

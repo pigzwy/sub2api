@@ -600,13 +600,33 @@ export default {
 
   // Model Plaza (public group/model pricing showcase)
   modelPlaza: {
-    title: 'Model Plaza',
-    description: 'Browse available models and pricing by group',
+    title: 'Model Pricing',
+    description: 'Browse model prices by category and group rate',
     loading: 'Loading...',
     empty: 'No groups to display',
-    loadFailed: 'Failed to load model plaza',
+    loadFailed: 'Failed to load model pricing',
     noSearchResult: 'No matching models',
     anonymousHint: 'Sign in to see your exclusive groups and personal rates',
+    catalog: {
+      rule: 'Pricing rule: group price = official price × group rate, in $ / 1M tokens.',
+      priceList: 'Price list',
+      rateLine: '{rate}x rate',
+      discountLine: 'about {percent}% of official',
+      markupLine: 'above the official reference',
+      sameLine: 'same as official',
+      zheBadge: '{zhe} zhe',
+      platforms: {
+        anthropic: 'Claude',
+        openai: 'ChatGPT',
+        grok: 'Grok',
+        gemini: 'Gemini',
+        zhipu: 'Zhipu',
+        kimi: 'Kimi',
+        deepseek: 'DeepSeek',
+        antigravity: 'Antigravity',
+        composite: 'Composite'
+      }
+    },
     filters: {
       platformLabel: 'Platform',
       groupLabel: 'Group',
