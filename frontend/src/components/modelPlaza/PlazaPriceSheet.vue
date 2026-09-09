@@ -104,8 +104,8 @@ const PriceStack = defineComponent({
       }
       return h('div', { class: 'min-w-[7rem]' }, [
         h('p', { class: 'text-base font-semibold tabular-nums text-amber-600 dark:text-amber-300' }, [
-          stackProps.primary,
-          h('span', { class: 'ml-1 text-[11px] font-normal text-gray-400 dark:text-dark-500' }, stackProps.unit),
+          stackProps.primary === '-' ? '-' : `${stackProps.primary} `,
+          h('span', { class: 'text-[11px] font-normal text-gray-400 dark:text-dark-500' }, stackProps.unit),
         ]),
         stackProps.official !== '-'
           ? h('p', { class: 'mt-0.5 text-xs text-gray-400 dark:text-dark-500' }, t('modelPlaza.table.officialLine', { amount: stackProps.official }))
