@@ -5,7 +5,7 @@
       :aria-label="t('modelPlaza.catalog.products')"
       data-testid="plaza-platform-tabs"
     >
-      <div class="flex flex-wrap gap-1">
+      <div class="flex flex-wrap gap-2">
         <button
           v-for="p in platforms"
           :key="p"
@@ -14,7 +14,7 @@
           :style="platformTabStyle(p)"
           @click="emit('update:platform', p)"
         >
-          <PlatformIcon :platform="p as GroupPlatform" size="sm" :class="platformIconClass(p)" />
+          <PlatformIcon :platform="p as GroupPlatform" size="xl" :class="platformIconClass(p)" />
           {{ plazaTabLabel(p, t) }}
         </button>
       </div>
@@ -184,7 +184,7 @@ function rateCaption(g: ModelPlazaGroup): string {
 
 function platformTabClass(p: string): string {
   return [
-    'inline-flex shrink-0 items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors',
+    'inline-flex shrink-0 items-center gap-2.5 rounded-lg border px-4 py-2.5 text-base font-medium leading-6 transition-colors',
     props.platform === p
       ? ''
       : 'border-transparent text-gray-500 hover:bg-gray-50 hover:text-gray-700 dark:text-dark-400 dark:hover:bg-dark-700/50 dark:hover:text-dark-200',
