@@ -53,16 +53,17 @@ export function formatYuan(amount: number | null): string {
   return `¥${amount.toFixed(2)}`
 }
 
+/** 分类标签与「分组管理」平台名同一套，不把平台名伪装成分组名。 */
 const PLATFORM_I18N_KEY: Record<string, string> = {
-  anthropic: 'modelPlaza.catalog.platforms.anthropic',
-  openai: 'modelPlaza.catalog.platforms.openai',
-  grok: 'modelPlaza.catalog.platforms.grok',
-  gemini: 'modelPlaza.catalog.platforms.gemini',
-  zhipu: 'modelPlaza.catalog.platforms.zhipu',
-  kimi: 'modelPlaza.catalog.platforms.kimi',
-  deepseek: 'modelPlaza.catalog.platforms.deepseek',
-  antigravity: 'modelPlaza.catalog.platforms.antigravity',
-  composite: 'modelPlaza.catalog.platforms.composite',
+  anthropic: 'admin.groups.platforms.anthropic',
+  openai: 'admin.groups.platforms.openai',
+  grok: 'admin.groups.platforms.grok',
+  gemini: 'admin.groups.platforms.gemini',
+  zhipu: 'admin.groups.platforms.zhipu',
+  kimi: 'admin.groups.platforms.kimi',
+  deepseek: 'admin.groups.platforms.deepseek',
+  antigravity: 'admin.groups.platforms.antigravity',
+  composite: 'admin.groups.platforms.composite',
 }
 
 export function plazaTabLabel(platform: string, t: (key: string) => string): string {

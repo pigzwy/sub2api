@@ -608,6 +608,7 @@ export default {
     noSearchResult: 'No matching models',
     anonymousHint: 'Sign in to see your exclusive groups and personal rates',
     catalog: {
+      category: 'Category',
       rule: 'Pricing rule: official prices use $1 = ¥7; group price = official price × group rate ÷ 7.',
       priceList: 'Price list',
       rateLine: '{rate}x rate',
@@ -616,18 +617,7 @@ export default {
       sameLine: 'same as official',
       zheBadge: '{zhe} zhe',
       groupPrice: 'Group price',
-      officialPrice: 'Official price',
-      platforms: {
-        anthropic: 'Claude',
-        openai: 'ChatGPT',
-        grok: 'Grok',
-        gemini: 'Gemini',
-        zhipu: 'Zhipu',
-        kimi: 'Kimi',
-        deepseek: 'DeepSeek',
-        antigravity: 'Antigravity',
-        composite: 'Composite'
-      }
+      officialPrice: 'Official price'
     },
     filters: {
       platformLabel: 'Platform',

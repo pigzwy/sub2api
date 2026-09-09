@@ -1,29 +1,34 @@
 <template>
   <div class="space-y-5">
-    <div
-      class="flex gap-1 overflow-x-auto border-b border-gray-200 pb-px dark:border-dark-700"
-      data-testid="plaza-platform-tabs"
-    >
-      <button
-        type="button"
-        :class="tabClass(platform === 'all')"
-        @click="emit('update:platform', 'all')"
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="text-xs font-medium text-gray-400 dark:text-dark-500">
+        {{ t('modelPlaza.catalog.category') }}
+      </span>
+      <div
+        class="flex gap-1 overflow-x-auto"
+        data-testid="plaza-platform-tabs"
       >
-        {{ t('modelPlaza.filters.all') }}
-      </button>
-      <button
-        v-for="p in platforms"
-        :key="p"
-        type="button"
-        :class="tabClass(platform === p)"
-        @click="emit('update:platform', p)"
-      >
-        <span
-          class="h-2 w-2 rounded-full"
-          :style="{ backgroundColor: platformAccentColor(p) }"
-        />
-        {{ plazaTabLabel(p, t) }}
-      </button>
+        <button
+          type="button"
+          :class="chipClass(platform === 'all')"
+          @click="emit('update:platform', 'all')"
+        >
+          {{ t('modelPlaza.filters.all') }}
+        </button>
+        <button
+          v-for="p in platforms"
+          :key="p"
+          type="button"
+          :class="chipClass(platform === p)"
+          @click="emit('update:platform', p)"
+        >
+          <span
+            class="h-2 w-2 rounded-full"
+            :style="{ backgroundColor: platformAccentColor(p) }"
+          />
+          {{ plazaTabLabel(p, t) }}
+        </button>
+      </div>
     </div>
 
     <div
@@ -66,31 +71,23 @@
       </div>
 
       <div
-        class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
-        data-testid="plaza-group-cards"
+        class="mt-3 flex gap-1 overflow-x-auto border-b border-gray-200 pb-px dark:border-dark-700"
+        data-testid="plaza-group-tabs"
       >
         <button
           v-for="g in groups"
           :key="g.id"
           type="button"
-          :data-testid="`plaza-group-card-${g.id}`"
-          :class="[
-            'relative rounded-2xl border p-4 text-left transition-colors',
-            groupId === g.id
-              ? 'border-primary-500 bg-primary-50/90 shadow-card dark:border-primary-400/60 dark:bg-primary-500/10'
-              : 'border-gray-200 bg-white hover:border-gray-300 dark:border-dark-700 dark:bg-dark-800/50 dark:hover:border-dark-500',
-          ]"
+          :data-testid="`plaza-group-tab-${g.id}`"
+          :class="tabClass(groupId === g.id)"
           @click="emit('update:groupId', g.id)"
         >
+          <span>{{ g.name }}</span>
           <span
-            class="absolute right-3 top-3 rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-semibold text-white"
+            class="rounded-full bg-amber-500 px-1.5 py-px text-[10px] font-semibold leading-4 text-white"
           >
             {{ t('modelPlaza.catalog.zheBadge', { zhe: formatCatalogZhe(effectiveRate(g)) }) }}
           </span>
-          <p class="pr-16 text-sm font-semibold text-gray-900 dark:text-white">{{ g.name }}</p>
-          <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
-            {{ rateCaption(g) }}
-          </p>
         </button>
       </div>
     </div>
@@ -126,10 +123,13 @@ function effectiveRate(g: ModelPlazaGroup): number {
   return g.user_rate_multiplier ?? g.rate_multiplier
 }
 
-function rateCaption(g: ModelPlazaGroup): string {
-  const rate = effectiveRate(g)
-  const base = t('modelPlaza.catalog.rateLine', { rate })
-  return `${base} · ${t('modelPlaza.catalog.discountLine', { zhe: formatCatalogZhe(rate) })}`
+function chipClass(active: boolean): string {
+  return [
+    'inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors',
+    active
+      ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
+      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-800 dark:text-dark-300 dark:hover:bg-dark-700',
+  ].join(' ')
 }
 
 function tabClass(active: boolean): string {

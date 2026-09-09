@@ -53,12 +53,12 @@ function group(partial: Partial<ModelPlazaGroup> & Pick<ModelPlazaGroup, 'id' | 
 const response: ModelPlazaResponse = {
   description: '',
   groups: [
-    group({ id: 1, name: 'Claude Plus', platform: 'anthropic', rate_multiplier: 0.8 }),
-    group({ id: 2, name: 'Claude Max', platform: 'anthropic', rate_multiplier: 1.5 }),
+    group({ id: 1, name: 'default', platform: 'anthropic', rate_multiplier: 0.8 }),
+    group({ id: 2, name: 'vip', platform: 'anthropic', rate_multiplier: 1.5 }),
     group({ id: 4, name: '精品线路', platform: 'anthropic', rate_multiplier: 0.5 }),
     group({
       id: 3,
-      name: 'GPT Plus',
+      name: 'codex',
       platform: 'openai',
       rate_multiplier: 1,
       models: [{
@@ -99,6 +99,7 @@ const i18n = createI18n({
         noSearchResult: 'none',
         anonymousHint: 'anon',
         catalog: {
+          category: '分类',
           rule: 'rule',
           priceList: '价格列表',
           rateLine: '{rate}x 倍率',
@@ -106,10 +107,6 @@ const i18n = createI18n({
           markupLine: '高于官方参考价',
           sameLine: '与官方同价',
           zheBadge: '{zhe}折',
-          platforms: {
-            anthropic: 'Claude',
-            openai: 'ChatGPT',
-          },
         },
         filters: {
           platformLabel: '平台',
@@ -130,6 +127,14 @@ const i18n = createI18n({
           officialPrice: '官方',
           rate: '倍率',
           unitPerMillion: '$ / 1M',
+        },
+      },
+      admin: {
+        groups: {
+          platforms: {
+            anthropic: 'Anthropic',
+            openai: 'OpenAI',
+          },
         },
       },
     },
@@ -160,20 +165,20 @@ describe('ModelPlazaContent catalog', () => {
 
   it('lists every enabled group by its admin name', async () => {
     const wrapper = mountContent(true)
-    const cards = wrapper.get('[data-testid="plaza-group-cards"]').text()
-    expect(cards).toContain('精品线路')
-    expect(cards).toContain('Claude Plus')
-    expect(cards).toContain('GPT Plus')
+    const tabs = wrapper.get('[data-testid="plaza-group-tabs"]').text()
+    expect(tabs).toContain('精品线路')
+    expect(tabs).toContain('default')
+    expect(tabs).toContain('codex')
     expect(wrapper.findAll('.price-sheet-stub')).toHaveLength(1)
     expect(wrapper.get('[data-testid="plaza-group-name"]').text()).toBe('精品线路')
   })
 
   it('switches category to the matching groups', async () => {
     const wrapper = mountContent(true)
-    const tabs = wrapper.findAll('[data-testid="plaza-platform-tabs"] button')
-    expect(tabs.length).toBeGreaterThanOrEqual(3)
-    await tabs[tabs.length - 1].trigger('click')
-    expect(wrapper.get('[data-testid="plaza-group-cards"]').text()).toContain('GPT Plus')
-    expect(wrapper.get('[data-testid="plaza-group-cards"]').text()).not.toContain('Claude Plus')
+    const categories = wrapper.findAll('[data-testid="plaza-platform-tabs"] button')
+    expect(categories.length).toBeGreaterThanOrEqual(3)
+    await categories[categories.length - 1].trigger('click')
+    expect(wrapper.get('[data-testid="plaza-group-tabs"]').text()).toContain('codex')
+    expect(wrapper.get('[data-testid="plaza-group-tabs"]').text()).not.toContain('default')
   })
 })
