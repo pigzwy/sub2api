@@ -20,7 +20,7 @@ const i18n = createI18n({
 describe('RechargeCreditLine', () => {
   it('keeps a plain credit sentence when there is no bonus', () => {
     const wrapper = mount(RechargeCreditLine, {
-      props: { baseAmount: 50, creditAmount: 50, bonus: 0 },
+      props: { creditAmount: 50, bonus: 0 },
       global: { plugins: [i18n] },
     })
 
@@ -29,13 +29,15 @@ describe('RechargeCreditLine', () => {
     expect(wrapper.find('.text-amber-500').exists()).toBe(false)
   })
 
-  it('strikes the base amount and highlights the credited total when there is a bonus', () => {
+  it('highlights only the credited total when there is a bonus', () => {
     const wrapper = mount(RechargeCreditLine, {
-      props: { baseAmount: 100, creditAmount: 102.99, bonus: 2.99 },
+      props: { creditAmount: 102.99, bonus: 2.99 },
       global: { plugins: [i18n] },
     })
 
-    expect(wrapper.get('s').text()).toBe('$100.00')
+    expect(wrapper.find('s').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('$100.00')
     expect(wrapper.get('.text-amber-500').text()).toBe('$102.99')
+    expect(wrapper.classes()).toContain('whitespace-nowrap')
   })
 })

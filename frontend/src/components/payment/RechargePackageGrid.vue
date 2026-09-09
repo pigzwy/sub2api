@@ -5,7 +5,7 @@
       :key="pkg.id"
       :data-testid="`recharge-package-${pkg.amount}`"
       :class="[
-        'relative flex flex-col rounded-2xl border p-5 shadow-card',
+        'relative flex h-full flex-col rounded-2xl border p-5 shadow-card',
         pkg.badge === 'bestValue'
           ? 'border-amber-400/70 bg-white dark:border-amber-400/40 dark:bg-dark-800/80'
           : 'border-gray-100 bg-white dark:border-dark-700/70 dark:bg-dark-800/60',
@@ -39,14 +39,13 @@
           {{ t('payment.bonusTag', { amount: formatUsd(bonusOf(pkg)) }) }}
         </span>
       </div>
-      <p class="mt-2 text-sm text-gray-600 dark:text-gray-200">
+      <p class="mt-2 truncate text-sm text-gray-600 dark:text-gray-200">
         <RechargeCreditLine
-          :base-amount="pkg.amount"
           :credit-amount="creditOf(pkg)"
           :bonus="bonusOf(pkg)"
         />
       </p>
-      <ul class="mt-4 space-y-2 text-sm text-gray-600 dark:text-gray-300">
+      <ul class="mt-4 flex-1 space-y-2 text-sm text-gray-600 dark:text-gray-300">
         <li class="flex items-start gap-2">
           <Icon name="check" size="sm" class="mt-0.5 shrink-0 text-emerald-500" />
           <span>{{ t('payment.getCredit', { amount: formatUsd(creditOf(pkg)) }) }}</span>
@@ -60,16 +59,18 @@
           <span>{{ t('payment.allModels') }}</span>
         </li>
       </ul>
-      <button
-        type="button"
-        :class="[
-          'btn mt-6 w-full py-2.5 text-sm font-medium',
-          pkg.badge === 'bestValue' ? 'btn-warning' : 'btn-primary',
-        ]"
-        @click="emit('select', pkg.amount)"
-      >
-        {{ t('payment.rechargeNow') }}
-      </button>
+      <div class="mt-auto pt-6">
+        <button
+          type="button"
+          :class="[
+            'btn w-full py-2.5 text-sm font-medium',
+            pkg.badge === 'bestValue' ? 'btn-warning' : 'btn-primary',
+          ]"
+          @click="emit('select', pkg.amount)"
+        >
+          {{ t('payment.rechargeNow') }}
+        </button>
+      </div>
     </article>
   </div>
 </template>
