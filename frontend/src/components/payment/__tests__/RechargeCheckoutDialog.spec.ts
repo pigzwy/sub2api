@@ -29,6 +29,8 @@ describe('RechargeCheckoutDialog', () => {
     expect(document.body.querySelector('[data-testid="pay-lane-usdt"]')).not.toBeNull()
     await document.body.querySelector<HTMLButtonElement>('[data-testid="checkout-method-alipay"]')?.click()
     expect(wrapper.emitted('confirm')?.[0]).toEqual(['alipay'])
+    await document.body.querySelector<HTMLButtonElement>('[data-testid="pay-lane-usdt"]')?.click()
+    expect(wrapper.emitted('update:lane')?.[0]).toEqual(['usdt'])
     wrapper.unmount()
   })
 

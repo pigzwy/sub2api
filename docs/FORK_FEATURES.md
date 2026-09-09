@@ -58,6 +58,7 @@ v0.2.3 采用上游 `236_group_model_allowlist_repair.sql` 修复旧列残留或
 | OpenAI Realtime 语音网关（含语音运营工具） | ✅ | ✅ | ✅ `227`、`228` | — | — |
 | 稳定静态 SPA 壳与页面写请求硬化 | ✅ | ✅ | — | — | — |
 | Studio 分组模型售价接口 | ✅ | — | — | — | — |
+| 可配置充值档位与到账公式 | ✅ | ✅ | — | — | 2 项 |
 
 ---
 
@@ -732,6 +733,58 @@ Realtime/TTS/STT 的配置/默认/显式免费语义、token 高峰倍率与按�
 
 ---
 
+## 16. 可配置充值档位与到账公式（2026-09-09）
+
+上游充值页是快捷金额 + 自定义输入。本分支改成后台可配置的档位卡片，并在余额订单上快照到账额。上游 `docs/PAYMENT.md` / `docs/PAYMENT_CN.md` 不写这些行为，说明只放在本文件。
+
+**到账公式（服务端为准）**
+
+```text
+到账 USD = round(实付金额 × 余额充值倍率 + 该档位赠送 USD, 2)
+```
+
+- 倍率始终参与换算。某个档位填写赠送，不会让其他匹配档位改走「实付 + 赠送、跳过倍率」。
+- 赠送额是明确的 USD，不是「到账 USD」覆盖字段。需要完全自定义到账额时，应另做配置，而不是靠「别的档位有没有赠送」切换算法。
+- 未匹配任何档位的金额只做倍率换算，不加赠送。
+- 用户身份来自登录态；客户端只提交档位金额和支付方式，赠送由服务端按当前配置计算。
+- 创建订单时把到账额写入 `payment_orders.amount`，实付写入 `pay_amount`。之后改档位或倍率不会追溯旧订单。
+- 回调仍核对实付金额；到账走既有兑换码 / 履约幂等。重复回调不得再次加余额。
+
+**入口与配置**
+
+- 管理后台 `系统设置 → 支付设置`：`payment_balance_recharge_multiplier`、`payment_balance_recharge_packages`。
+- 用户页 `/purchase` 充值 Tab：档位卡片 → 确认框选通道和下单。
+- `GET /api/v1/payment/checkout-info` 返回带 `credit` / `bonus` 的档位列表，供前端展示；下单仍只传金额。
+
+**关键文件**
+
+```text
+backend/internal/service/payment_amounts.go
+backend/internal/service/recharge_packages.go
+backend/internal/service/payment_order.go
+backend/internal/handler/payment_handler.go
+frontend/src/components/payment/rechargePackages.ts
+frontend/src/views/user/PaymentView.vue
+frontend/src/components/payment/RechargePackageGrid.vue
+frontend/src/components/payment/RechargeCheckoutDialog.vue
+frontend/src/components/payment/RechargePackageSettingsEditor.vue
+```
+
+**资金与 UX 边界**
+
+- 确认框切换 RMB / USDT 时必须同步 `selectedMethod`，预览币种与下单支付方式一致。
+- 档位售价按支付币种精度展示，不能把 `10.49` 收成整数 `10`。
+- 未再使用的 `AmountInput.vue` 保持上游原样式，避免无引用的样式分叉。
+- 支付渠道、回调、兑现、退款核心流程不重写。
+
+**测试**
+
+- 后端：`recharge_packages_test.go` 覆盖倍率 + 赠送、以及「另一档有赠送时零赠送档仍走倍率」。
+- 后端：`payment_fulfillment_test.go` 覆盖「赠送套餐下单快照 → 回调到账 → 重复回调不重复入账」。
+- 前端 CI 白名单（根 `Makefile` 的 `FRONTEND_CRITICAL_VITEST`）登记 `rechargePackages`、`RechargeCheckoutDialog`、`RechargeCreditLine`、`RechargePackageSettingsEditor`、`RechargePackageGrid`、`currency` 与既有 `PaymentView`。
+
+---
+
 ## 媒体转存与异步图片对象存储的补充说明
 
 上游 `docs/ASYNC_IMAGE_TASKS.md` 描述的是异步图片任务与 `image_storage`。本分支在其基础上增加了**独立的媒体对象存储**（视频 + TTS 音频），与图片存储互不影响：
@@ -751,7 +804,7 @@ Realtime/TTS/STT 的配置/默认/显式免费语义、token 高峰倍率与按�
 - **文档**：二开文档只有 `docs/MERGE_RECORDS.md` 与 `docs/FORK_FEATURES.md`（本文件）两份。**所有上游文档保持与上游逐字一致，零本地改动**——原先加在 `DEV_GUIDE.md` 与 `docs/ASYNC_IMAGE_TASKS.md` 里的二开章节已于 2026-08-13 全部迁入本文件，以消除这两处合并冲突面。根目录曾有三份一次性产出的中文文档（Claude Code OAuth 独立网关规格、Cloudflare 防护方案与源码审计），同日删除，需要时从 git 历史取回，见 [MERGE_RECORDS.md](./MERGE_RECORDS.md) 对应条目。
 - **订阅每日窗口测试残留**：`service/subscription_window_test.go`（本地新增）、`subscription_assign_idempotency_test.go`、`user_subscription_daily_quota_test.go` 的 stub 起点调整，以及 `subscription_service.go` 的一行注释翻译。**业务逻辑与上游完全一致**，属于历史二开被上游取代后剩下的测试侧残留，可在下次合并时考虑清理。
 - **`frontend/package.json`**：`pnpm.overrides` 比上游多一条 `nanoid@<3.3.18` 安全下限约束。不影响功能，但会让 `pnpm-lock.yaml` 与上游长期不同。
-- **根 `Makefile`**：`FRONTEND_CRITICAL_VITEST` 追加了 `backupObjectStorage.spec.ts`。CI 的 frontend job 只跑这个白名单，不登记等于用例不会被执行。
+- **根 `Makefile`**：`FRONTEND_CRITICAL_VITEST` 追加了 `backupObjectStorage.spec.ts`，以及充值档位相关的 payment 组件测试。CI 的 frontend job 只跑这个白名单，不登记等于用例不会被执行。
 - **`paseo.json`**：内容为 `{}` 的工具占位文件。
 
 ## 上游合并冲突高发点

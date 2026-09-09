@@ -935,6 +935,83 @@ func TestDuplicatePaymentNotificationDoesNotReprocessCompletedBalanceOrder(t *te
 	require.Empty(t, redeemRepo.useCalls, "a duplicate notification must not redeem the balance code again")
 }
 
+func TestBonusPackageNotificationCreditsOrderSnapshotAndIgnoresReplay(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+	ensurePaymentAuditOrderActionUniqueIndex(t, ctx, client)
+
+	packages := []RechargePackage{
+		{ID: "cny100", Amount: 100, Bonus: 0, Name: "基础"},
+		{ID: "cny200", Amount: 200, Bonus: 5, Name: "加赠"},
+	}
+	credited := calculateCreditedBalance(100, 0.14, packages)
+	require.Equal(t, 14.0, credited)
+
+	user, err := client.User.Create().
+		SetEmail("bonus-credit-" + strconv.FormatInt(time.Now().UnixNano(), 10) + "@example.com").
+		SetPasswordHash("hash").
+		SetUsername("bonus-credit-user").
+		Save(ctx)
+	require.NoError(t, err)
+
+	order, err := client.PaymentOrder.Create().
+		SetUserID(user.ID).
+		SetUserEmail(user.Email).
+		SetUserName(user.Username).
+		SetAmount(credited).
+		SetPayAmount(100).
+		SetFeeRate(0).
+		SetRechargeCode("PAY-BONUS-" + strconv.FormatInt(time.Now().UnixNano(), 10)).
+		SetOutTradeNo("sub2_bonus_" + strconv.FormatInt(time.Now().UnixNano(), 10)).
+		SetPaymentType(payment.TypeAlipay).
+		SetOrderType(payment.OrderTypeBalance).
+		SetStatus(OrderStatusPending).
+		SetExpiresAt(time.Now().Add(time.Hour)).
+		SetClientIP("127.0.0.1").
+		SetSrcHost("api.example.com").
+		Save(ctx)
+	require.NoError(t, err)
+
+	balance := 0.0
+	userRepo := &mockUserRepo{getByIDUser: &User{ID: user.ID, Balance: 0}}
+	userRepo.updateBalanceFn = func(_ context.Context, id int64, amount float64) error {
+		require.Equal(t, user.ID, id)
+		balance += amount
+		return nil
+	}
+	redeemRepo := &paymentFulfillmentRedeemRepo{}
+	cache := &paymentFulfillmentRedeemCacheStub{}
+	svc := &PaymentService{
+		entClient:     client,
+		userRepo:      userRepo,
+		redeemService: NewRedeemService(redeemRepo, userRepo, nil, cache, nil, client, nil, nil),
+	}
+
+	notification := &payment.PaymentNotification{
+		TradeNo: "alipay-bonus-credit",
+		OrderID: order.OutTradeNo,
+		Amount:  100,
+		Status:  payment.NotificationStatusSuccess,
+	}
+	require.NoError(t, svc.HandlePaymentNotification(ctx, notification, payment.TypeAlipay))
+	require.InDelta(t, credited, balance, 1e-8)
+
+	changedPackages := []RechargePackage{
+		{ID: "cny100", Amount: 100, Bonus: 80, Name: "基础"},
+	}
+	require.Equal(t, credited, calculateCreditedBalance(100, 0.14, packages))
+	require.NotEqual(t, credited, calculateCreditedBalance(100, 0.14, changedPackages))
+
+	require.NoError(t, svc.HandlePaymentNotification(ctx, notification, payment.TypeAlipay))
+	require.InDelta(t, credited, balance, 1e-8)
+
+	reloaded, err := client.PaymentOrder.Get(ctx, order.ID)
+	require.NoError(t, err)
+	require.Equal(t, OrderStatusCompleted, reloaded.Status)
+	require.InDelta(t, credited, reloaded.Amount, 1e-8)
+	require.InDelta(t, 100.0, reloaded.PayAmount, 1e-8)
+}
+
 func TestPaymentNotificationRejectsAmountMismatchBeforeFulfillment(t *testing.T) {
 	ctx := context.Background()
 	client := newPaymentConfigServiceTestClient(t)
