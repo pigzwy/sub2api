@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-5">
+  <div class="space-y-4">
     <!-- 页头(独立形态下展示标题;后台形态 AppHeader 已有页面标题) -->
     <div v-if="!embedded">
       <h1 class="text-2xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-3xl">{{ t('modelPlaza.title') }}</h1>
@@ -33,8 +33,22 @@
       {{ t('modelPlaza.loadFailed') }}
     </div>
     <template v-else>
-      <!-- 筛选区:平台 → 分组 → 倍率 -->
+      <!-- 后台:分类 Tab + 分组卡片,只展开当前选中分组 -->
+      <PlazaCatalog
+        v-if="embedded"
+        :platforms="platforms"
+        :platform="selectedPlatform"
+        :groups="platformGroups"
+        :group-id="selectedGroupId"
+        :show-default-rule="!descriptionHtml"
+        :price-mode="priceMode"
+        @update:platform="selectedPlatform = $event"
+        @update:group-id="selectedGroupId = $event"
+        @update:price-mode="priceMode = $event"
+      />
+      <!-- 独立页仍用筛选芯片,可一次看多个分组 -->
       <PlazaFilterBar
+        v-else
         :platforms="platforms"
         :groups="groupOptions"
         :rates="rates"
@@ -50,7 +64,13 @@
 
       <!-- 分组分节的模型清单(默认按生效倍率升序) -->
       <div v-if="filteredGroups.length > 0" class="space-y-5">
-        <PlazaGroupSection v-for="g in filteredGroups" :key="g.id" :group="g" />
+        <PlazaGroupSection
+          v-for="g in filteredGroups"
+          :key="g.id"
+          :group="g"
+          :layout="embedded ? 'sheet' : 'legacy'"
+          :price-mode="priceMode"
+        />
       </div>
       <div
         v-else
@@ -68,9 +88,11 @@ import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import Icon from '@/components/icons/Icon.vue'
+import PlazaCatalog from './PlazaCatalog.vue'
 import PlazaFilterBar from './PlazaFilterBar.vue'
 import PlazaGroupSection from './PlazaGroupSection.vue'
 import type { ModelPlazaGroup, ModelPlazaResponse } from '@/api/modelPlaza'
+import { sortPlazaPlatforms } from './plazaCatalog'
 import { useAuthStore } from '@/stores/auth'
 
 const props = defineProps<{
@@ -89,6 +111,7 @@ const selectedPlatform = ref<string>('all')
 const selectedGroupId = ref<number | 'all'>('all')
 const selectedRate = ref<number | 'all'>('all')
 const searchQuery = ref('')
+const priceMode = ref<'group' | 'official'>('group')
 
 const searchActive = computed(() => searchQuery.value.trim() !== '')
 
@@ -104,7 +127,40 @@ function effectiveRate(g: ModelPlazaGroup): number {
 }
 
 const platforms = computed(() =>
-  [...new Set((props.response?.groups ?? []).map((g) => g.platform).filter(Boolean))].sort()
+  sortPlazaPlatforms([...new Set((props.response?.groups ?? []).map((g) => g.platform).filter(Boolean))])
+)
+
+/** 后台目录按分类看分组：默认第一个平台，卡片列出该平台全部启用分组。 */
+watch(
+  [() => props.embedded, platforms],
+  ([embedded, list]) => {
+    if (!embedded) return
+    if (!selectedPlatform.value || selectedPlatform.value === 'all' || !list.includes(selectedPlatform.value)) {
+      selectedPlatform.value = list[0] ?? ''
+    }
+  },
+  { immediate: true },
+)
+
+const platformGroups = computed(() => {
+  let groups = props.response?.groups ?? []
+  if (selectedPlatform.value !== 'all') {
+    groups = groups.filter((g) => g.platform === selectedPlatform.value)
+  }
+  return [...groups].sort(
+    (a, b) => effectiveRate(a) - effectiveRate(b) || a.name.localeCompare(b.name),
+  )
+})
+
+watch(
+  [() => props.embedded, platformGroups],
+  ([embedded, groups]) => {
+    if (!embedded) return
+    if (!groups.some((g) => g.id === selectedGroupId.value)) {
+      selectedGroupId.value = groups[0]?.id ?? 'all'
+    }
+  },
+  { immediate: true },
 )
 
 const groupOptions = computed(() =>

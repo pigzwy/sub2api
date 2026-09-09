@@ -1,10 +1,18 @@
 <template>
   <section
-    class="overflow-hidden rounded-2xl border bg-white shadow-card dark:bg-dark-800/50"
-    :class="[platformBorderStrongClass(group.platform)]"
+    class="overflow-hidden rounded-xl border bg-white dark:bg-dark-800/40"
+    :class="layout === 'sheet' ? 'border-gray-200 shadow-none dark:border-dark-700/70' : `shadow-card ${platformBorderStrongClass(group.platform)}`"
+    :data-testid="`plaza-group-section-${group.id}`"
   >
+    <!-- 目录页分组名在卡片上，这里只保留高峰说明 -->
+    <header v-if="layout === 'sheet' && peakNote" class="px-5 pt-4">
+      <p class="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+        <Icon name="clock" size="xs" class="h-3 w-3" />
+        {{ peakNote }}
+      </p>
+    </header>
     <!-- 分组头部:名称/平台/倍率徽章/专属/订阅徽章 + 描述 -->
-    <header class="border-b border-gray-100 px-5 py-4 dark:border-dark-700/60">
+    <header v-else class="border-b border-gray-100 px-5 py-4 dark:border-dark-700/60">
       <div class="flex flex-wrap items-center gap-2">
         <GroupBadge
           :name="group.name"
@@ -53,8 +61,17 @@
 
     <!-- 模型价格表:整行(含 hover 底色/分区底色)顶到卡片边缘,左右留白由表格首列/末列的 padding 提供 -->
     <div>
+      <PlazaPriceSheet
+        v-if="layout === 'sheet' && group.models.length > 0"
+        :models="group.models"
+        :rate-multiplier="group.rate_multiplier"
+        :user-rate-multiplier="group.user_rate_multiplier ?? null"
+        :image-rate-independent="group.image_rate_independent"
+        :image-rate-multiplier="group.image_rate_multiplier"
+        :price-mode="priceMode"
+      />
       <PlazaModelPricingTable
-        v-if="group.models.length > 0"
+        v-else-if="group.models.length > 0"
         :models="group.models"
         :platform="group.platform"
         :rate-multiplier="group.rate_multiplier"
@@ -77,6 +94,7 @@ import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
 import PlazaModelPricingTable from './PlazaModelPricingTable.vue'
+import PlazaPriceSheet from './PlazaPriceSheet.vue'
 import type { ModelPlazaGroup } from '@/api/modelPlaza'
 import type { GroupPlatform, SubscriptionType } from '@/types'
 import { platformBorderStrongClass } from '@/utils/platformColors'
@@ -85,6 +103,8 @@ import { useAppStore } from '@/stores/app'
 
 const props = defineProps<{
   group: ModelPlazaGroup
+  layout?: 'legacy' | 'sheet'
+  priceMode?: 'group' | 'official'
 }>()
 
 const { t } = useI18n()
