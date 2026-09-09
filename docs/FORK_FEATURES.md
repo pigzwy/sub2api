@@ -8,15 +8,15 @@
 
 | 项 | 值 |
 |---|---|
-| 统计日期 | 2026-09-08 |
-| 上游基线 | `772a0382f`（`v0.2.3`，已合并入本分支） |
-| 分支共同祖先 | `772a0382f`（`v0.2.3`，本次合并后） |
-| 差异规模 | 235 个文件（行数以重新核对命令为准） |
+| 统计日期 | 2026-09-09 |
+| 上游基线 | `98d86915b`（`v0.2.4`，已合并入本分支） |
+| 分支共同祖先 | `98d86915b`（`v0.2.4`，本次合并后） |
+| 差异规模 | 276 个文件（行数以重新核对命令为准） |
 
-合并 `v0.2.3` 后 `request-audit` 不再落后上游（`git rev-list --count HEAD..upstream/main` = 0）。
+合并 `v0.2.4` 后 `request-audit` 不再落后上游（`git rev-list --count HEAD..upstream/main` = 0）。
 
 本次生产源码复核以合并后的 `request-audit` 为基线；该提交包含上游
-`v0.2.3` 及本文件列出的独有功能。仓库没有可访问的 GitHub Wiki remote，
+`v0.2.4` 及本文件列出的独有功能。仓库没有可访问的 GitHub Wiki remote，
 因此本文件和 [MERGE_RECORDS.md](./MERGE_RECORDS.md) 是当前可发布的二开记录。
 
 重新核对清单：
@@ -59,6 +59,7 @@ v0.2.3 采用上游 `236_group_model_allowlist_repair.sql` 修复旧列残留或
 | 稳定静态 SPA 壳与页面写请求硬化 | ✅ | ✅ | — | — | — |
 | Studio 分组模型售价接口 | ✅ | — | — | — | — |
 | 可配置充值档位与到账公式 | ✅ | ✅ | — | — | 2 项 |
+| 模型广场侧栏与分类目录 | ✅ | ✅ | — | — | 复用上游模型广场开关 |
 
 ---
 
@@ -788,6 +789,26 @@ frontend/src/components/payment/RechargePackageSettingsEditor.vue
 - 前端 CI 白名单（根 `Makefile` 的 `FRONTEND_CRITICAL_VITEST`）登记 `rechargePackages`、`RechargeCheckoutDialog`、`RechargeCreditLine`、`RechargePackageSettingsEditor`、`RechargePackageGrid`、`currency` 与既有 `PaymentView`。PaymentView 覆盖支付宝 CNY 切到 Stripe USD 先改预览再确认，以及不可用方式 / 重复确认。
 
 ---
+
+## 17. 模型广场侧栏与分类目录（2026-09-09）
+
+登录用户通过侧栏「模型广场」进入 `/model-plaza`，按平台分类、后台分组名称选择
+展示目录；匿名用户继续使用原公开页面。复用上游模型广场 API、开关与可见性裁剪，
+新增空的启用分组展示，不公开账号或成本信息。v0.2.4 的有效订阅分组可见性修复采用上游实现。
+
+目录按产品确认保留现有价格数字及展示换算，不再叠加额外倍率或汇率。
+该页是简化的基础展示价，不展开分辨率、长上下文阶梯和分时时段，也不作为扣费依据；
+页面固定提示实际扣费以后台计费规则为准。后端实际计费及 Studio 售价接口不受影响。
+官方价仍使用原有展示口径，仅 token 模型提供同单位比较，节省比例明确限定为输入价；
+按张/按次模型隐藏官方 token 对比，在官方价模式中缺失的同单位价格显示 `-`。
+说明中的 token 示例分别取本分组基础价与官方参考价，避免混用来源。
+
+侵入点为 `AppSidebar.vue`、`AppHeader.vue`、`ModelPlazaView.vue`、原模型广场组件与
+`model_plaza_service.go` 的空分组过滤；主要目录及价表放在新增的 `PlazaCatalog.vue`、
+`PlazaPriceSheet.vue`、`plazaCatalog.ts`。没有修改实际扣费、余额或支付回调。
+`ModelPlazaContent.spec.ts`、`PlazaPriceSheet.spec.ts`、`plazaCatalog.spec.ts` 已加入根
+Makefile 的 CI 白名单，覆盖分类切换、保留展示价格、隐藏不兼容单位对比及说明常驻。
+本机不运行构建/测试，最终验证由 GitHub Actions 执行。
 
 ## 媒体转存与异步图片对象存储的补充说明
 
