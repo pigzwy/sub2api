@@ -36,13 +36,31 @@
         <h2 class="text-base font-semibold text-gray-900 dark:text-white">
           {{ t('modelPlaza.catalog.priceList') }}
         </h2>
-        <input
-          :value="search"
-          type="search"
-          class="input h-9 w-full max-w-xs text-sm"
-          :placeholder="t('modelPlaza.filters.searchPlaceholder')"
-          @input="emit('update:search', ($event.target as HTMLInputElement).value)"
-        />
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="inline-flex rounded-lg bg-gray-100 p-0.5 text-xs dark:bg-dark-800">
+            <button
+              type="button"
+              :class="priceModeClass('group')"
+              @click="emit('update:priceMode', 'group')"
+            >
+              {{ t('modelPlaza.catalog.groupPrice') }}
+            </button>
+            <button
+              type="button"
+              :class="priceModeClass('official')"
+              @click="emit('update:priceMode', 'official')"
+            >
+              {{ t('modelPlaza.catalog.officialPrice') }}
+            </button>
+          </div>
+          <input
+            :value="search"
+            type="search"
+            class="input h-9 w-44 text-sm"
+            :placeholder="t('modelPlaza.filters.searchPlaceholder')"
+            @input="emit('update:search', ($event.target as HTMLInputElement).value)"
+          />
+        </div>
       </div>
 
       <div
@@ -63,10 +81,9 @@
           @click="emit('update:groupId', g.id)"
         >
           <span
-            v-if="effectiveRate(g) < 1"
             class="absolute right-3 top-3 rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-semibold text-white"
           >
-            {{ t('modelPlaza.catalog.zheBadge', { zhe: formatZhe(effectiveRate(g)) }) }}
+            {{ t('modelPlaza.catalog.zheBadge', { zhe: formatCatalogZhe(effectiveRate(g)) }) }}
           </span>
           <p class="pr-16 text-sm font-semibold text-gray-900 dark:text-white">{{ g.name }}</p>
           <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
@@ -82,21 +99,23 @@
 import { useI18n } from 'vue-i18n'
 import { platformAccentColor } from '@/utils/platformColors'
 import type { ModelPlazaGroup } from '@/api/modelPlaza'
-import { formatZhe, plazaTabLabel } from './plazaCatalog'
+import { formatCatalogZhe, plazaTabLabel } from './plazaCatalog'
 
-defineProps<{
+const props = defineProps<{
   platforms: string[]
   platform: string
   groups: ModelPlazaGroup[]
   groupId: number | 'all'
   search: string
   showDefaultRule: boolean
+  priceMode: 'group' | 'official'
 }>()
 
 const emit = defineEmits<{
   'update:platform': [value: string]
   'update:groupId': [value: number]
   'update:search': [value: string]
+  'update:priceMode': [value: 'group' | 'official']
 }>()
 
 const { t } = useI18n()
@@ -108,12 +127,15 @@ function effectiveRate(g: ModelPlazaGroup): number {
 function rateCaption(g: ModelPlazaGroup): string {
   const rate = effectiveRate(g)
   const base = t('modelPlaza.catalog.rateLine', { rate })
-  if (rate < 1) {
-    return `${base} · ${t('modelPlaza.catalog.discountLine', { zhe: formatZhe(rate), percent: Math.round(rate * 100) })}`
-  }
-  if (rate > 1) {
-    return `${base} · ${t('modelPlaza.catalog.markupLine')}`
-  }
-  return `${base} · ${t('modelPlaza.catalog.sameLine')}`
+  return `${base} · ${t('modelPlaza.catalog.discountLine', { zhe: formatCatalogZhe(rate) })}`
+}
+
+function priceModeClass(mode: 'group' | 'official'): string {
+  return [
+    'rounded-md px-2.5 py-1 font-medium',
+    props.priceMode === mode
+      ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
+      : 'text-gray-500 dark:text-dark-400',
+  ].join(' ')
 }
 </script>

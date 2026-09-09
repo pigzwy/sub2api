@@ -142,6 +142,7 @@ function mountContent(embedded: boolean) {
       plugins: [i18n],
       stubs: {
         PlazaModelPricingTable: { template: '<div class="price-table-stub" />' },
+        PlazaPriceSheet: { template: '<div class="price-sheet-stub" />' },
         Icon: true,
         GroupBadge: { template: '<span class="group-badge-stub" />' },
       },
@@ -161,8 +162,8 @@ describe('ModelPlazaContent catalog', () => {
     expect(wrapper.get('[data-testid="plaza-platform-tabs"]').text()).toContain('anthropic')
     expect(wrapper.get('[data-testid="plaza-group-cards"]').text()).toContain('Claude Plus')
     expect(wrapper.get('[data-testid="plaza-group-cards"]').text()).not.toContain('GPT Plus')
-    expect(wrapper.findAll('.price-table-stub')).toHaveLength(1)
-    expect(wrapper.text()).toContain('Claude Plus')
+    expect(wrapper.findAll('.price-sheet-stub')).toHaveLength(1)
+    expect(wrapper.get('[data-testid="plaza-group-name"]').text()).toBe('Claude Plus')
   })
 
   it('switches category to the matching groups', async () => {

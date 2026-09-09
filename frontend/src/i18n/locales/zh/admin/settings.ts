@@ -50,7 +50,7 @@ export default {
           requireAuth: '需要登录才可访问',
           requireAuthHint: '开启后未登录访问将跳转登录页；关闭则公开可见，匿名访客仅展示非专属分组。',
           priceDescription: '价格说明（Markdown）',
-          priceDescriptionHint: '展示在模型广场页面顶部，可用于说明计费规则、汇率、优惠活动等。',
+          priceDescriptionHint: '展示在模型价格页面顶部，可用于说明计费规则、汇率、优惠活动等。',
         },
         pluginManagement: {
           title: '插件管理',

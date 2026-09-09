@@ -42,9 +42,11 @@
         :group-id="selectedGroupId"
         :search="searchQuery"
         :show-default-rule="!descriptionHtml"
+        :price-mode="priceMode"
         @update:platform="selectedPlatform = $event"
         @update:group-id="selectedGroupId = $event"
         @update:search="searchQuery = $event"
+        @update:price-mode="priceMode = $event"
       />
       <!-- 独立页仍用筛选芯片,可一次看多个分组 -->
       <PlazaFilterBar
@@ -64,7 +66,13 @@
 
       <!-- 分组分节的模型清单(默认按生效倍率升序) -->
       <div v-if="filteredGroups.length > 0" class="space-y-5">
-        <PlazaGroupSection v-for="g in filteredGroups" :key="g.id" :group="g" />
+        <PlazaGroupSection
+          v-for="g in filteredGroups"
+          :key="g.id"
+          :group="g"
+          :layout="embedded ? 'sheet' : 'legacy'"
+          :price-mode="priceMode"
+        />
       </div>
       <div
         v-else
@@ -104,6 +112,7 @@ const selectedPlatform = ref<string>('all')
 const selectedGroupId = ref<number | 'all'>('all')
 const selectedRate = ref<number | 'all'>('all')
 const searchQuery = ref('')
+const priceMode = ref<'group' | 'official'>('group')
 
 const searchActive = computed(() => searchQuery.value.trim() !== '')
 
