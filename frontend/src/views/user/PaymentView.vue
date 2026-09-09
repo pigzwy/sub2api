@@ -68,23 +68,6 @@
               :currency="packageDisplayCurrency"
               @select="openRechargeCheckout"
             />
-            <div class="card p-5">
-              <AmountInput
-                v-model="amount"
-                :amounts="[]"
-                :min="globalMinAmount"
-                :max="globalMaxAmount"
-              />
-              <p v-if="amountError" class="mt-2 text-xs text-amber-600 dark:text-amber-300">{{ amountError }}</p>
-              <button
-                type="button"
-                class="btn btn-primary mt-4 w-full py-2.5"
-                :disabled="validAmount <= 0 || !!amountError"
-                @click="openRechargeCheckout(validAmount)"
-              >
-                {{ t('payment.rechargeNow') }}
-              </button>
-            </div>
             <RechargeCheckoutDialog
               :open="showPayDialog"
               :pay-amount-label="formatSelectedPaymentAmount(totalAmount)"
@@ -280,7 +263,6 @@ import { isMobileDevice } from '@/utils/device'
 import { hasPeakRate, formatPeakRateWindow, serverTimezoneLabel, type PeakRateFields } from '@/utils/peak-rate'
 import type { SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType } from '@/types/payment'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import AmountInput from '@/components/payment/AmountInput.vue'
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector.vue'
 import RechargePackageGrid from '@/components/payment/RechargePackageGrid.vue'
 import RechargeCheckoutDialog from '@/components/payment/RechargeCheckoutDialog.vue'
