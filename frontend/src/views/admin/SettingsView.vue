@@ -8261,11 +8261,6 @@
                       }}
                     </p>
                   </div>
-                  <div class="col-span-full">
-                    <RechargePackageSettingsEditor
-                      v-model="form.payment_balance_recharge_packages"
-                    />
-                  </div>
                   <div>
                     <label class="input-label">{{
                       t("admin.settings.payment.subscriptionUsdToCnyRate")
@@ -8613,6 +8608,12 @@
                 </div>
               </template>
             </div>
+          </div>
+
+          <div v-if="form.payment_enabled" class="card overflow-hidden">
+            <RechargePackageSettingsEditor
+              v-model="form.payment_balance_recharge_packages"
+            />
           </div>
 
           <!-- Provider Management -->
