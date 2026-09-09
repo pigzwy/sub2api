@@ -395,6 +395,38 @@ describe('PaymentView recharge rate preview', () => {
       expect.objectContaining({ id: 'trial', amount: 80, name: '试用' }),
     ])
   })
+
+  it('uses a wide page shell and a compact bonus notice', async () => {
+    window.localStorage.clear()
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
+      balance_recharge_packages: [
+        { id: 'trial', amount: 80, bonus: 5, credit: 85, name: '试用', description: '' },
+      ],
+    }))
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+
+    const shell = wrapper.find('.max-w-7xl')
+    expect(shell.exists()).toBe(true)
+    expect(shell.classes()).toEqual(expect.arrayContaining(['w-full', 'space-y-5']))
+
+    const banner = wrapper.get('[data-testid="recharge-bonus-banner"]')
+    expect(banner.classes()).toEqual(expect.arrayContaining(['inline-flex']))
+    expect(banner.classes()).not.toEqual(expect.arrayContaining(['justify-between']))
+    expect(banner.text()).toContain('payment.bonusBannerTitle')
+    expect(banner.text()).not.toContain('payment.bonusBannerDesc')
+  })
 })
 
 describe('PaymentView subscription confirmation amounts', () => {
