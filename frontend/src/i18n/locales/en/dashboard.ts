@@ -609,6 +609,7 @@ export default {
     anonymousHint: 'Sign in to see your exclusive groups and personal rates',
     catalog: {
       category: 'Category',
+      products: 'Products',
       ruleTitle: 'Pricing rules',
       ruleFx: 'Official prices use $1 = ¥7',
       ruleFormula: 'Group price = official price × group rate ÷ 7',

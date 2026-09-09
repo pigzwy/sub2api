@@ -1,29 +1,24 @@
 <template>
   <div class="space-y-4">
-    <div
-      class="rounded-2xl border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-800"
+    <nav
+      class="rounded-lg border border-gray-200 bg-white p-2 shadow-sm dark:border-dark-700 dark:bg-dark-800"
+      :aria-label="t('modelPlaza.catalog.products')"
       data-testid="plaza-platform-tabs"
     >
-      <div class="flex gap-3 overflow-x-auto">
+      <div class="flex flex-wrap gap-1">
         <button
           v-for="p in platforms"
           :key="p"
           type="button"
-          :class="platformCardClass(p)"
+          :class="platformTabClass(p)"
+          :style="platformTabStyle(p)"
           @click="emit('update:platform', p)"
         >
-          <span
-            class="flex h-10 w-10 items-center justify-center rounded-xl"
-            :class="platformBadgeLightClass(p)"
-          >
-            <PlatformIcon :platform="p as GroupPlatform" size="lg" :class="platformIconClass(p)" />
-          </span>
-          <span class="text-sm font-semibold" :class="platformTextClass(p)">
-            {{ plazaTabLabel(p, t) }}
-          </span>
+          <PlatformIcon :platform="p as GroupPlatform" size="sm" :class="platformIconClass(p)" />
+          {{ plazaTabLabel(p, t) }}
         </button>
       </div>
-    </div>
+    </nav>
 
     <div
       v-if="showDefaultRule"
@@ -132,7 +127,7 @@ import Icon from '@/components/icons/Icon.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import type { GroupPlatform } from '@/types'
 import type { ModelPlazaGroup } from '@/api/modelPlaza'
-import { platformBadgeLightClass, platformIconClass, platformTextClass } from '@/utils/platformColors'
+import { platformAccentColor, platformIconClass } from '@/utils/platformColors'
 import {
   formatCatalogZhe,
   formatYuan,
@@ -187,14 +182,23 @@ function rateCaption(g: ModelPlazaGroup): string {
   return `${t('modelPlaza.catalog.rateLine', { rate })} · ${t('modelPlaza.catalog.discountLine', { zhe: formatCatalogZhe(rate) })}`
 }
 
-function platformCardClass(p: string): string {
-  const active = props.platform === p
+function platformTabClass(p: string): string {
   return [
-    'inline-flex min-w-[148px] shrink-0 items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors',
-    active
-      ? 'border-amber-500 bg-amber-50 shadow-[0_0_0_1px_rgba(245,158,11,0.35)] dark:border-amber-400 dark:bg-amber-500/10'
-      : 'border-gray-200 bg-gray-50 hover:border-gray-300 dark:border-dark-600 dark:bg-dark-900/60 dark:hover:border-dark-500',
+    'inline-flex shrink-0 items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors',
+    props.platform === p
+      ? ''
+      : 'border-transparent text-gray-500 hover:bg-gray-50 hover:text-gray-700 dark:text-dark-400 dark:hover:bg-dark-700/50 dark:hover:text-dark-200',
   ].join(' ')
+}
+
+function platformTabStyle(p: string): Record<string, string> | undefined {
+  if (props.platform !== p) return undefined
+  const accent = platformAccentColor(p)
+  return {
+    borderColor: accent,
+    color: accent,
+    backgroundColor: `color-mix(in srgb, ${accent} 12%, transparent)`,
+  }
 }
 
 function priceModeClass(mode: 'group' | 'official'): string {

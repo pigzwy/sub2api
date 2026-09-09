@@ -100,6 +100,7 @@ const i18n = createI18n({
         anonymousHint: 'anon',
         catalog: {
           category: '分类',
+          products: '产品',
           ruleTitle: '计价规则',
           ruleFx: 'fx',
           ruleFormula: 'formula',
