@@ -39,13 +39,21 @@
           {{ t('payment.bonusTag', { amount: formatUsd(bonusOf(pkg)) }) }}
         </span>
       </div>
-      <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-        {{ t('payment.getCredit', { amount: formatUsd(creditOf(pkg)) }) }}
+      <p class="mt-2 text-sm text-gray-600 dark:text-gray-200">
+        <RechargeCreditLine
+          :base-amount="pkg.amount"
+          :credit-amount="creditOf(pkg)"
+          :bonus="bonusOf(pkg)"
+        />
       </p>
       <ul class="mt-4 space-y-2 text-sm text-gray-600 dark:text-gray-300">
         <li class="flex items-start gap-2">
           <Icon name="check" size="sm" class="mt-0.5 shrink-0 text-emerald-500" />
-          <span>{{ t('payment.getCredit', { amount: formatUsd(creditOf(pkg)) }) }}</span>
+          <RechargeCreditLine
+            :base-amount="pkg.amount"
+            :credit-amount="creditOf(pkg)"
+            :bonus="bonusOf(pkg)"
+          />
         </li>
         <li class="flex items-start gap-2">
           <Icon name="check" size="sm" class="mt-0.5 shrink-0 text-emerald-500" />
@@ -74,6 +82,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
+import RechargeCreditLine from './RechargeCreditLine.vue'
 import { currencySymbol } from './currency'
 import {
   localizedPackageDescription,

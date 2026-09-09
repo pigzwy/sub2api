@@ -394,6 +394,8 @@ export default {
     neverExpires: 'Never expires',
     allModels: 'All models',
     getCredit: 'Get {amount} credit',
+    getCreditLead: 'Get',
+    getCreditTrail: 'credit',
     bonusTag: '+{amount} bonus',
     limitedBonus: 'Limited bonus',
     bonusBannerTitle: 'Recharge more, get more bonus credit',
