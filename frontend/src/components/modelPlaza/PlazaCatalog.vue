@@ -127,6 +127,7 @@ import Icon from '@/components/icons/Icon.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import type { GroupPlatform } from '@/types'
 import type { ModelPlazaGroup } from '@/api/modelPlaza'
+import { BILLING_MODE_TOKEN } from '@/constants/channel'
 import { platformAccentColor, platformIconClass } from '@/utils/platformColors'
 import {
   formatCatalogZhe,
@@ -160,11 +161,13 @@ const selectedGroup = computed(
 const ruleExample = computed(() => {
   const g = selectedGroup.value
   if (!g) return ''
-  const model = g.models.find((m) => m.official_pricing?.input_price || m.pricing?.input_price)
+  const model = g.models.find((m) =>
+    (m.pricing?.billing_mode || BILLING_MODE_TOKEN) === BILLING_MODE_TOKEN &&
+    m.official_pricing?.input_price != null && m.pricing?.input_price != null,
+  )
   if (!model) return ''
-  const perToken = model.official_pricing?.input_price ?? model.pricing?.input_price
-  const official = officialYuan(perToken)
-  const group = groupYuan(perToken, effectiveRate(g))
+  const official = officialYuan(model.official_pricing?.input_price)
+  const group = groupYuan(model.pricing?.input_price, effectiveRate(g))
   if (official == null || group == null) return ''
   return t('modelPlaza.catalog.ruleExample', {
     model: model.name,

@@ -40,10 +40,10 @@ const model: PlazaModel = {
   },
 }
 
-function mountSheet(priceMode: 'group' | 'official' = 'group') {
+function mountSheet(priceMode: 'group' | 'official' = 'group', models: PlazaModel[] = [model]) {
   return mount(PlazaPriceSheet, {
     props: {
-      models: [model],
+      models,
       rateMultiplier: 0.8,
       priceMode,
     },
@@ -68,5 +68,33 @@ describe('PlazaPriceSheet', () => {
     const text = wrapper.text().replace(/\s+/g, ' ')
     expect(text).toContain('¥35.00')
     expect(text).not.toContain('官方价格 ¥35.00')
+    expect(text).not.toContain('省 ')
+  })
+
+  it.each(['image', 'per_request'] as const)('does not compare %s prices with official token prices', async (billingMode) => {
+    const media: PlazaModel = {
+      ...model,
+      name: 'media-model',
+      pricing: { ...model.pricing!, billing_mode: billingMode, per_request_price: 0.2 },
+    }
+    const wrapper = mountSheet('group', [media])
+    expect(wrapper.text()).toContain('¥0.16')
+    expect(wrapper.text()).not.toContain('官方价格 ¥')
+    expect(wrapper.text()).not.toContain('省 ')
+    await wrapper.setProps({ priceMode: 'official' })
+    expect(wrapper.text()).not.toContain('¥')
+  })
+
+  it('does not substitute output savings when input reference is missing', () => {
+    const wrapper = mountSheet('group', [{
+      ...model,
+      official_pricing: { ...model.official_pricing!, input_price: null },
+    }])
+    expect(wrapper.text()).not.toContain('省 ')
+  })
+
+  it('always discloses the simplified pricing scope', () => {
+    const wrapper = mountSheet()
+    expect(wrapper.get('[data-testid="plaza-price-note"]').text()).toBe('modelPlaza.catalog.displayPriceNote')
   })
 })

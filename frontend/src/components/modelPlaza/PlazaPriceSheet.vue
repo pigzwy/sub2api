@@ -1,5 +1,8 @@
 <template>
   <div class="overflow-x-auto" data-testid="plaza-price-sheet">
+    <p class="px-5 py-3 text-sm text-gray-600 dark:text-dark-300" data-testid="plaza-price-note">
+      {{ t('modelPlaza.catalog.displayPriceNote') }}
+    </p>
     <table class="w-full min-w-[720px] table-auto border-collapse text-sm">
       <thead>
         <tr class="border-b border-gray-200 text-left text-xs font-medium text-gray-500 dark:border-dark-700 dark:text-dark-400">
@@ -8,7 +11,7 @@
           <th class="px-4 py-3 font-medium">{{ t('modelPlaza.table.outputPrice') }}</th>
           <th class="px-4 py-3 font-medium">{{ t('modelPlaza.table.cacheCreate') }}</th>
           <th class="px-4 py-3 font-medium">{{ t('modelPlaza.table.cacheReadCol') }}</th>
-          <th class="px-4 py-3 pr-5 text-right font-medium">{{ t('modelPlaza.table.savings') }}</th>
+          <th class="px-4 py-3 pr-5 text-right font-medium">{{ t('modelPlaza.catalog.inputSavings') }}</th>
         </tr>
       </thead>
       <tbody>
@@ -72,7 +75,6 @@ import {
   groupYuan,
   officialYuan,
   requestGroupYuan,
-  requestOfficialYuan,
   savingsPercent,
 } from './plazaCatalog'
 
@@ -165,9 +167,10 @@ const rows = computed<SheetRow[]>(() =>
           : t('modelPlaza.table.perUnitRequest')
       )
       const gIn = token ? groupYuan(m.pricing?.input_price, rate) : requestGroupYuan(m.pricing?.per_request_price ?? m.pricing?.input_price, rate)
-      const oIn = token ? officialYuan(m.official_pricing?.input_price) : requestOfficialYuan(m.official_pricing?.input_price)
+      // Official prices are per token, never comparable to per-image/request prices.
+      const oIn = token ? officialYuan(m.official_pricing?.input_price) : null
       const gOut = token ? groupYuan(m.pricing?.output_price, rate) : requestGroupYuan(m.pricing?.image_output_price ?? m.pricing?.output_price, rate)
-      const oOut = token ? officialYuan(m.official_pricing?.output_price) : requestOfficialYuan(m.official_pricing?.output_price)
+      const oOut = token ? officialYuan(m.official_pricing?.output_price) : null
       const gCw = token ? groupYuan(m.pricing?.cache_write_price, rate) : null
       const oCw = token ? officialYuan(m.official_pricing?.cache_write_price) : null
       const gCr = token ? groupYuan(m.pricing?.cache_read_price, rate) : null
@@ -187,7 +190,7 @@ const rows = computed<SheetRow[]>(() =>
         cacheWriteOfficial: cacheWrite.official,
         cacheReadPrimary: cacheRead.primary,
         cacheReadOfficial: cacheRead.official,
-        savings: savingsPercent(gIn ?? gOut, oIn ?? oOut),
+        savings: token && mode.value === 'group' ? savingsPercent(gIn, oIn) : null,
       }
     }),
 )

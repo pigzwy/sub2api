@@ -616,6 +616,8 @@ export default {
       ruleExample: 'e.g. {model} input: official {official}, group {group}',
       rule: 'Pricing rule: official prices use $1 = ¥7; group price = official price × group rate ÷ 7.',
       priceList: 'Price list',
+      displayPriceNote: 'Base display prices only; resolution, long-context tiers and time-based prices are not expanded. Actual charges follow the billing rules. Per-image and per-request models do not include official token-price comparisons.',
+      inputSavings: 'Input price comparison',
       priceModeHint: 'The price list updates when you switch this toggle',
       selectGroupHint: 'Select a group to see each model’s CNY price.',
       groupIntro: 'Group intro',

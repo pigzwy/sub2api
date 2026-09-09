@@ -621,6 +621,8 @@ export default {
       ruleExample: '如 {model} 输入价格，官方价格 {official}，分组价格 {group}',
       rule: '计价规则：官方价格按 $1 = ¥7 折算，分组价格 = 官方价格 × 分组倍率 ÷ 7。',
       priceList: '价格列表',
+      displayPriceNote: '本页为基础展示价，未展开分辨率、长上下文档位及分时价格；实际扣费以后台计费规则为准。按张或按次模型不提供官方 token 价格对比。',
+      inputSavings: '输入价格对比',
       priceModeHint: '切换后价格列表中的价格展示会相应变化',
       selectGroupHint: '选择分组后，直接查看每个模型的人民币价格。',
       groupIntro: '分组介绍',
