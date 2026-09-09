@@ -618,7 +618,7 @@ export default {
       priceModeHint: 'The price list updates when you switch this toggle',
       groupIntro: 'Group intro',
       rateLine: '{rate}x rate',
-      discountLine: 'about {zhe} zhe',
+      discountLine: 'about {zhe} zhe vs official CNY',
       markupLine: 'above the official reference',
       sameLine: 'same as official',
       zheBadge: '{zhe} zhe',

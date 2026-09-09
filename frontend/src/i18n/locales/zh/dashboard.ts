@@ -623,7 +623,7 @@ export default {
       priceModeHint: '切换后价格列表中的价格展示会相应变化',
       groupIntro: '分组介绍',
       rateLine: '{rate}x 倍率',
-      discountLine: '相当于约 {zhe} 折',
+      discountLine: '相对官方人民币约 {zhe} 折',
       markupLine: '高于官方参考价',
       sameLine: '与官方同价',
       zheBadge: '{zhe}折',

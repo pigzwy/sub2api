@@ -7,9 +7,9 @@ export function formatZhe(rate: number): string {
   return Number.isInteger(z) ? String(z) : z.toFixed(1)
 }
 
-/** 目录折数按倍率本身：0.8x → 8 折。 */
-export function formatCatalogZhe(rate: number): string {
-  return formatZhe(rate)
+/** 相对官方人民币的折数：分组价 = 官方美元 × 倍率，官方人民币 = 官方美元 × 7，故 0.8x → 1.1 折。 */
+export function formatCatalogZhe(rate: number, fx = PLAZA_USD_TO_CNY): string {
+  return formatZhe(rate / fx)
 }
 
 function round2(value: number): number {
