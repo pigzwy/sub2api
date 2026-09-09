@@ -169,13 +169,13 @@ describe('ModelPlazaContent catalog', () => {
     expect(wrapper.findAll('.group-badge-stub').length).toBe(4)
   })
 
-  it('lists the first category groups by their admin names', async () => {
+  it('lists every enabled group by its admin name', async () => {
     const wrapper = mountContent(true)
     const cards = wrapper.get('[data-testid="plaza-group-cards"]').text()
     expect(cards).toContain('精品线路')
     expect(cards).toContain('default')
     expect(cards).toContain('vip')
-    expect(cards).not.toContain('codex')
+    expect(cards).toContain('codex')
     expect(wrapper.findAll('.price-sheet-stub')).toHaveLength(1)
     expect(wrapper.get('[data-testid="plaza-group-name"]').text()).toBe('精品线路')
   })
@@ -183,8 +183,8 @@ describe('ModelPlazaContent catalog', () => {
   it('switches category to the matching groups', async () => {
     const wrapper = mountContent(true)
     const categories = wrapper.findAll('[data-testid="plaza-platform-tabs"] button')
-    expect(categories).toHaveLength(2)
-    await categories[1].trigger('click')
+    expect(categories.length).toBeGreaterThanOrEqual(3)
+    await categories[categories.length - 1].trigger('click')
     expect(wrapper.get('[data-testid="plaza-group-cards"]').text()).toContain('codex')
     expect(wrapper.get('[data-testid="plaza-group-cards"]').text()).not.toContain('default')
   })

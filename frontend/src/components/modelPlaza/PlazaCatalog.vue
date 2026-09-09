@@ -5,6 +5,13 @@
       data-testid="plaza-platform-tabs"
     >
       <button
+        type="button"
+        :class="tabClass(platform === 'all')"
+        @click="emit('update:platform', 'all')"
+      >
+        {{ t('modelPlaza.filters.all') }}
+      </button>
+      <button
         v-for="p in platforms"
         :key="p"
         type="button"
