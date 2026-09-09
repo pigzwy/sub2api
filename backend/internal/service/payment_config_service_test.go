@@ -551,6 +551,32 @@ func TestUpdatePaymentConfig_PersistsExplicitEmptyAndFalseValues(t *testing.T) {
 	}
 }
 
+func TestUpdatePaymentConfig_PersistsRechargePackages(t *testing.T) {
+	repo := &paymentConfigSettingRepoStub{values: map[string]string{}}
+	svc := &PaymentConfigService{settingRepo: repo}
+
+	packages := []RechargePackage{{
+		ID:     "starter",
+		Amount: 50,
+		Bonus:  2.99,
+		Name:   "体验",
+	}}
+	err := svc.UpdatePaymentConfig(context.Background(), UpdatePaymentConfigRequest{
+		BalanceRechargePackages: &packages,
+	})
+	if err != nil {
+		t.Fatalf("UpdatePaymentConfig returned error: %v", err)
+	}
+	if repo.updates[SettingBalanceRechargePackages] == "" {
+		t.Fatal("expected recharge packages JSON to be persisted")
+	}
+
+	cfg := svc.parsePaymentConfig(repo.values)
+	if len(cfg.BalanceRechargePackages) != 1 || cfg.BalanceRechargePackages[0].Bonus != 2.99 {
+		t.Fatalf("parsed packages = %+v", cfg.BalanceRechargePackages)
+	}
+}
+
 func paymentConfigStrPtr(value string) *string {
 	return &value
 }

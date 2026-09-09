@@ -397,7 +397,7 @@ export default {
     bonusTag: '+{amount} bonus',
     limitedBonus: 'Limited bonus',
     bonusBannerTitle: 'Recharge more, get more bonus credit',
-    bonusBannerDesc: 'Credited balance follows the current recharge rate. Higher tiers receive more bonus credit.',
+    bonusBannerDesc: 'Credited balance follows package bonuses or the current recharge rate. Higher tiers receive more bonus credit.',
     maxBonus: 'Up to {amount} bonus',
     popular: 'Popular',
     bestValue: 'Best value',

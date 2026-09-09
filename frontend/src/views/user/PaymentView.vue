@@ -269,7 +269,9 @@ import RechargeCheckoutDialog from '@/components/payment/RechargeCheckoutDialog.
 import {
   filterRechargePackages,
   maxRechargeBonus,
+  packageCreditAmount,
   paymentMethodLane,
+  resolveRechargePackages,
   type PaymentMethodLane,
 } from '@/components/payment/rechargePackages'
 import { METHOD_ORDER, getPaymentPopupFeatures, isBuiltInAlipayMethod, isBuiltInWxpayMethod } from '@/components/payment/providerConfig'
@@ -506,7 +508,7 @@ function onPaymentSettled() {
 // All checkout data from single API call
 const checkout = ref<CheckoutInfoResponse>({
   methods: {}, global_min: 0, global_max: 0,
-  plans: [], balance_disabled: false, balance_recharge_multiplier: 1, subscription_usd_to_cny_rate: 0, recharge_fee_rate: 0, help_text: '', help_image_url: '', stripe_publishable_key: '',
+  plans: [], balance_disabled: false, balance_recharge_multiplier: 1, balance_recharge_packages: [], subscription_usd_to_cny_rate: 0, recharge_fee_rate: 0, help_text: '', help_image_url: '', stripe_publishable_key: '',
 })
 
 const tabs = computed(() => {
@@ -528,7 +530,14 @@ const subscriptionUsdToCnyRate = computed(() => {
   const rate = checkout.value.subscription_usd_to_cny_rate
   return Number.isFinite(rate) && rate > 0 ? rate : 0
 })
-const creditedAmount = computed(() => Math.round((validAmount.value * balanceRechargeMultiplier.value) * 100) / 100)
+const configuredPackages = computed(() => resolveRechargePackages(checkout.value.balance_recharge_packages))
+const creditedAmount = computed(() => {
+  const selected = configuredPackages.value.find((pkg) => pkg.amount === validAmount.value)
+  if (selected) {
+    return packageCreditAmount(selected, configuredPackages.value, balanceRechargeMultiplier.value)
+  }
+  return Math.round((validAmount.value * balanceRechargeMultiplier.value) * 100) / 100
+})
 
 // Adaptive grid: center single card, 2-col for 2 plans, 3-col for 3+
 const planGridClass = computed(() => {
@@ -629,7 +638,9 @@ const rmbMethods = computed(() =>
 const usdtMethods = computed(() =>
   methodOptions.value.filter((method) => paymentMethodLane(method.type, method.currency) === 'usdt')
 )
-const visiblePackages = computed(() => filterRechargePackages(globalMinAmount.value, globalMaxAmount.value))
+const visiblePackages = computed(() =>
+  filterRechargePackages(configuredPackages.value, globalMinAmount.value, globalMaxAmount.value),
+)
 const bonusMax = computed(() => maxRechargeBonus(visiblePackages.value, balanceRechargeMultiplier.value))
 const packageDisplayCurrency = computed(() => {
   const rmbType = enabledMethods.value.find((type) => paymentMethodLane(type, visibleMethods.value[type]?.currency) === 'rmb')

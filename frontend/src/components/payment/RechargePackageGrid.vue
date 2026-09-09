@@ -23,10 +23,10 @@
         {{ pkg.badge === 'bestValue' ? t('payment.bestValue') : t('payment.popular') }}
       </span>
       <h3 class="pr-16 text-lg font-semibold text-gray-900 dark:text-white">
-        {{ packageName(pkg.id) }}
+        {{ localizedPackageName(pkg, localeCode) }}
       </h3>
       <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-        {{ packageDesc(pkg.id) }}
+        {{ localizedPackageDescription(pkg, localeCode) }}
       </p>
       <div class="mt-5 flex flex-wrap items-end gap-2">
         <p class="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
@@ -71,14 +71,16 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import { currencySymbol } from './currency'
 import {
-  creditedRechargeAmount,
-  rechargeBonusAmount,
+  localizedPackageDescription,
+  localizedPackageName,
+  packageBonusAmount,
+  packageCreditAmount,
   type RechargePackage,
-  type RechargePackageId,
 } from './rechargePackages'
 
 const props = defineProps<{
@@ -91,14 +93,21 @@ const emit = defineEmits<{
   select: [amount: number]
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
+const localeCode = computed(() => {
+  if (typeof locale === 'string') return locale
+  if (locale && typeof locale === 'object' && 'value' in locale) {
+    return String((locale as { value?: string }).value || '')
+  }
+  return ''
+})
 
 function creditOf(pkg: RechargePackage): number {
-  return creditedRechargeAmount(pkg.amount, props.multiplier)
+  return packageCreditAmount(pkg, props.packages, props.multiplier)
 }
 
 function bonusOf(pkg: RechargePackage): number {
-  return rechargeBonusAmount(pkg.amount, props.multiplier)
+  return packageBonusAmount(pkg, props.packages, props.multiplier)
 }
 
 function formatIntegerAmount(amount: number): string {
@@ -107,31 +116,5 @@ function formatIntegerAmount(amount: number): string {
 
 function formatUsd(amount: number): string {
   return `$${amount.toFixed(2)}`
-}
-
-function packageName(id: RechargePackageId): string {
-  switch (id) {
-    case 'starter': return t('payment.packages.starter.name')
-    case 'standard': return t('payment.packages.standard.name')
-    case 'advanced': return t('payment.packages.advanced.name')
-    case 'pro': return t('payment.packages.pro.name')
-    case 'team': return t('payment.packages.team.name')
-    case 'business': return t('payment.packages.business.name')
-    case 'premium': return t('payment.packages.premium.name')
-    case 'enterprise': return t('payment.packages.enterprise.name')
-  }
-}
-
-function packageDesc(id: RechargePackageId): string {
-  switch (id) {
-    case 'starter': return t('payment.packages.starter.desc')
-    case 'standard': return t('payment.packages.standard.desc')
-    case 'advanced': return t('payment.packages.advanced.desc')
-    case 'pro': return t('payment.packages.pro.desc')
-    case 'team': return t('payment.packages.team.desc')
-    case 'business': return t('payment.packages.business.desc')
-    case 'premium': return t('payment.packages.premium.desc')
-    case 'enterprise': return t('payment.packages.enterprise.desc')
-  }
 }
 </script>

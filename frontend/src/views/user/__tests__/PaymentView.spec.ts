@@ -369,6 +369,32 @@ describe('PaymentView recharge rate preview', () => {
       payment_type: 'wxpay',
     }))
   })
+
+  it('renders recharge cards from checkout-info instead of hardcoded packages', async () => {
+    window.localStorage.clear()
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
+      balance_recharge_packages: [
+        { id: 'trial', amount: 80, bonus: 5, credit: 85, name: '试用', description: '后台配置', name_en: 'Trial', description_en: 'From admin' },
+      ],
+    }))
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.getComponent(RechargePackageGrid).props('packages')).toEqual([
+      expect.objectContaining({ id: 'trial', amount: 80, name: '试用' }),
+    ])
+  })
 })
 
 describe('PaymentView subscription confirmation amounts', () => {

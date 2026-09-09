@@ -421,7 +421,7 @@ export default {
     bonusTag: '+送{amount}',
     limitedBonus: '限时加赠',
     bonusBannerTitle: '多充多送，充值越高赠送越多',
-    bonusBannerDesc: '按当前充值倍率计算到账额度，更高档位可获得更多赠送。',
+    bonusBannerDesc: '按档位赠送或当前充值倍率计算到账额度，更高档位可获得更多赠送。',
     maxBonus: '最高赠送 {amount}',
     popular: '人气推荐',
     bestValue: '最佳价值',

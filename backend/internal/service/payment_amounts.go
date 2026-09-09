@@ -25,7 +25,13 @@ func normalizeSubscriptionUSDToCNYRate(rate float64) float64 {
 	return rate
 }
 
-func calculateCreditedBalance(paymentAmount, multiplier float64) float64 {
+func calculateCreditedBalance(paymentAmount, multiplier float64, packages []RechargePackage) float64 {
+	if pkg, ok := FindRechargePackageByAmount(packages, paymentAmount); ok && RechargePackagesHaveBonus(packages) {
+		return decimal.NewFromFloat(paymentAmount).
+			Add(decimal.NewFromFloat(pkg.Bonus)).
+			Round(2).
+			InexactFloat64()
+	}
 	return decimal.NewFromFloat(paymentAmount).
 		Mul(decimal.NewFromFloat(normalizeBalanceRechargeMultiplier(multiplier))).
 		Round(2).
