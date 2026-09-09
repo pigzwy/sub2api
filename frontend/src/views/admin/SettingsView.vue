@@ -8610,6 +8610,12 @@
             </div>
           </div>
 
+          <div v-if="form.payment_enabled" class="card overflow-hidden">
+            <RechargePackageSettingsEditor
+              v-model="form.payment_balance_recharge_packages"
+            />
+          </div>
+
           <!-- Provider Management -->
           <PaymentProviderList
             v-if="form.payment_enabled"
@@ -9167,13 +9173,15 @@ import type {
   NotifyEmailEntry,
   Proxy,
 } from "@/types";
-import type { ProviderInstance } from "@/types/payment";
+import type { ProviderInstance, RechargePackage } from "@/types/payment";
 import AppLayout from "@/components/layout/AppLayout.vue";
 import Icon from "@/components/icons/Icon.vue";
 import Select from "@/components/common/Select.vue";
 import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
 import PaymentProviderList from "@/components/payment/PaymentProviderList.vue";
 import PaymentProviderDialog from "@/components/payment/PaymentProviderDialog.vue";
+import RechargePackageSettingsEditor from "@/components/payment/RechargePackageSettingsEditor.vue";
+import { resolveRechargePackages } from "@/components/payment/rechargePackages";
 import GroupBadge from "@/components/common/GroupBadge.vue";
 import GroupOptionItem from "@/components/common/GroupOptionItem.vue";
 import Toggle from "@/components/common/Toggle.vue";
@@ -9891,6 +9899,7 @@ type SettingsForm = Omit<
   // 系统全局平台限额 map；form 内始终归一化为全 4 平台对象（模板非空绑定依赖此不变量）
   default_platform_quotas: DefaultPlatformQuotasMap;
   account_scheduling_thresholds: ReturnType<typeof normalizeAccountSchedulingThresholdsMap>;
+  payment_balance_recharge_packages: RechargePackage[];
 };
 
 const schedulingThresholdPlatforms = SCHEDULING_THRESHOLD_PLATFORMS;
@@ -9959,6 +9968,7 @@ const form = reactive<SettingsForm>({
   payment_order_timeout_minutes: 30,
   payment_balance_disabled: false,
   payment_balance_recharge_multiplier: 1,
+  payment_balance_recharge_packages: resolveRechargePackages(),
   payment_subscription_usd_to_cny_rate: 0,
   payment_recharge_fee_rate: 0,
   payment_enabled_types: [],
@@ -11352,6 +11362,9 @@ async function loadSettings() {
     const settings = await adminAPI.settings.getSettings();
     settings.payment_load_balance_strategy =
       settings.payment_load_balance_strategy || "round-robin";
+    settings.payment_balance_recharge_packages = resolveRechargePackages(
+      settings.payment_balance_recharge_packages,
+    );
     // Only assign non-null values from backend (null means unconfigured, keep defaults)
     for (const [key, value] of Object.entries(settings)) {
       if (value !== null && value !== undefined) {
@@ -11992,6 +12005,9 @@ async function saveSettings() {
       payment_balance_disabled: form.payment_balance_disabled,
       payment_balance_recharge_multiplier:
         Number(form.payment_balance_recharge_multiplier) || 1,
+      payment_balance_recharge_packages: resolveRechargePackages(
+        form.payment_balance_recharge_packages,
+      ),
       payment_subscription_usd_to_cny_rate:
         Number(form.payment_subscription_usd_to_cny_rate) || 0,
       payment_recharge_fee_rate: Number(form.payment_recharge_fee_rate) || 0,

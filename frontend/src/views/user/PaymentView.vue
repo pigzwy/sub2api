@@ -8,9 +8,12 @@
         <!-- Tab Switcher (hide during payment and subscription confirm) -->
         <div v-if="tabs.length > 1 && paymentPhase === 'select' && !selectedPlan" class="flex space-x-1 rounded-xl bg-gray-100 p-1 dark:bg-dark-800">
           <button v-for="tab in tabs" :key="tab.key"
-            class="flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-all"
+            class="flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all"
             :class="activeTab === tab.key ? 'bg-white text-gray-900 shadow dark:bg-dark-700 dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'"
-            @click="activeTab = tab.key">{{ tab.label }}</button>
+            @click="activeTab = tab.key">
+            <Icon :name="tab.key === 'recharge' ? 'bolt' : 'calendar'" size="sm" />
+            {{ tab.label }}
+          </button>
         </div>
         <!-- Payment in progress (shared by recharge and subscription) -->
         <template v-if="paymentPhase === 'paying'">
@@ -35,62 +38,55 @@
         <template v-else>
           <!-- Top-up Tab -->
           <template v-if="activeTab === 'recharge'">
-            <!-- Recharge Account Card -->
-            <div class="card p-5">
-              <p class="text-xs font-medium text-gray-400 dark:text-gray-500">{{ t('payment.rechargeAccount') }}</p>
-              <p class="mt-1 text-base font-semibold text-gray-900 dark:text-white">{{ user?.username || '' }}</p>
-              <p class="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">{{ t('payment.currentBalance') }}: {{ user?.balance?.toFixed(2) || '0.00' }}</p>
+            <div class="card px-5 py-4">
+              <div class="flex items-center justify-between gap-4">
+                <p class="text-sm font-medium text-gray-900 dark:text-white">{{ t('payment.rechargeAccount') }}</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                  {{ t('payment.currentBalance') }}:
+                  <span class="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{{ user?.balance?.toFixed(2) || '0.00' }}</span>
+                </p>
+              </div>
             </div>
             <div v-if="enabledMethods.length === 0" class="card py-16 text-center">
               <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
             </div>
             <template v-else>
-            <div class="card p-6">
-              <AmountInput
-                v-model="amount"
-                :amounts="[10, 20, 50, 100, 200, 500, 1000, 2000, 5000]"
-                :min="globalMinAmount"
-                :max="globalMaxAmount"
-              />
-              <p v-if="amountError" class="mt-2 text-xs text-amber-600 dark:text-amber-300">{{ amountError }}</p>
-            </div>
-            <div v-if="enabledMethods.length >= 1" class="card p-6">
-              <PaymentMethodSelector
-                :methods="methodOptions"
-                :selected="selectedMethod"
-                @select="selectedMethod = $event"
-              />
-            </div>
-            <div v-if="validAmount > 0" class="card p-6">
-              <div class="space-y-2 text-sm">
-                <div class="flex justify-between">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('payment.paymentAmount') }}</span>
-                  <span class="text-gray-900 dark:text-white">{{ formatSelectedPaymentAmount(validAmount) }}</span>
-                </div>
-                <div v-if="feeRate > 0" class="flex justify-between">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('payment.fee') }} ({{ feeRate }}%)</span>
-                  <span class="text-gray-900 dark:text-white">{{ formatSelectedPaymentAmount(feeAmount) }}</span>
-                </div>
-                <div v-if="feeRate > 0" class="flex justify-between border-t border-gray-200 pt-2 dark:border-dark-600">
-                  <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.actualPay') }}</span>
-                  <span class="text-lg font-bold text-primary-600 dark:text-primary-400">{{ formatSelectedPaymentAmount(totalAmount) }}</span>
-                </div>
-                <div v-if="balanceRechargeMultiplier !== 1" class="flex justify-between" :class="{ 'border-t border-gray-200 pt-2 dark:border-dark-600': feeRate <= 0 }">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('payment.creditedBalance') }}</span>
-                  <span class="text-gray-900 dark:text-white">${{ creditedAmount.toFixed(2) }}</span>
-                </div>
-                <p v-if="balanceRechargeMultiplier !== 1" class="border-t border-gray-200 pt-2 text-xs text-gray-500 dark:border-dark-600 dark:text-gray-400">
-                  {{ t('payment.rechargeRatePreview', { currency: selectedCurrency, usd: balanceRechargeMultiplier.toFixed(2) }) }}
-                </p>
+            <div v-if="bonusMax > 0" class="flex flex-col gap-3 rounded-2xl border border-amber-400/40 bg-amber-50/80 px-5 py-4 dark:border-amber-400/20 dark:bg-amber-500/5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <span class="inline-flex rounded-md bg-amber-500 px-2 py-0.5 text-[11px] font-semibold text-white">{{ t('payment.limitedBonus') }}</span>
+                <p class="mt-2 text-sm font-semibold text-gray-900 dark:text-white">{{ t('payment.bonusBannerTitle') }}</p>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('payment.bonusBannerDesc') }}</p>
               </div>
-            </div>
-            <button :class="['btn w-full py-3 text-base font-medium', paymentButtonClass]" :disabled="!canSubmit || submitting" @click="handleSubmitRecharge">
-              <span v-if="submitting" class="flex items-center justify-center gap-2">
-                <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
-                {{ t('common.processing') }}
+              <span class="shrink-0 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-400/15 dark:text-amber-200">
+                {{ t('payment.maxBonus', { amount: `$${bonusMax.toFixed(2)}` }) }}
               </span>
-              <span v-else>{{ t('payment.createOrder') }} {{ formatSelectedPaymentAmount(totalAmount) }}</span>
-            </button>
+            </div>
+            <span data-testid="selected-payment-method" class="sr-only">{{ selectedMethod }}</span>
+            <RechargePackageGrid
+              :packages="visiblePackages"
+              :multiplier="balanceRechargeMultiplier"
+              :currency="packageDisplayCurrency"
+              @select="openRechargeCheckout"
+            />
+            <RechargeCheckoutDialog
+              :open="showPayDialog"
+              :pay-amount-label="formatSelectedPaymentAmount(totalAmount)"
+              :credit-amount-label="`$${creditedAmount.toFixed(2)}`"
+              :fee-amount-label="formatSelectedPaymentAmount(feeAmount)"
+              :fee-rate="feeRate"
+              :multiplier="balanceRechargeMultiplier"
+              :currency="selectedCurrency"
+              :selected="selectedMethod"
+              :lane="payLane"
+              :rmb-methods="rmbMethods"
+              :usdt-methods="usdtMethods"
+              :submitting="submitting"
+              :error="amountError"
+              @close="closeRechargeCheckout"
+              @update:lane="selectPayLane"
+              @select="selectCheckoutMethod"
+              @confirm="confirmRechargeCheckout"
+            />
             </template>
           </template>
           <!-- Subscribe Tab -->
@@ -256,7 +252,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
@@ -269,8 +265,17 @@ import { isMobileDevice } from '@/utils/device'
 import { hasPeakRate, formatPeakRateWindow, serverTimezoneLabel, type PeakRateFields } from '@/utils/peak-rate'
 import type { SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType } from '@/types/payment'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import AmountInput from '@/components/payment/AmountInput.vue'
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector.vue'
+import RechargePackageGrid from '@/components/payment/RechargePackageGrid.vue'
+import RechargeCheckoutDialog from '@/components/payment/RechargeCheckoutDialog.vue'
+import {
+  filterRechargePackages,
+  maxRechargeBonus,
+  packageCreditAmount,
+  paymentMethodLane,
+  resolveRechargePackages,
+  type PaymentMethodLane,
+} from '@/components/payment/rechargePackages'
 import { METHOD_ORDER, getPaymentPopupFeatures, isBuiltInAlipayMethod, isBuiltInWxpayMethod } from '@/components/payment/providerConfig'
 import {
   PAYMENT_RECOVERY_STORAGE_KEY,
@@ -325,6 +330,8 @@ const errorHintMessage = ref('')
 const activeTab = ref<'recharge' | 'subscription'>('recharge')
 const amount = ref<number | null>(null)
 const selectedMethod = ref('')
+const showPayDialog = ref(false)
+const payLane = ref<PaymentMethodLane>('rmb')
 const selectedPlan = ref<SubscriptionPlan | null>(null)
 const previewImage = ref('')
 
@@ -419,6 +426,7 @@ function removeRecoverySnapshot() {
 function resetPayment() {
   paymentPhase.value = 'select'
   paymentState.value = emptyPaymentState()
+  showPayDialog.value = false
   removeRecoverySnapshot()
 }
 
@@ -502,13 +510,13 @@ function onPaymentSettled() {
 // All checkout data from single API call
 const checkout = ref<CheckoutInfoResponse>({
   methods: {}, global_min: 0, global_max: 0,
-  plans: [], balance_disabled: false, balance_recharge_multiplier: 1, subscription_usd_to_cny_rate: 0, recharge_fee_rate: 0, help_text: '', help_image_url: '', stripe_publishable_key: '',
+  plans: [], balance_disabled: false, balance_recharge_multiplier: 1, balance_recharge_packages: [], subscription_usd_to_cny_rate: 0, recharge_fee_rate: 0, help_text: '', help_image_url: '', stripe_publishable_key: '',
 })
 
 const tabs = computed(() => {
   const result: { key: 'recharge' | 'subscription'; label: string }[] = []
-  if (!checkout.value.balance_disabled) result.push({ key: 'recharge', label: t('payment.tabTopUp') })
-  result.push({ key: 'subscription', label: t('payment.tabSubscribe') })
+  if (!checkout.value.balance_disabled) result.push({ key: 'recharge', label: t('payment.tabPayAsYouGo') })
+  result.push({ key: 'subscription', label: t('payment.tabMonthlyPlan') })
   return result
 })
 
@@ -524,7 +532,14 @@ const subscriptionUsdToCnyRate = computed(() => {
   const rate = checkout.value.subscription_usd_to_cny_rate
   return Number.isFinite(rate) && rate > 0 ? rate : 0
 })
-const creditedAmount = computed(() => Math.round((validAmount.value * balanceRechargeMultiplier.value) * 100) / 100)
+const configuredPackages = computed(() => resolveRechargePackages(checkout.value.balance_recharge_packages))
+const creditedAmount = computed(() => {
+  const selected = configuredPackages.value.find((pkg) => pkg.amount === validAmount.value)
+  if (selected) {
+    return packageCreditAmount(selected, configuredPackages.value, balanceRechargeMultiplier.value)
+  }
+  return Math.round((validAmount.value * balanceRechargeMultiplier.value) * 100) / 100
+})
 
 // Adaptive grid: center single card, 2-col for 2 plans, 3-col for 3+
 const planGridClass = computed(() => {
@@ -614,9 +629,26 @@ const methodOptions = computed<PaymentMethodOption[]>(() =>
       display_name: ml?.display_name,
       fee_rate: ml?.fee_rate ?? 0,
       available: ml?.available !== false && amountFitsMethod(validAmount.value, type),
+      currency: ml?.currency,
     }
   })
 )
+
+const rmbMethods = computed(() =>
+  methodOptions.value.filter((method) => paymentMethodLane(method.type, method.currency) === 'rmb')
+)
+const usdtMethods = computed(() =>
+  methodOptions.value.filter((method) => paymentMethodLane(method.type, method.currency) === 'usdt')
+)
+const visiblePackages = computed(() =>
+  filterRechargePackages(configuredPackages.value, globalMinAmount.value, globalMaxAmount.value),
+)
+const bonusMax = computed(() => maxRechargeBonus(visiblePackages.value, balanceRechargeMultiplier.value))
+const packageDisplayCurrency = computed(() => {
+  const rmbType = enabledMethods.value.find((type) => paymentMethodLane(type, visibleMethods.value[type]?.currency) === 'rmb')
+  if (rmbType) return normalizePaymentCurrency(visibleMethods.value[rmbType]?.currency)
+  return selectedCurrency.value || DEFAULT_PAYMENT_CURRENCY
+})
 
 const feeRate = computed(() => checkout.value?.recharge_fee_rate ?? 0)
 const feeAmount = computed(() =>
@@ -684,6 +716,7 @@ const subMethodOptions = computed<PaymentMethodOption[]>(() => {
       display_name: ml?.display_name,
       fee_rate: ml?.fee_rate ?? 0,
       available: ml?.available !== false && amountFitsMethod(subscriptionTotalAmountForCurrency(price, currency), type),
+      currency: ml?.currency,
     }
   })
 })
@@ -694,12 +727,45 @@ const canSubmitSubscription = computed(() =>
     && selectedLimit.value?.available !== false
 )
 
+let rechargeConfirmLock = false
+
 // Auto-switch to first available method when current selection can't handle the amount
-watch(() => [validAmount.value, selectedMethod.value] as const, ([amt, method]) => {
+watch(() => [validAmount.value, selectedMethod.value, payLane.value] as const, ([amt, method]) => {
+  if (showPayDialog.value || submitting.value || rechargeConfirmLock) return
   if (amt <= 0 || amountFitsMethod(amt, method)) return
-  const available = enabledMethods.value.find((m) => amountFitsMethod(amt, m))
-  if (available) selectedMethod.value = available
+  const laneMethods = payLane.value === 'usdt' ? usdtMethods.value : rmbMethods.value
+  const preferred = [...laneMethods, ...methodOptions.value].find((m) => m.available)
+  if (preferred) {
+    selectedMethod.value = preferred.type
+    payLane.value = paymentMethodLane(preferred.type, preferred.currency)
+  }
 })
+
+function selectPayLane(lane: PaymentMethodLane) {
+  if (submitting.value || rechargeConfirmLock) return
+  payLane.value = lane
+  const laneMethods = lane === 'usdt' ? usdtMethods.value : rmbMethods.value
+  if (laneMethods.some((method) => method.type === selectedMethod.value)) {
+    return
+  }
+  const preferred = laneMethods.find((method) => method.available) ?? laneMethods[0]
+  if (preferred) {
+    selectedMethod.value = preferred.type
+  }
+}
+
+function selectCheckoutMethod(type: string) {
+  if (submitting.value || rechargeConfirmLock) return
+  const method = methodOptions.value.find((item) => item.type === type)
+  if (!method?.available) return
+  selectedMethod.value = method.type
+  payLane.value = paymentMethodLane(method.type, method.currency)
+}
+
+function closeRechargeCheckout() {
+  if (submitting.value || rechargeConfirmLock) return
+  showPayDialog.value = false
+}
 
 // Payment button class: follows selected payment method color
 const paymentButtonClass = computed(() => {
@@ -752,6 +818,43 @@ function selectPlanFromModal(plan: SubscriptionPlan) {
 function closeRenewalModal() {
   showRenewalModal.value = false
   renewGroupId.value = null
+}
+
+function openRechargeCheckout(selectedAmount: number) {
+  if (selectedAmount <= 0) return
+  amount.value = selectedAmount
+  const current = methodOptions.value.find((method) => method.type === selectedMethod.value)
+  if (current?.available) {
+    payLane.value = paymentMethodLane(current.type, current.currency)
+  } else {
+    const preferred = [...(payLane.value === 'usdt' ? usdtMethods.value : rmbMethods.value), ...methodOptions.value]
+      .find((method) => method.available)
+    if (preferred) {
+      selectedMethod.value = preferred.type
+      payLane.value = paymentMethodLane(preferred.type, preferred.currency)
+    }
+  }
+  showPayDialog.value = true
+}
+
+async function confirmRechargeCheckout(type: string) {
+  if (rechargeConfirmLock || submitting.value) return
+  const requestType = type || selectedMethod.value
+  const method = methodOptions.value.find((item) => item.type === requestType)
+  if (!method?.available || !amountFitsMethod(validAmount.value, requestType)) return
+  rechargeConfirmLock = true
+  selectedMethod.value = requestType
+  payLane.value = paymentMethodLane(requestType, method.currency)
+  try {
+    await nextTick()
+    if (selectedMethod.value !== requestType) return
+    await handleSubmitRecharge()
+    if (paymentPhase.value === 'paying') {
+      showPayDialog.value = false
+    }
+  } finally {
+    rechargeConfirmLock = false
+  }
 }
 
 async function handleSubmitRecharge() {

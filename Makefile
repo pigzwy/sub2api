@@ -9,6 +9,12 @@ FRONTEND_CRITICAL_VITEST := \
 	src/views/auth/__tests__/WechatCallbackView.spec.ts \
 	src/views/user/__tests__/PaymentView.spec.ts \
 	src/views/user/__tests__/PaymentResultView.spec.ts \
+	src/components/payment/__tests__/rechargePackages.spec.ts \
+	src/components/payment/__tests__/RechargeCheckoutDialog.spec.ts \
+	src/components/payment/__tests__/RechargeCreditLine.spec.ts \
+	src/components/payment/__tests__/RechargePackageSettingsEditor.spec.ts \
+	src/components/payment/__tests__/RechargePackageGrid.spec.ts \
+	src/components/payment/__tests__/currency.spec.ts \
 	src/views/user/__tests__/ChannelStatusView.mode.spec.ts \
 	src/components/user/profile/__tests__/ProfileInfoCard.spec.ts \
 	src/views/admin/__tests__/SettingsView.spec.ts \

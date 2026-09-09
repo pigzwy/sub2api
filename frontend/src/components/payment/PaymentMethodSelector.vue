@@ -57,6 +57,7 @@ export interface PaymentMethodOption {
   display_name?: string
   fee_rate: number
   available: boolean
+  currency?: string
 }
 
 const props = defineProps<{

@@ -3,7 +3,8 @@ import { flushPromises, shallowMount } from '@vue/test-utils'
 import PaymentView from '../PaymentView.vue'
 import { PAYMENT_RECOVERY_STORAGE_KEY } from '@/components/payment/paymentFlow'
 import { formatPaymentAmount } from '@/components/payment/currency'
-import AmountInput from '@/components/payment/AmountInput.vue'
+import RechargePackageGrid from '@/components/payment/RechargePackageGrid.vue'
+import RechargeCheckoutDialog from '@/components/payment/RechargeCheckoutDialog.vue'
 import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
 import en from '@/i18n/locales/en'
 import zh from '@/i18n/locales/zh'
@@ -297,6 +298,11 @@ describe('PaymentView subscription plan grid', () => {
 })
 
 describe('PaymentView recharge rate preview', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    createOrder.mockReset()
+  })
+
   it('uses the selected payment method currency in both locale templates', async () => {
     translate.mockClear()
     routeState.path = '/purchase'
@@ -317,11 +323,12 @@ describe('PaymentView recharge rate preview', () => {
           AppLayout: { template: '<div><slot /></div>' },
           Teleport: true,
           Transition: false,
+          RechargeCheckoutDialog: false,
         },
       },
     })
     await flushPromises()
-    wrapper.getComponent(AmountInput).vm.$emit('update:modelValue', 10)
+    wrapper.getComponent(RechargePackageGrid).vm.$emit('select', 10)
     await flushPromises()
 
     expect(translate).toHaveBeenCalledWith('payment.rechargeRatePreview', {
@@ -330,6 +337,280 @@ describe('PaymentView recharge rate preview', () => {
     })
     expect(en.payment.rechargeRatePreview).toBe('Current rate: 1 {currency} = {usd} USD')
     expect(zh.payment.rechargeRatePreview).toBe('当前倍率：1 {currency} = {usd} USD')
+  })
+
+  it('submits the existing balance order payload for a selected package', async () => {
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture())
+    createOrder.mockReset().mockResolvedValue({
+      order_id: 88,
+      amount: 50,
+      pay_amount: 50,
+      qr_code: 'qr',
+      expires_at: '2099-01-01T00:10:00.000Z',
+      payment_type: 'wxpay',
+      result_type: 'qr_ready',
+    })
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    wrapper.getComponent(RechargePackageGrid).vm.$emit('select', 50)
+    await flushPromises()
+    wrapper.getComponent(RechargeCheckoutDialog).vm.$emit('confirm', 'wxpay')
+    await flushPromises()
+
+    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({
+      amount: 50,
+      order_type: 'balance',
+      payment_type: 'wxpay',
+    }))
+  })
+
+  it('renders recharge cards from checkout-info instead of hardcoded packages', async () => {
+    window.localStorage.clear()
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
+      balance_recharge_packages: [
+        { id: 'trial', amount: 80, bonus: 5, credit: 85, name: '试用', description: '后台配置', name_en: 'Trial', description_en: 'From admin' },
+      ],
+    }))
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.getComponent(RechargePackageGrid).props('packages')).toEqual([
+      expect.objectContaining({ id: 'trial', amount: 80, name: '试用' }),
+    ])
+  })
+
+  it('credits pay amount times rate plus that package bonus only', async () => {
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
+      balance_recharge_multiplier: 0.14,
+      balance_recharge_packages: [
+        { id: 'cny100', amount: 100, bonus: 0, name: '基础', description: '' },
+        { id: 'cny200', amount: 200, bonus: 5, name: '加赠', description: '' },
+      ],
+    }))
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    wrapper.getComponent(RechargePackageGrid).vm.$emit('select', 100)
+    await flushPromises()
+
+    expect(wrapper.getComponent(RechargeCheckoutDialog).props('creditAmountLabel')).toBe('$14.00')
+
+    wrapper.getComponent(RechargeCheckoutDialog).vm.$emit('close')
+    await flushPromises()
+    wrapper.getComponent(RechargePackageGrid).vm.$emit('select', 200)
+    await flushPromises()
+
+    expect(wrapper.getComponent(RechargeCheckoutDialog).props('creditAmountLabel')).toBe('$33.00')
+  })
+
+  it('keeps checkout amount currency aligned with the selected pay lane', async () => {
+    window.localStorage.clear()
+    const method: MethodLimit = {
+      daily_limit: 0,
+      daily_used: 0,
+      daily_remaining: 0,
+      single_min: 0,
+      single_max: 0,
+      fee_rate: 0,
+      available: true,
+    }
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
+      methods: {
+        alipay: { ...method, currency: 'CNY' },
+        usdt_trc20: { ...method, currency: 'USDT' },
+      },
+    }))
+    createOrder.mockReset().mockResolvedValue({
+      order_id: 91,
+      amount: 50,
+      pay_amount: 50,
+      qr_code: 'qr',
+      expires_at: '2099-01-01T00:10:00.000Z',
+      payment_type: 'usdt_trc20',
+      result_type: 'qr_ready',
+    })
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    wrapper.getComponent(RechargePackageGrid).vm.$emit('select', 50)
+    await flushPromises()
+
+    const dialog = wrapper.getComponent(RechargeCheckoutDialog)
+    expect(wrapper.get('[data-testid="selected-payment-method"]').text()).toBe('alipay')
+    expect(dialog.props('currency')).toBe('CNY')
+    expect(dialog.props('payAmountLabel')).toBe(formatPaymentAmount(50, 'CNY'))
+
+    dialog.vm.$emit('update:lane', 'usdt')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="selected-payment-method"]').text()).toBe('usdt_trc20')
+    expect(dialog.props('currency')).toBe('USDT')
+    expect(dialog.props('payAmountLabel')).toBe(formatPaymentAmount(50, 'USDT'))
+    expect(dialog.props('lane')).toBe('usdt')
+
+    dialog.vm.$emit('confirm', 'usdt_trc20')
+    await flushPromises()
+
+    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({
+      amount: 50,
+      order_type: 'balance',
+      payment_type: 'usdt_trc20',
+    }))
+  })
+
+  it('updates CNY/USD preview before creating a Stripe order', async () => {
+    window.localStorage.clear()
+    const method: MethodLimit = {
+      daily_limit: 0,
+      daily_used: 0,
+      daily_remaining: 0,
+      single_min: 0,
+      single_max: 0,
+      fee_rate: 0,
+      available: true,
+    }
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
+      methods: {
+        alipay: { ...method, currency: 'CNY' },
+        stripe: { ...method, currency: 'USD' },
+      },
+    }))
+    createOrder.mockReset().mockResolvedValue({
+      order_id: 92,
+      amount: 100,
+      pay_amount: 100,
+      qr_code: 'qr',
+      expires_at: '2099-01-01T00:10:00.000Z',
+      payment_type: 'stripe',
+      result_type: 'qr_ready',
+    })
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    wrapper.getComponent(RechargePackageGrid).vm.$emit('select', 100)
+    await flushPromises()
+
+    const dialog = wrapper.getComponent(RechargeCheckoutDialog)
+    expect(wrapper.get('[data-testid="selected-payment-method"]').text()).toBe('alipay')
+    expect(dialog.props('currency')).toBe('CNY')
+    expect(dialog.props('payAmountLabel')).toBe(formatPaymentAmount(100, 'CNY'))
+    expect(dialog.props('selected')).toBe('alipay')
+
+    dialog.vm.$emit('select', 'stripe')
+    await flushPromises()
+
+    expect(createOrder).not.toHaveBeenCalled()
+    expect(wrapper.get('[data-testid="selected-payment-method"]').text()).toBe('stripe')
+    expect(dialog.props('currency')).toBe('USD')
+    expect(dialog.props('payAmountLabel')).toBe(formatPaymentAmount(100, 'USD'))
+    expect(dialog.props('selected')).toBe('stripe')
+
+    dialog.vm.$emit('confirm', 'stripe')
+    dialog.vm.$emit('confirm', 'stripe')
+    await flushPromises()
+
+    expect(createOrder).toHaveBeenCalledTimes(1)
+    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({
+      amount: 100,
+      order_type: 'balance',
+      payment_type: 'stripe',
+    }))
+  })
+
+  it('does not create an order for an unavailable checkout method', async () => {
+    window.localStorage.clear()
+    const method: MethodLimit = {
+      daily_limit: 0,
+      daily_used: 0,
+      daily_remaining: 0,
+      single_min: 0,
+      single_max: 0,
+      fee_rate: 0,
+      available: true,
+    }
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
+      methods: {
+        alipay: { ...method, currency: 'CNY' },
+        stripe: { ...method, currency: 'USD', available: false },
+      },
+    }))
+    createOrder.mockReset()
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    wrapper.getComponent(RechargePackageGrid).vm.$emit('select', 100)
+    await flushPromises()
+
+    const dialog = wrapper.getComponent(RechargeCheckoutDialog)
+    dialog.vm.$emit('select', 'stripe')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="selected-payment-method"]').text()).toBe('alipay')
+
+    dialog.vm.$emit('confirm', 'stripe')
+    await flushPromises()
+    expect(createOrder).not.toHaveBeenCalled()
   })
 })
 
@@ -501,7 +782,7 @@ describe('PaymentView payment recovery', () => {
     await wrapper.find('[data-test="payment-done"]').trigger('click')
     await flushPromises()
 
-    expect(wrapper.find('[data-test="method-selector"]').text()).toBe('ldc')
+    expect(wrapper.get('[data-testid="selected-payment-method"]').text()).toBe('ldc')
   })
 })
 
