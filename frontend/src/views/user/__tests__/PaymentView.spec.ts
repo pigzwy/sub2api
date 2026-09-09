@@ -3,7 +3,8 @@ import { flushPromises, shallowMount } from '@vue/test-utils'
 import PaymentView from '../PaymentView.vue'
 import { PAYMENT_RECOVERY_STORAGE_KEY } from '@/components/payment/paymentFlow'
 import { formatPaymentAmount } from '@/components/payment/currency'
-import AmountInput from '@/components/payment/AmountInput.vue'
+import RechargePackageGrid from '@/components/payment/RechargePackageGrid.vue'
+import RechargeCheckoutDialog from '@/components/payment/RechargeCheckoutDialog.vue'
 import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
 import en from '@/i18n/locales/en'
 import zh from '@/i18n/locales/zh'
@@ -317,11 +318,12 @@ describe('PaymentView recharge rate preview', () => {
           AppLayout: { template: '<div><slot /></div>' },
           Teleport: true,
           Transition: false,
+          RechargeCheckoutDialog: false,
         },
       },
     })
     await flushPromises()
-    wrapper.getComponent(AmountInput).vm.$emit('update:modelValue', 10)
+    wrapper.getComponent(RechargePackageGrid).vm.$emit('select', 10)
     await flushPromises()
 
     expect(translate).toHaveBeenCalledWith('payment.rechargeRatePreview', {
@@ -330,6 +332,42 @@ describe('PaymentView recharge rate preview', () => {
     })
     expect(en.payment.rechargeRatePreview).toBe('Current rate: 1 {currency} = {usd} USD')
     expect(zh.payment.rechargeRatePreview).toBe('当前倍率：1 {currency} = {usd} USD')
+  })
+
+  it('submits the existing balance order payload for a selected package', async () => {
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture())
+    createOrder.mockReset().mockResolvedValue({
+      order_id: 88,
+      amount: 50,
+      pay_amount: 50,
+      qr_code: 'qr',
+      expires_at: '2099-01-01T00:10:00.000Z',
+      payment_type: 'wxpay',
+      result_type: 'qr_ready',
+    })
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    wrapper.getComponent(RechargePackageGrid).vm.$emit('select', 50)
+    await flushPromises()
+    wrapper.getComponent(RechargeCheckoutDialog).vm.$emit('confirm', 'wxpay')
+    await flushPromises()
+
+    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({
+      amount: 50,
+      order_type: 'balance',
+      payment_type: 'wxpay',
+    }))
   })
 })
 
@@ -501,7 +539,7 @@ describe('PaymentView payment recovery', () => {
     await wrapper.find('[data-test="payment-done"]').trigger('click')
     await flushPromises()
 
-    expect(wrapper.find('[data-test="method-selector"]').text()).toBe('ldc')
+    expect(wrapper.get('[data-testid="selected-payment-method"]').text()).toBe('ldc')
   })
 })
 
