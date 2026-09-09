@@ -1,5 +1,5 @@
 <template>
-  <!-- 已登录走后台布局(侧栏「模型价格」);未登录仍用独立页 -->
+  <!-- 已登录走后台布局(侧栏「模型广场」);未登录仍用独立页 -->
   <AppLayout v-if="isEmbedded">
     <ModelPlazaContent :response="data" :loading="loading" :error="loadFailed" embedded />
   </AppLayout>

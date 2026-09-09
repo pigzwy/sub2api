@@ -92,7 +92,7 @@ const i18n = createI18n({
   messages: {
     zh: {
       modelPlaza: {
-        title: '模型价格',
+        title: '模型广场',
         description: 'desc',
         loadFailed: 'fail',
         empty: 'empty',

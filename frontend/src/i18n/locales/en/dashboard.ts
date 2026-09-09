@@ -600,11 +600,11 @@ export default {
 
   // Model Plaza (public group/model pricing showcase)
   modelPlaza: {
-    title: 'Model Pricing',
+    title: 'Model Plaza',
     description: 'Browse model prices by category and group rate',
     loading: 'Loading...',
     empty: 'No groups to display',
-    loadFailed: 'Failed to load model pricing',
+    loadFailed: 'Failed to load model plaza',
     noSearchResult: 'No matching models',
     anonymousHint: 'Sign in to see your exclusive groups and personal rates',
     catalog: {

@@ -43,9 +43,9 @@ export default {
           enabledHint: 'When off, the sidebar entry is hidden and the endpoint returns an empty list.',
         },
         modelPlaza: {
-          title: 'Model Pricing',
-          description: 'Show available models and pricing by group. Disabled by default.',
-          enabled: 'Enable Model Pricing',
+          title: 'Model Plaza',
+          description: 'A public page showcasing available models and pricing by group. Disabled by default.',
+          enabled: 'Enable Model Plaza',
           enabledHint: 'When enabled, a sidebar entry appears. Signed-out visitors can still open /model-plaza.',
           requireAuth: 'Require sign-in to access',
           requireAuthHint: 'When on, anonymous visitors are redirected to the login page; when off, the page is public and anonymous visitors only see non-exclusive groups.',
