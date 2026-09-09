@@ -5,15 +5,17 @@
       data-testid="plaza-platform-tabs"
     >
       <button
+        type="button"
+        :class="tabClass(platform === 'all')"
+        @click="emit('update:platform', 'all')"
+      >
+        {{ t('modelPlaza.filters.all') }}
+      </button>
+      <button
         v-for="p in platforms"
         :key="p"
         type="button"
-        :class="[
-          'inline-flex shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors',
-          platform === p
-            ? 'border-primary-500 text-gray-900 dark:border-primary-400 dark:text-white'
-            : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-dark-400 dark:hover:text-white',
-        ]"
+        :class="tabClass(platform === p)"
         @click="emit('update:platform', p)"
       >
         <span
@@ -128,6 +130,15 @@ function rateCaption(g: ModelPlazaGroup): string {
   const rate = effectiveRate(g)
   const base = t('modelPlaza.catalog.rateLine', { rate })
   return `${base} · ${t('modelPlaza.catalog.discountLine', { zhe: formatCatalogZhe(rate) })}`
+}
+
+function tabClass(active: boolean): string {
+  return [
+    'inline-flex shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors',
+    active
+      ? 'border-primary-500 text-gray-900 dark:border-primary-400 dark:text-white'
+      : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-dark-400 dark:hover:text-white',
+  ].join(' ')
 }
 
 function priceModeClass(mode: 'group' | 'official'): string {

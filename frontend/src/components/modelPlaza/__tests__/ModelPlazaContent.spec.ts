@@ -55,6 +55,7 @@ const response: ModelPlazaResponse = {
   groups: [
     group({ id: 1, name: 'Claude Plus', platform: 'anthropic', rate_multiplier: 0.8 }),
     group({ id: 2, name: 'Claude Max', platform: 'anthropic', rate_multiplier: 1.5 }),
+    group({ id: 4, name: '精品线路', platform: 'anthropic', rate_multiplier: 0.5 }),
     group({
       id: 3,
       name: 'GPT Plus',
@@ -154,23 +155,24 @@ describe('ModelPlazaContent catalog', () => {
   it('uses stacked filters on the public page', () => {
     const wrapper = mountContent(false)
     expect(wrapper.find('[data-testid="plaza-platform-tabs"]').exists()).toBe(false)
-    expect(wrapper.findAll('.group-badge-stub').length).toBe(3)
+    expect(wrapper.findAll('.group-badge-stub').length).toBe(4)
   })
 
-  it('starts on the first category and only shows that group table', async () => {
+  it('lists every enabled group by its admin name', async () => {
     const wrapper = mountContent(true)
-    expect(wrapper.get('[data-testid="plaza-platform-tabs"]').text()).toContain('anthropic')
-    expect(wrapper.get('[data-testid="plaza-group-cards"]').text()).toContain('Claude Plus')
-    expect(wrapper.get('[data-testid="plaza-group-cards"]').text()).not.toContain('GPT Plus')
+    const cards = wrapper.get('[data-testid="plaza-group-cards"]').text()
+    expect(cards).toContain('精品线路')
+    expect(cards).toContain('Claude Plus')
+    expect(cards).toContain('GPT Plus')
     expect(wrapper.findAll('.price-sheet-stub')).toHaveLength(1)
-    expect(wrapper.get('[data-testid="plaza-group-name"]').text()).toBe('Claude Plus')
+    expect(wrapper.get('[data-testid="plaza-group-name"]').text()).toBe('精品线路')
   })
 
   it('switches category to the matching groups', async () => {
     const wrapper = mountContent(true)
     const tabs = wrapper.findAll('[data-testid="plaza-platform-tabs"] button')
-    expect(tabs).toHaveLength(2)
-    await tabs[1].trigger('click')
+    expect(tabs.length).toBeGreaterThanOrEqual(3)
+    await tabs[tabs.length - 1].trigger('click')
     expect(wrapper.get('[data-testid="plaza-group-cards"]').text()).toContain('GPT Plus')
     expect(wrapper.get('[data-testid="plaza-group-cards"]').text()).not.toContain('Claude Plus')
   })

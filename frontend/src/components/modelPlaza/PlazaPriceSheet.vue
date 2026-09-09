@@ -133,7 +133,7 @@ function billingMode(m: PlazaModel): BillingMode {
   return (m.pricing?.billing_mode || BILLING_MODE_TOKEN) as BillingMode
 }
 
-function tokenRate(m: PlazaModel): number {
+function tokenRate(): number {
   return effectiveRate.value
 }
 
@@ -158,7 +158,7 @@ const rows = computed<SheetRow[]>(() =>
     .sort((a, b) => a.name.localeCompare(b.name))
     .map((m) => {
       const token = billingMode(m) === BILLING_MODE_TOKEN
-      const rate = token ? tokenRate(m) : requestRate(m)
+      const rate = token ? tokenRate() : requestRate(m)
       const unit = token ? t('modelPlaza.table.unitPerMillionShort') : (
         billingMode(m) === BILLING_MODE_IMAGE
           ? t('modelPlaza.table.perUnitImage')

@@ -131,16 +131,15 @@ const platforms = computed(() =>
   [...new Set((props.response?.groups ?? []).map((g) => g.platform).filter(Boolean))].sort()
 )
 
-/** 后台目录按分类点选,默认落到第一个有模型的平台。 */
+/** 后台目录默认看全部启用分组,标题用分组管理里的名称;点分类再过滤。 */
 watch(
   [() => props.embedded, platforms],
   ([embedded, list]) => {
-    if (!embedded || list.length === 0) return
-    if (selectedPlatform.value === 'all' || !list.includes(selectedPlatform.value)) {
-      selectedPlatform.value = list[0]
+    if (!embedded) return
+    if (selectedPlatform.value !== 'all' && !list.includes(selectedPlatform.value)) {
+      selectedPlatform.value = 'all'
     }
   },
-  { immediate: true },
 )
 
 const platformGroups = computed(() => {
