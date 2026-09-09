@@ -107,6 +107,7 @@ const i18n = createI18n({
           rule: 'rule',
           priceList: '价格列表',
           priceModeHint: 'hint',
+          selectGroupHint: '选择分组后，直接查看每个模型的人民币价格。',
           groupIntro: '分组介绍',
           rateLine: '{rate}x 倍率',
           discountLine: '相当于约 {zhe} 折',

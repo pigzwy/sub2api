@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-5">
+  <div class="space-y-4">
     <div
       class="flex gap-1 overflow-x-auto border-b border-gray-200 dark:border-dark-700"
       data-testid="plaza-platform-tabs"
@@ -18,48 +18,52 @@
 
     <div
       v-if="showDefaultRule"
-      class="flex flex-wrap items-start gap-3 rounded-xl border border-amber-200/80 bg-[#f8f1e7] px-4 py-3 text-sm text-amber-950 dark:border-amber-400/20 dark:bg-amber-500/10 dark:text-amber-100"
+      class="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-xl bg-[#f4ead8] px-4 py-2.5 text-sm text-amber-950 dark:bg-amber-500/10 dark:text-amber-100"
     >
-      <div class="flex items-center gap-1.5 font-medium">
-        <Icon name="document" size="sm" class="h-4 w-4 text-amber-700 dark:text-amber-300" />
-        {{ t('modelPlaza.catalog.ruleTitle') }}
-      </div>
-      <p class="min-w-0 flex-1 leading-6">
-        {{ t('modelPlaza.catalog.ruleFx') }}
-        <span class="mx-1.5 text-amber-400">·</span>
-        {{ t('modelPlaza.catalog.ruleFormula') }}
-        <span v-if="ruleExample" class="mt-0.5 block text-xs text-amber-800/80 dark:text-amber-200/80">
-          {{ ruleExample }}
+      <p class="inline-flex min-w-0 flex-wrap items-center gap-x-2 leading-6">
+        <span class="inline-flex items-center gap-1.5 font-medium">
+          <Icon name="document" size="sm" class="h-4 w-4" />
+          {{ t('modelPlaza.catalog.ruleTitle') }}
         </span>
+        <span>{{ t('modelPlaza.catalog.ruleFx') }}</span>
+        <span>{{ t('modelPlaza.catalog.ruleFormula') }}</span>
+      </p>
+      <p v-if="ruleExample" class="text-xs text-amber-900/80 dark:text-amber-200/80">
+        {{ ruleExample }}
       </p>
     </div>
 
     <div>
-      <div class="flex items-center justify-between gap-3">
-        <h2 class="inline-flex items-center gap-1.5 text-base font-semibold text-gray-900 dark:text-white">
+      <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <h2 class="inline-flex items-center gap-1.5 text-[15px] font-semibold text-gray-900 dark:text-white">
           <Icon name="checkCircle" size="sm" class="h-4 w-4 text-amber-500" />
           {{ t('modelPlaza.catalog.priceList') }}
         </h2>
-        <div class="inline-flex rounded-lg bg-gray-100 p-0.5 text-xs dark:bg-dark-800">
-          <button
-            type="button"
-            :class="priceModeClass('group')"
-            @click="emit('update:priceMode', 'group')"
-          >
-            {{ t('modelPlaza.catalog.groupPrice') }}
-          </button>
-          <button
-            type="button"
-            :class="priceModeClass('official')"
-            @click="emit('update:priceMode', 'official')"
-          >
-            {{ t('modelPlaza.catalog.officialPrice') }}
-          </button>
+        <div class="flex flex-wrap items-center gap-3">
+          <p class="text-xs text-gray-400 dark:text-dark-400">
+            {{ t('modelPlaza.catalog.selectGroupHint') }}
+          </p>
+          <div class="inline-flex rounded-full bg-gray-100 p-0.5 text-xs dark:bg-dark-800">
+            <button
+              type="button"
+              :class="priceModeClass('group')"
+              @click="emit('update:priceMode', 'group')"
+            >
+              {{ t('modelPlaza.catalog.groupPrice') }}
+            </button>
+            <button
+              type="button"
+              :class="priceModeClass('official')"
+              @click="emit('update:priceMode', 'official')"
+            >
+              {{ t('modelPlaza.catalog.officialPrice') }}
+            </button>
+          </div>
         </div>
       </div>
 
       <div
-        class="mt-3 flex gap-3 overflow-x-auto pb-1"
+        class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
         data-testid="plaza-group-cards"
       >
         <button
@@ -68,33 +72,33 @@
           type="button"
           :data-testid="`plaza-group-card-${g.id}`"
           :class="[
-            'w-56 shrink-0 rounded-2xl border p-4 text-left transition-colors',
+            'relative min-h-[96px] rounded-xl border px-4 py-3.5 text-left transition-colors',
             groupId === g.id
-              ? 'border-amber-500 bg-amber-50/90 shadow-[0_0_0_3px_rgba(245,158,11,0.15)] dark:border-amber-400/70 dark:bg-amber-500/10'
-              : 'border-gray-200 bg-white hover:border-gray-300 dark:border-dark-600 dark:bg-dark-800/70 dark:hover:border-dark-500',
+              ? 'border-amber-500 bg-amber-50 shadow-[0_0_0_1px_rgba(245,158,11,0.35)] dark:border-amber-400 dark:bg-amber-500/10'
+              : 'border-gray-200 bg-white hover:border-gray-300 dark:border-dark-600 dark:bg-dark-800 dark:hover:border-dark-500',
           ]"
           @click="emit('update:groupId', g.id)"
         >
-          <div class="flex items-start justify-between gap-2">
+          <span
+            class="absolute right-3 top-3 rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-semibold text-white"
+          >
+            {{ t('modelPlaza.catalog.zheBadge', { zhe: formatCatalogZhe(effectiveRate(g)) }) }}
+          </span>
+          <div class="flex items-start gap-1.5 pr-14">
+            <Icon
+              v-if="groupId === g.id"
+              name="checkCircle"
+              size="sm"
+              class="mt-0.5 h-4 w-4 shrink-0 text-amber-500"
+            />
             <p
-              class="min-w-0 text-sm font-semibold leading-5 text-gray-900 dark:text-white"
+              class="text-sm font-semibold leading-5 text-gray-900 dark:text-white"
               :data-testid="groupId === g.id ? 'plaza-group-name' : undefined"
             >
               {{ g.name }}
             </p>
-            <div class="flex shrink-0 items-center gap-1">
-              <Icon
-                v-if="groupId === g.id"
-                name="checkCircle"
-                size="sm"
-                class="h-4 w-4 text-emerald-500"
-              />
-              <span class="rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-semibold text-white">
-                {{ t('modelPlaza.catalog.zheBadge', { zhe: formatCatalogZhe(effectiveRate(g)) }) }}
-              </span>
-            </div>
           </div>
-          <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-dark-400">
+          <p class="mt-2 text-xs leading-5 text-gray-400 dark:text-dark-400">
             {{ rateCaption(g) }}
           </p>
         </button>
@@ -105,7 +109,7 @@
         class="mt-3 text-sm leading-6 text-gray-500 dark:text-dark-400"
         data-testid="plaza-group-intro"
       >
-        <span class="font-medium text-gray-700 dark:text-dark-200">{{ t('modelPlaza.catalog.groupIntro') }}：</span>
+        <span class="text-gray-600 dark:text-dark-300">{{ t('modelPlaza.catalog.groupIntro') }}：</span>
         {{ selectedGroup.description?.trim() || selectedGroup.name }}
       </p>
     </div>
@@ -184,9 +188,9 @@ function tabClass(active: boolean): string {
 
 function priceModeClass(mode: 'group' | 'official'): string {
   return [
-    'rounded-md px-2.5 py-1 font-medium',
+    'rounded-full px-3 py-1 font-medium',
     props.priceMode === mode
-      ? 'bg-amber-500 text-white shadow-sm'
+      ? 'bg-amber-500 text-white'
       : 'text-gray-500 dark:text-dark-400',
   ].join(' ')
 }

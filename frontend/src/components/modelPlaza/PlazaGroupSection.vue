@@ -1,7 +1,7 @@
 <template>
   <section
-    class="overflow-hidden rounded-2xl border bg-white shadow-card dark:bg-dark-800/50"
-    :class="layout === 'sheet' ? 'border-gray-200 dark:border-dark-700/70' : platformBorderStrongClass(group.platform)"
+    class="overflow-hidden rounded-xl border bg-white dark:bg-dark-800/40"
+    :class="layout === 'sheet' ? 'border-gray-200 shadow-none dark:border-dark-700/70' : `shadow-card ${platformBorderStrongClass(group.platform)}`"
     :data-testid="`plaza-group-section-${group.id}`"
   >
     <!-- 目录页分组名在卡片上，这里只保留高峰说明 -->
