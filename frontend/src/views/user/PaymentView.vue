@@ -5,14 +5,18 @@
         <div class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
       </div>
       <template v-else>
-        <div v-if="paymentPhase === 'select' && !selectedPlan" class="space-y-3">
-          <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('payment.rechargeAccount') }}</p>
-          <div>
+        <div
+          v-if="paymentPhase === 'select' && !selectedPlan"
+          data-testid="recharge-balance-capsule"
+          class="flex w-fit max-w-full items-center gap-6 rounded-full bg-gray-100 px-8 py-4 dark:bg-dark-800"
+        >
+          <div class="space-y-1">
+            <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('payment.rechargeAccount') }}</p>
             <p class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.currentBalance') }}</p>
-            <p class="mt-1 text-[2rem] font-semibold leading-none tabular-nums tracking-tight text-amber-400">
-              {{ displayBalance }}
-            </p>
           </div>
+          <p class="text-[2rem] font-semibold leading-none tabular-nums tracking-tight text-amber-400">
+            {{ displayBalance }}
+          </p>
         </div>
         <div v-if="paymentPhase === 'select' && !selectedPlan" class="flex max-w-full flex-wrap items-center gap-3">
           <div v-if="tabs.length > 1" class="flex w-fit max-w-full gap-1 rounded-2xl bg-gray-100 p-1 dark:bg-dark-800">
