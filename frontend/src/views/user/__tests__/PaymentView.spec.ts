@@ -675,6 +675,47 @@ describe('PaymentView recharge rate preview', () => {
     await flushPromises()
     expect(createOrder).not.toHaveBeenCalled()
   })
+
+  it('uses a wide page shell and a compact bonus notice', async () => {
+    window.localStorage.clear()
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
+      balance_recharge_packages: [
+        { id: 'trial', amount: 80, bonus: 5, credit: 85, name: '试用', description: '' },
+      ],
+    }))
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+
+    const shell = wrapper.find('.max-w-7xl')
+    expect(shell.exists()).toBe(true)
+    expect(shell.classes()).toEqual(expect.arrayContaining(['w-full', 'space-y-5']))
+
+    const banner = wrapper.get('[data-testid="recharge-bonus-banner"]')
+    expect(banner.classes()).toEqual(expect.arrayContaining(['flex', 'w-fit']))
+    expect(banner.classes()).not.toEqual(expect.arrayContaining(['inline-flex', 'justify-between']))
+    expect(banner.text()).toContain('payment.bonusBannerTitle')
+    expect(banner.text()).not.toContain('payment.bonusBannerDesc')
+    expect(banner.element.parentElement?.className).toContain('items-center')
+    expect(banner.element.parentElement?.textContent).toContain('payment.tabPayAsYouGo')
+    expect(wrapper.text()).toContain('payment.currentBalance')
+    expect(wrapper.text()).toContain('0.00')
+    const balanceCard = wrapper.get('[data-testid="recharge-balance-card"]')
+    expect(balanceCard.classes()).toEqual(expect.arrayContaining(['h-12', 'rounded-2xl', 'shadow-card', 'w-fit', 'px-5']))
+    expect(balanceCard.classes()).not.toEqual(expect.arrayContaining(['rounded-full']))
+    expect(balanceCard.text()).toContain('payment.rechargeAccount')
+    expect(balanceCard.find('.space-y-0\\.5').exists()).toBe(false)
+  })
 })
 
 describe('PaymentView subscription confirmation amounts', () => {
