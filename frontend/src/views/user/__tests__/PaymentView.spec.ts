@@ -431,8 +431,10 @@ describe('PaymentView recharge rate preview', () => {
     expect(wrapper.text()).toContain('payment.currentBalance')
     expect(wrapper.text()).toContain('0.00')
     const balanceCard = wrapper.get('[data-testid="recharge-balance-card"]')
-    expect(balanceCard.classes()).toEqual(expect.arrayContaining(['rounded-2xl', 'shadow-card', 'w-fit']))
-    expect(balanceCard.classes()).not.toEqual(expect.arrayContaining(['rounded-full']))
+    expect(balanceCard.classes()).toEqual(expect.arrayContaining(['rounded-2xl', 'shadow-card', 'w-fit', 'py-1.5', 'gap-3']))
+    expect(balanceCard.classes()).not.toEqual(expect.arrayContaining(['rounded-full', 'py-2.5']))
+    expect(balanceCard.text()).toContain('payment.rechargeAccount')
+    expect(balanceCard.find('.space-y-0\\.5').exists()).toBe(false)
   })
 })
 

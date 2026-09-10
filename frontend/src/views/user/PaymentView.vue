@@ -8,13 +8,13 @@
         <div
           v-if="paymentPhase === 'select' && !selectedPlan"
           data-testid="recharge-balance-card"
-          class="flex w-fit max-w-full items-center gap-4 rounded-2xl border border-gray-100 bg-white px-5 py-2.5 shadow-card dark:border-dark-700/70 dark:bg-dark-800/60"
+          class="flex w-fit max-w-full items-center gap-3 rounded-2xl border border-gray-100 bg-white px-4 py-1.5 shadow-card dark:border-dark-700/70 dark:bg-dark-800/60"
         >
-          <div class="space-y-0.5">
-            <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('payment.rechargeAccount') }}</p>
-            <p class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.currentBalance') }}</p>
-          </div>
-          <p class="text-2xl font-semibold leading-none tabular-nums tracking-tight text-amber-400">
+          <p class="text-sm leading-none text-gray-500 dark:text-gray-400">
+            {{ t('payment.rechargeAccount') }}
+            <span class="ml-1.5 text-xs text-gray-400 dark:text-gray-500">{{ t('payment.currentBalance') }}</span>
+          </p>
+          <p class="text-xl font-semibold leading-none tabular-nums tracking-tight text-amber-400">
             {{ displayBalance }}
           </p>
         </div>
