@@ -8,7 +8,7 @@
         <div
           v-if="paymentPhase === 'select' && !selectedPlan"
           data-testid="recharge-balance-card"
-          class="flex w-fit max-w-full items-center gap-3 rounded-xl border border-gray-100 bg-white px-4 py-2 shadow-card dark:border-dark-700/70 dark:bg-dark-800/60"
+          class="flex h-12 w-fit max-w-full items-center gap-3 rounded-2xl border border-gray-100 bg-white px-5 shadow-card dark:border-dark-700/70 dark:bg-dark-800/60"
         >
           <p class="text-sm leading-none text-gray-500 dark:text-gray-400">
             {{ t('payment.rechargeAccount') }}
@@ -19,7 +19,7 @@
           </p>
         </div>
         <div v-if="paymentPhase === 'select' && !selectedPlan" class="flex max-w-full flex-wrap items-center gap-3">
-          <div v-if="tabs.length > 1" class="flex w-fit max-w-full gap-1 rounded-2xl bg-gray-100 p-1 dark:bg-dark-800">
+          <div v-if="tabs.length > 1" class="flex h-12 w-fit max-w-full gap-1 rounded-2xl bg-gray-100 p-1 dark:bg-dark-800">
             <button v-for="tab in tabs" :key="tab.key"
               class="inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium transition-all"
               :class="activeTab === tab.key ? 'bg-primary-500 text-white shadow-sm dark:bg-primary-500' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'"
