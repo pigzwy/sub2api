@@ -8,7 +8,7 @@
         <div
           v-if="paymentPhase === 'select' && !selectedPlan"
           data-testid="recharge-balance-card"
-          class="flex w-fit max-w-full items-center gap-3 rounded-2xl border border-gray-100 bg-white px-4 py-1.5 shadow-card dark:border-dark-700/70 dark:bg-dark-800/60"
+          class="flex w-fit max-w-full items-center gap-3 rounded-xl border border-gray-100 bg-white px-4 py-2 shadow-card dark:border-dark-700/70 dark:bg-dark-800/60"
         >
           <p class="text-sm leading-none text-gray-500 dark:text-gray-400">
             {{ t('payment.rechargeAccount') }}
