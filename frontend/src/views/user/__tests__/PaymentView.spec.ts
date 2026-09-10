@@ -430,8 +430,9 @@ describe('PaymentView recharge rate preview', () => {
     expect(banner.element.parentElement?.textContent).toContain('payment.tabPayAsYouGo')
     expect(wrapper.text()).toContain('payment.currentBalance')
     expect(wrapper.text()).toContain('0.00')
-    const capsule = wrapper.get('[data-testid="recharge-balance-capsule"]')
-    expect(capsule.classes()).toEqual(expect.arrayContaining(['rounded-full', 'w-fit']))
+    const balanceCard = wrapper.get('[data-testid="recharge-balance-card"]')
+    expect(balanceCard.classes()).toEqual(expect.arrayContaining(['rounded-2xl', 'shadow-card', 'w-fit']))
+    expect(balanceCard.classes()).not.toEqual(expect.arrayContaining(['rounded-full']))
   })
 })
 

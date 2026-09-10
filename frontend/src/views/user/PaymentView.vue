@@ -7,8 +7,8 @@
       <template v-else>
         <div
           v-if="paymentPhase === 'select' && !selectedPlan"
-          data-testid="recharge-balance-capsule"
-          class="flex w-fit max-w-full items-center gap-6 rounded-full bg-gray-100 px-8 py-4 dark:bg-dark-800"
+          data-testid="recharge-balance-card"
+          class="flex w-fit max-w-full items-center gap-6 rounded-2xl border border-gray-100 bg-white p-5 shadow-card dark:border-dark-700/70 dark:bg-dark-800/60"
         >
           <div class="space-y-1">
             <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('payment.rechargeAccount') }}</p>
