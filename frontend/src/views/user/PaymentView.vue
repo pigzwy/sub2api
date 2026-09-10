@@ -5,14 +5,16 @@
         <div class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
       </div>
       <template v-else>
-        <div v-if="paymentPhase === 'select' && !selectedPlan" class="space-y-1">
+        <div v-if="paymentPhase === 'select' && !selectedPlan" class="space-y-3">
           <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('payment.rechargeAccount') }}</p>
-          <p class="text-2xl font-semibold tabular-nums tracking-tight text-gray-900 dark:text-white">
-            {{ t('payment.currentBalance') }}:
-            <span class="text-amber-500">{{ user?.balance?.toFixed(2) || '0.00' }}</span>
-          </p>
+          <div>
+            <p class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.currentBalance') }}</p>
+            <p class="mt-1 text-[2rem] font-semibold leading-none tabular-nums tracking-tight text-amber-400">
+              {{ displayBalance }}
+            </p>
+          </div>
         </div>
-        <div v-if="tabs.length > 1 && paymentPhase === 'select' && !selectedPlan" class="inline-flex max-w-full gap-1 rounded-2xl bg-gray-100 p-1 dark:bg-dark-800">
+        <div v-if="tabs.length > 1 && paymentPhase === 'select' && !selectedPlan" class="flex w-fit max-w-full gap-1 rounded-2xl bg-gray-100 p-1 dark:bg-dark-800">
           <button v-for="tab in tabs" :key="tab.key"
             class="inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium transition-all"
             :class="activeTab === tab.key ? 'bg-primary-500 text-white shadow-sm dark:bg-primary-500' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'"
@@ -51,7 +53,7 @@
             <div
               v-if="bonusMax > 0"
               data-testid="recharge-bonus-banner"
-              class="inline-flex max-w-full flex-wrap items-center gap-x-3 gap-y-1.5 rounded-2xl border border-amber-400/40 bg-amber-50/80 px-3.5 py-2 dark:border-amber-400/20 dark:bg-amber-500/5"
+              class="flex w-fit max-w-full flex-wrap items-center gap-x-3 gap-y-1.5 rounded-2xl border border-amber-400/40 bg-amber-50/80 px-4 py-2.5 dark:border-amber-400/20 dark:bg-amber-500/5"
             >
               <span class="inline-flex rounded-md bg-amber-500 px-2 py-0.5 text-[11px] font-semibold text-white">{{ t('payment.limitedBonus') }}</span>
               <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('payment.bonusBannerTitle') }}</p>
@@ -304,6 +306,11 @@ const subscriptionStore = useSubscriptionStore()
 const appStore = useAppStore()
 
 const user = computed(() => authStore.user)
+const displayBalance = computed(() => {
+  const value = Number(user.value?.balance)
+  if (!Number.isFinite(value)) return '0.00'
+  return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+})
 const activeSubscriptions = computed(() => subscriptionStore.activeSubscriptions)
 
 function getDaysRemaining(expiresAt: string): number {

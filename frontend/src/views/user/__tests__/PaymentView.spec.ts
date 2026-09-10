@@ -422,10 +422,12 @@ describe('PaymentView recharge rate preview', () => {
     expect(shell.classes()).toEqual(expect.arrayContaining(['w-full', 'space-y-5']))
 
     const banner = wrapper.get('[data-testid="recharge-bonus-banner"]')
-    expect(banner.classes()).toEqual(expect.arrayContaining(['inline-flex']))
-    expect(banner.classes()).not.toEqual(expect.arrayContaining(['justify-between']))
+    expect(banner.classes()).toEqual(expect.arrayContaining(['flex', 'w-fit']))
+    expect(banner.classes()).not.toEqual(expect.arrayContaining(['inline-flex', 'justify-between']))
     expect(banner.text()).toContain('payment.bonusBannerTitle')
     expect(banner.text()).not.toContain('payment.bonusBannerDesc')
+    expect(wrapper.text()).toContain('payment.currentBalance')
+    expect(wrapper.text()).toContain('0.00')
   })
 })
 
