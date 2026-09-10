@@ -426,6 +426,8 @@ describe('PaymentView recharge rate preview', () => {
     expect(banner.classes()).not.toEqual(expect.arrayContaining(['inline-flex', 'justify-between']))
     expect(banner.text()).toContain('payment.bonusBannerTitle')
     expect(banner.text()).not.toContain('payment.bonusBannerDesc')
+    expect(banner.element.parentElement?.className).toContain('items-center')
+    expect(banner.element.parentElement?.textContent).toContain('payment.tabPayAsYouGo')
     expect(wrapper.text()).toContain('payment.currentBalance')
     expect(wrapper.text()).toContain('0.00')
   })

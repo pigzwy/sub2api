@@ -14,14 +14,27 @@
             </p>
           </div>
         </div>
-        <div v-if="tabs.length > 1 && paymentPhase === 'select' && !selectedPlan" class="flex w-fit max-w-full gap-1 rounded-2xl bg-gray-100 p-1 dark:bg-dark-800">
-          <button v-for="tab in tabs" :key="tab.key"
-            class="inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium transition-all"
-            :class="activeTab === tab.key ? 'bg-primary-500 text-white shadow-sm dark:bg-primary-500' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'"
-            @click="activeTab = tab.key">
-            <Icon :name="tab.key === 'recharge' ? 'bolt' : 'calendar'" size="sm" />
-            {{ tab.label }}
-          </button>
+        <div v-if="paymentPhase === 'select' && !selectedPlan" class="flex max-w-full flex-wrap items-center gap-3">
+          <div v-if="tabs.length > 1" class="flex w-fit max-w-full gap-1 rounded-2xl bg-gray-100 p-1 dark:bg-dark-800">
+            <button v-for="tab in tabs" :key="tab.key"
+              class="inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium transition-all"
+              :class="activeTab === tab.key ? 'bg-primary-500 text-white shadow-sm dark:bg-primary-500' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'"
+              @click="activeTab = tab.key">
+              <Icon :name="tab.key === 'recharge' ? 'bolt' : 'calendar'" size="sm" />
+              {{ tab.label }}
+            </button>
+          </div>
+          <div
+            v-if="activeTab === 'recharge' && enabledMethods.length > 0 && bonusMax > 0"
+            data-testid="recharge-bonus-banner"
+            class="flex w-fit max-w-full flex-wrap items-center gap-x-3 gap-y-1.5 rounded-2xl border border-amber-400/40 bg-amber-50/80 px-4 py-2.5 dark:border-amber-400/20 dark:bg-amber-500/5"
+          >
+            <span class="inline-flex rounded-md bg-amber-500 px-2 py-0.5 text-[11px] font-semibold text-white">{{ t('payment.limitedBonus') }}</span>
+            <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('payment.bonusBannerTitle') }}</p>
+            <span class="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-400/15 dark:text-amber-200">
+              {{ t('payment.maxBonus', { amount: `$${bonusMax.toFixed(2)}` }) }}
+            </span>
+          </div>
         </div>
         <!-- Payment in progress (shared by recharge and subscription) -->
         <template v-if="paymentPhase === 'paying'">
@@ -50,17 +63,6 @@
               <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
             </div>
             <template v-else>
-            <div
-              v-if="bonusMax > 0"
-              data-testid="recharge-bonus-banner"
-              class="flex w-fit max-w-full flex-wrap items-center gap-x-3 gap-y-1.5 rounded-2xl border border-amber-400/40 bg-amber-50/80 px-4 py-2.5 dark:border-amber-400/20 dark:bg-amber-500/5"
-            >
-              <span class="inline-flex rounded-md bg-amber-500 px-2 py-0.5 text-[11px] font-semibold text-white">{{ t('payment.limitedBonus') }}</span>
-              <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('payment.bonusBannerTitle') }}</p>
-              <span class="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-400/15 dark:text-amber-200">
-                {{ t('payment.maxBonus', { amount: `$${bonusMax.toFixed(2)}` }) }}
-              </span>
-            </div>
             <span data-testid="selected-payment-method" class="sr-only">{{ selectedMethod }}</span>
             <RechargePackageGrid
               :packages="visiblePackages"
