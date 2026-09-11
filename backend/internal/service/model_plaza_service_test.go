@@ -54,9 +54,58 @@ func TestListPlazaGroups_GroupCentricAggregation(t *testing.T) {
 	require.Equal(t, int64(10), out[1].ID)
 	require.Equal(t, "desc", out[1].Description)
 	require.Len(t, out[1].Models, 2)
-	// 组内模型按名称排序
+	// 无版本号时退回名称升序
 	require.Equal(t, "claude-opus", out[1].Models[0].Name)
 	require.Equal(t, "claude-sonnet", out[1].Models[1].Name)
+}
+
+func TestListPlazaGroups_ModelsNewestVersionFirst(t *testing.T) {
+	channels := []Channel{
+		plazaPricedChannel(1, "chA", []int64{10}, "anthropic",
+			"claude-haiku-4-5", "claude-opus-4-6", "claude-opus-4-8", "claude-fable-5-1"),
+	}
+	groups := []Group{
+		{ID: 10, Name: "g-main", Platform: "anthropic", RateMultiplier: 1},
+	}
+	svc := newPlazaService(channels, groups, nil)
+	out, err := svc.ListGroups(context.Background())
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Equal(t, []string{
+		"claude-fable-5-1",
+		"claude-opus-4-8",
+		"claude-opus-4-6",
+		"claude-haiku-4-5",
+	}, plazaModelNames(out[0].Models))
+}
+
+func TestListPlazaGroups_OpenAIAndGrokNewestVersionFirst(t *testing.T) {
+	channels := []Channel{
+		plazaPricedChannel(1, "ch-oai", []int64{20}, "openai", "gpt-5", "gpt-5.5", "gpt-5.6-sol"),
+		plazaPricedChannel(2, "ch-grok", []int64{30}, "grok", "grok-4.3", "grok-4.6", "grok-4.5"),
+	}
+	groups := []Group{
+		{ID: 20, Name: "g-gpt", Platform: "openai", RateMultiplier: 0.2},
+		{ID: 30, Name: "g-grok", Platform: "grok", RateMultiplier: 0.15},
+	}
+	svc := newPlazaService(channels, groups, nil)
+	out, err := svc.ListGroups(context.Background())
+	require.NoError(t, err)
+	require.Len(t, out, 2)
+	byName := map[string][]string{}
+	for _, group := range out {
+		byName[group.Name] = plazaModelNames(group.Models)
+	}
+	require.Equal(t, []string{"gpt-5.6-sol", "gpt-5.5", "gpt-5"}, byName["g-gpt"])
+	require.Equal(t, []string{"grok-4.6", "grok-4.5", "grok-4.3"}, byName["g-grok"])
+}
+
+func plazaModelNames(models []PlazaModel) []string {
+	names := make([]string, len(models))
+	for i, model := range models {
+		names[i] = model.Name
+	}
+	return names
 }
 
 func TestWithDefaultMaxReasoningEffortMultiplier_Fable51(t *testing.T) {
@@ -173,11 +222,11 @@ func TestListPlazaGroups_CompositeAndOrdinaryGroupsDoNotLeakPlatforms(t *testing
 		Name: "claude-sonnet", Platform: PlatformAnthropic, Pricing: byName["anthropic-only"].Models[0].Pricing,
 	}}, byName["anthropic-only"].Models)
 	require.Len(t, byName["composite"].Models, 2)
-	require.Equal(t, []string{"claude-sonnet", "gpt-5"}, []string{
+	require.Equal(t, []string{"gpt-5", "claude-sonnet"}, []string{
 		byName["composite"].Models[0].Name,
 		byName["composite"].Models[1].Name,
 	})
-	require.Equal(t, []string{PlatformAnthropic, PlatformOpenAI}, []string{
+	require.Equal(t, []string{PlatformOpenAI, PlatformAnthropic}, []string{
 		byName["composite"].Models[0].Platform,
 		byName["composite"].Models[1].Platform,
 	})

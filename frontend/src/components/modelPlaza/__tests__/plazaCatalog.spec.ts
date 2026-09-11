@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { formatCatalogZhe, formatZhe, groupYuan, officialYuan, plazaTabLabel, savingsPercent } from '../plazaCatalog'
+import {
+  comparePlazaModelNames,
+  formatCatalogZhe,
+  formatZhe,
+  groupYuan,
+  officialYuan,
+  plazaTabLabel,
+  savingsPercent,
+} from '../plazaCatalog'
 
 describe('plazaCatalog', () => {
   it('formats group rates as 折', () => {
@@ -28,5 +36,40 @@ describe('plazaCatalog', () => {
     expect(plazaTabLabel('anthropic', t)).toBe('Claude')
     expect(plazaTabLabel('openai', t)).toBe('ChatGPT')
     expect(plazaTabLabel('unknown', t)).toBe('unknown')
+  })
+
+  it('sorts plaza models newest-version first', () => {
+    const names = [
+      'claude-haiku-4-5',
+      'claude-opus-4-6',
+      'claude-opus-4-8',
+      'claude-fable-5-1',
+    ]
+    names.sort(comparePlazaModelNames)
+    expect(names).toEqual([
+      'claude-fable-5-1',
+      'claude-opus-4-8',
+      'claude-opus-4-6',
+      'claude-haiku-4-5',
+    ])
+  })
+
+  it('sorts OpenAI and Grok ids newest-version first', () => {
+    const openai = ['gpt-5', 'gpt-5.5', 'gpt-5.6-sol']
+    openai.sort(comparePlazaModelNames)
+    expect(openai).toEqual(['gpt-5.6-sol', 'gpt-5.5', 'gpt-5'])
+
+    const grok = ['grok-4.3', 'grok-4.6', 'grok-4.5']
+    grok.sort(comparePlazaModelNames)
+    expect(grok).toEqual(['grok-4.6', 'grok-4.5', 'grok-4.3'])
+  })
+
+  it('treats a trailing date as newer than the same id without one', () => {
+    expect(comparePlazaModelNames('gpt-5.6-20251001', 'gpt-5.6')).toBeLessThan(0)
+    expect(comparePlazaModelNames('gpt-5.6', 'gpt-5.5')).toBeLessThan(0)
+  })
+
+  it('falls back to name order when ids have no version numbers', () => {
+    expect(comparePlazaModelNames('claude-opus', 'claude-sonnet')).toBeLessThan(0)
   })
 })

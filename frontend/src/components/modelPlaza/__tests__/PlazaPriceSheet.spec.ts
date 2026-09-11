@@ -97,4 +97,20 @@ describe('PlazaPriceSheet', () => {
     const wrapper = mountSheet()
     expect(wrapper.get('[data-testid="plaza-price-note"]').text()).toBe('modelPlaza.catalog.displayPriceNote')
   })
+
+  it('lists models newest-version first', () => {
+    const wrapper = mountSheet('group', [
+      { ...model, name: 'claude-haiku-4-5' },
+      { ...model, name: 'claude-opus-4-6' },
+      { ...model, name: 'claude-opus-4-8' },
+      { ...model, name: 'claude-fable-5-1' },
+    ])
+    const names = wrapper.findAll('tbody tr').map((row) => row.find('td').text())
+    expect(names).toEqual([
+      'claude-fable-5-1',
+      'claude-opus-4-8',
+      'claude-opus-4-6',
+      'claude-haiku-4-5',
+    ])
+  })
 })

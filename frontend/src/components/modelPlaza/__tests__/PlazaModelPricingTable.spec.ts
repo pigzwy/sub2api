@@ -102,19 +102,9 @@ describe('PlazaModelPricingTable', () => {
     expect(text).toContain('0.8x')
   })
 
-  it('模型按官方输出价从高到低排序,无官方价的排最后', () => {
-    const expensive = tokenModel({
-      name: 'model-expensive',
-      official_pricing: {
-        input_price: 1e-5,
-        output_price: 7.5e-5,
-        cache_write_price: null,
-        cache_write_1h_price: null,
-        cache_read_price: null
-      }
-    })
-    const cheap = tokenModel({
-      name: 'model-cheap',
+  it('模型按版本号从新到旧排序,不看官方价高低', () => {
+    const olderCheap = tokenModel({
+      name: 'claude-haiku-4-5',
       official_pricing: {
         input_price: 1e-6,
         output_price: 5e-6,
@@ -123,14 +113,24 @@ describe('PlazaModelPricingTable', () => {
         cache_read_price: null
       }
     })
-    const noOfficial = tokenModel({ name: 'model-no-official', official_pricing: null })
+    const mid = tokenModel({
+      name: 'claude-opus-4-6',
+      official_pricing: {
+        input_price: 1e-5,
+        output_price: 7.5e-5,
+        cache_write_price: null,
+        cache_write_1h_price: null,
+        cache_read_price: null
+      }
+    })
+    const newest = tokenModel({ name: 'claude-fable-5-1', official_pricing: null })
 
-    const wrapper = mountTable([cheap, noOfficial, expensive], 1)
+    const wrapper = mountTable([olderCheap, newest, mid], 1)
     const names = wrapper.findAll('tbody tr').map((tr) => tr.find('td').text())
-    expect(names).toEqual(['model-expensive', 'model-cheap', 'model-no-official'])
+    expect(names).toEqual(['claude-fable-5-1', 'claude-opus-4-6', 'claude-haiku-4-5'])
   })
 
-  it('官方输出价相同时按模型名降序(新版本号在前)', () => {
+  it('官方输出价相同时仍按版本号从新到旧', () => {
     const older = tokenModel({ name: 'gpt-5.5' })
     const newer = tokenModel({ name: 'gpt-5.6-sol' })
 
@@ -139,7 +139,7 @@ describe('PlazaModelPricingTable', () => {
     expect(names).toEqual(['gpt-5.6-sol', 'gpt-5.5'])
   })
 
-  it('按图片/按次计费的模型沉到末尾,不与 token 模型按官方价混排', () => {
+  it('版本更低的按图模型排在新版本 token 模型后面', () => {
     // 官方输出价 $10,介于下面两个 token 模型之间,但因计费模式不同应排最后
     const image = tokenModel({
       name: 'gpt-image-2',
@@ -185,9 +185,9 @@ describe('PlazaModelPricingTable', () => {
 
     const wrapper = mountTable([pricier, image, cheaper], 1)
     const names = wrapper.findAll('tbody tr').map((tr) => tr.find('td').text())
-    expect(names[0]).toBe('gpt-5.6-terra')
-    expect(names[1]).toBe('gpt-5.6-luna')
-    // 首列含「按图片计费」徽章文本,只断言模型名
+    // 同为 5.6 时按名称升序: luna 在 terra 前; image-2 版本更低
+    expect(names[0]).toBe('gpt-5.6-luna')
+    expect(names[1]).toBe('gpt-5.6-terra')
     expect(names[2]).toContain('gpt-image-2')
   })
 

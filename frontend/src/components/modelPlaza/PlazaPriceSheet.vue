@@ -71,6 +71,7 @@ import {
   type BillingMode,
 } from '@/constants/channel'
 import {
+  comparePlazaModels,
   formatYuan,
   groupYuan,
   officialYuan,
@@ -157,7 +158,7 @@ function pair(group: number | null, official: number | null): { primary: string;
 
 const rows = computed<SheetRow[]>(() =>
   [...props.models]
-    .sort((a, b) => a.name.localeCompare(b.name))
+    .sort(comparePlazaModels)
     .map((m) => {
       const token = billingMode(m) === BILLING_MODE_TOKEN
       const rate = token ? tokenRate() : requestRate(m)

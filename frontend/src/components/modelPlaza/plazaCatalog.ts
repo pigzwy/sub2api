@@ -93,3 +93,35 @@ export function plazaTabLabel(platform: string, t: (key: string) => string): str
   const label = t(key)
   return label === key ? platform : label
 }
+
+/** 从模型 id 抽出版本数字（`claude-fable-5-1` → [5, 1]，`gpt-5.6` → [5, 6]）。缺段按 0。 */
+export function extractPlazaVersionParts(name: string): number[] {
+  return (name.match(/\d+/g) ?? []).map((part) => Number(part))
+}
+
+/**
+ * 模型广场展示序：版本号从新到旧，同版本再按名称升序。
+ * 日期后缀比无日期新（缺段当 0）；不改渠道定价列表本身的录入顺序。
+ */
+export function comparePlazaModelNames(left: string, right: string): number {
+  const leftParts = extractPlazaVersionParts(left)
+  const rightParts = extractPlazaVersionParts(right)
+  const length = Math.max(leftParts.length, rightParts.length)
+  for (let index = 0; index < length; index += 1) {
+    const leftPart = leftParts[index] ?? 0
+    const rightPart = rightParts[index] ?? 0
+    if (leftPart !== rightPart) {
+      return rightPart - leftPart
+    }
+  }
+  return left.localeCompare(right)
+}
+
+export function comparePlazaModels(
+  left: { name: string; platform?: string },
+  right: { name: string; platform?: string },
+): number {
+  const byName = comparePlazaModelNames(left.name, right.name)
+  if (byName !== 0) return byName
+  return (left.platform ?? '').localeCompare(right.platform ?? '')
+}
