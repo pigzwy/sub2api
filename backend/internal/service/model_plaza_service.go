@@ -96,7 +96,8 @@ func NewModelPlazaService(
 //     图片计费模型的档位价按实收口径合成（见 plazaImageDisplayPricing）；
 //   - 每个模型附带官方参考价（查不到为 nil）；
 //   - 启用分组即使还没有模型也会返回（目录要能看到分类/分组名）；
-//     分组按 RateMultiplier 升序（同倍率按名称），组内模型按名称排序。
+//     分组按 RateMultiplier 升序（同倍率按名称），组内模型按版本号从新到旧
+//     （同版本再按名称、平台）。
 //
 // 可见性过滤（专属分组）不在此层做，由 handler 按登录态裁剪。
 func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error) {
@@ -195,10 +196,7 @@ func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error
 	for _, gid := range order {
 		pg := byGroup[gid]
 		sort.SliceStable(pg.Models, func(i, j int) bool {
-			if pg.Models[i].Name != pg.Models[j].Name {
-				return pg.Models[i].Name < pg.Models[j].Name
-			}
-			return pg.Models[i].Platform < pg.Models[j].Platform
+			return lessPlazaModels(pg.Models[i], pg.Models[j])
 		})
 		g := groupEnt[gid]
 		for j := range pg.Models {
