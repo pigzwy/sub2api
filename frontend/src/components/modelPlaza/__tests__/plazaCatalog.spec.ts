@@ -54,6 +54,16 @@ describe('plazaCatalog', () => {
     ])
   })
 
+  it('sorts OpenAI and Grok ids newest-version first', () => {
+    const openai = ['gpt-5', 'gpt-5.5', 'gpt-5.6-sol']
+    openai.sort(comparePlazaModelNames)
+    expect(openai).toEqual(['gpt-5.6-sol', 'gpt-5.5', 'gpt-5'])
+
+    const grok = ['grok-4.3', 'grok-4.6', 'grok-4.5']
+    grok.sort(comparePlazaModelNames)
+    expect(grok).toEqual(['grok-4.6', 'grok-4.5', 'grok-4.3'])
+  })
+
   it('treats a trailing date as newer than the same id without one', () => {
     expect(comparePlazaModelNames('gpt-5.6-20251001', 'gpt-5.6')).toBeLessThan(0)
     expect(comparePlazaModelNames('gpt-5.6', 'gpt-5.5')).toBeLessThan(0)
