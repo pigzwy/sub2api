@@ -74,16 +74,20 @@
                   type="button"
                   :data-testid="`checkout-method-${method.type}`"
                   :disabled="!method.available || submitting"
-                  :aria-pressed="selected === method.type"
                   :class="[
                     'btn w-full justify-center py-3 text-base font-medium',
                     methodButtonClass(method.type),
-                    selected === method.type ? 'ring-2 ring-primary-500 ring-offset-2 dark:ring-offset-dark-900' : '',
                   ]"
-                  @click="selectMethod(method)"
+                  @click="payWithMethod(method)"
                 >
-                  <img :src="methodIcon(method.type)" :alt="methodLabel(method)" class="h-6 w-6 object-contain" />
-                  <span>{{ methodLabel(method) }}</span>
+                  <span v-if="submitting && selected === method.type" class="flex items-center justify-center gap-2">
+                    <span class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+                    {{ t('common.processing') }}
+                  </span>
+                  <template v-else>
+                    <img :src="methodIcon(method.type)" :alt="methodLabel(method)" class="h-6 w-6 object-contain" />
+                    <span>{{ methodLabel(method) }}</span>
+                  </template>
                 </button>
               </div>
               <div v-if="visibleMethods.some((method) => method.type === 'stripe')" class="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
@@ -92,20 +96,6 @@
                 <img :src="wxpayIcon" alt="" class="h-5 w-5 object-contain" />
               </div>
             </div>
-
-            <button
-              type="button"
-              data-testid="checkout-confirm"
-              :disabled="!canConfirm"
-              :class="['btn w-full justify-center py-3 text-base font-medium', confirmButtonClass]"
-              @click="confirmSelected"
-            >
-              <span v-if="submitting" class="flex items-center justify-center gap-2">
-                <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
-                {{ t('common.processing') }}
-              </span>
-              <span v-else>{{ t('payment.createOrder') }} {{ payAmountLabel }}</span>
-            </button>
 
             <p v-if="error" class="text-xs text-amber-600 dark:text-amber-300">{{ error }}</p>
           </div>
@@ -156,24 +146,11 @@ const { t } = useI18n()
 
 const showLaneToggle = computed(() => props.rmbMethods.length > 0 && props.usdtMethods.length > 0)
 const visibleMethods = computed(() => (props.lane === 'usdt' ? props.usdtMethods : props.rmbMethods))
-const selectedMethod = computed(() =>
-  visibleMethods.value.find((method) => method.type === props.selected),
-)
-const canConfirm = computed(() =>
-  !props.submitting && !!selectedMethod.value?.available,
-)
-const confirmButtonClass = computed(() =>
-  selectedMethod.value ? methodButtonClass(selectedMethod.value.type) : 'btn-primary',
-)
 
-function selectMethod(method: PaymentMethodOption) {
+function payWithMethod(method: PaymentMethodOption) {
   if (!method.available || props.submitting) return
   emit('select', method.type)
-}
-
-function confirmSelected() {
-  if (!canConfirm.value || !props.selected) return
-  emit('confirm', props.selected)
+  emit('confirm', method.type)
 }
 
 function methodLabel(method: PaymentMethodOption): string {

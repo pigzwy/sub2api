@@ -29,14 +29,13 @@ function mountDialog(overrides: Record<string, unknown> = {}) {
 }
 
 describe('RechargeCheckoutDialog', () => {
-  it('selects a method without confirming payment', async () => {
+  it('starts payment when a method button is clicked', async () => {
     const wrapper = mountDialog()
 
     expect(document.body.querySelector('[data-testid="pay-lane-usdt"]')).not.toBeNull()
+    expect(document.body.querySelector('[data-testid="checkout-confirm"]')).toBeNull()
     await document.body.querySelector<HTMLButtonElement>('[data-testid="checkout-method-alipay"]')?.click()
     expect(wrapper.emitted('select')?.[0]).toEqual(['alipay'])
-    expect(wrapper.emitted('confirm')).toBeUndefined()
-    await document.body.querySelector<HTMLButtonElement>('[data-testid="checkout-confirm"]')?.click()
     expect(wrapper.emitted('confirm')?.[0]).toEqual(['alipay'])
     await document.body.querySelector<HTMLButtonElement>('[data-testid="pay-lane-usdt"]')?.click()
     expect(wrapper.emitted('update:lane')?.[0]).toEqual(['usdt'])
@@ -60,16 +59,17 @@ describe('RechargeCheckoutDialog', () => {
       selected: 'infini',
       lane: 'usdt',
       currency: 'USD',
-      payAmountLabel: '$7.50',
+      payAmountLabel: '$50.00',
       rmbMethods: [{ type: 'stripe', display_name: 'Stripe', fee_rate: 0, available: true }],
       usdtMethods: [{ type: 'infini', display_name: 'INFINI Stablecoin Payment', fee_rate: 0, available: true }],
     })
 
     expect(document.body.querySelector('[data-testid="checkout-method-infini"]')?.textContent).toContain('INFINI Stablecoin Payment')
+    expect(document.body.querySelector('[data-testid="checkout-confirm"]')).toBeNull()
     wrapper.unmount()
   })
 
-  it('does not confirm when the selected method is unavailable or submit is in flight', async () => {
+  it('does not start payment when the method is unavailable or submit is in flight', async () => {
     const unavailable = mountDialog({
       selected: 'stripe',
       rmbMethods: [
@@ -78,17 +78,14 @@ describe('RechargeCheckoutDialog', () => {
       ],
       usdtMethods: [],
     })
-    expect(document.body.querySelector<HTMLButtonElement>('[data-testid="checkout-confirm"]')?.disabled).toBe(true)
     await document.body.querySelector<HTMLButtonElement>('[data-testid="checkout-method-stripe"]')?.click()
     expect(unavailable.emitted('select')).toBeUndefined()
-    await document.body.querySelector<HTMLButtonElement>('[data-testid="checkout-confirm"]')?.click()
     expect(unavailable.emitted('confirm')).toBeUndefined()
     unavailable.unmount()
 
     const submitting = mountDialog({ submitting: true })
-    expect(document.body.querySelector<HTMLButtonElement>('[data-testid="checkout-confirm"]')?.disabled).toBe(true)
+    expect(document.body.querySelector('[data-testid="checkout-method-alipay"]')?.textContent).toContain('common.processing')
     await document.body.querySelector<HTMLButtonElement>('[data-testid="checkout-method-alipay"]')?.click()
-    await document.body.querySelector<HTMLButtonElement>('[data-testid="checkout-confirm"]')?.click()
     expect(submitting.emitted('select')).toBeUndefined()
     expect(submitting.emitted('confirm')).toBeUndefined()
     submitting.unmount()
