@@ -109,7 +109,7 @@
               :key="brand.alt"
               :src="brand.src"
               :alt="brand.alt"
-              class="h-5 w-auto object-contain"
+              :class="brand.class"
             />
           </div>
         </div>
@@ -166,12 +166,12 @@ const { t } = useI18n()
 const showLaneToggle = computed(() => props.rmbMethods.length > 0 && props.usdtMethods.length > 0)
 const visibleMethods = computed(() => (props.lane === 'usdt' ? props.usdtMethods : props.rmbMethods))
 const supportedBrands = [
-  { src: alipayIcon, alt: 'Alipay' },
-  { src: wxpayIcon, alt: 'WeChat Pay' },
-  { src: visaIcon, alt: 'Visa' },
-  { src: mastercardIcon, alt: 'Mastercard' },
-  { src: applePayIcon, alt: 'Apple Pay' },
-  { src: dollarIcon, alt: 'USD' },
+  { src: alipayIcon, alt: 'Alipay', class: 'h-5 w-5 object-contain' },
+  { src: wxpayIcon, alt: 'WeChat Pay', class: 'h-5 w-5 object-contain' },
+  { src: visaIcon, alt: 'Visa', class: 'h-3.5 w-auto object-contain' },
+  { src: mastercardIcon, alt: 'Mastercard', class: 'h-5 w-auto object-contain' },
+  { src: applePayIcon, alt: 'Apple Pay', class: 'h-5 w-5 object-contain dark:brightness-0 dark:invert' },
+  { src: dollarIcon, alt: 'USD', class: 'h-5 w-5 object-contain' },
 ]
 
 function payWithMethod(method: PaymentMethodOption) {
