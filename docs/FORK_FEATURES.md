@@ -826,6 +826,7 @@ Makefile 的 CI 白名单，覆盖分类切换、保留展示价格、隐藏不�
 - 下单写入 schema_version=3 金额快照（套餐/到账/实付/手续费/汇率/币种/通道/实例）。Webhook 按快照 `pay_amount` 做最小货币单位精确比对，配置变更不影响旧单。
 - 余额套餐仍按人民币数字定价。到账公式不变：`round(套餐 × 余额充值倍率 + 赠送, 2)`。支付宝/Stripe 不换算，也不要用全局倍率去“充当” USDT 汇率。
 - Infini/USDT 实付用独立设置 `USDT_USD_TO_CNY_RATE`（后台「USDT 余额换算汇率」）：`round(套餐 / 汇率, 2) + ceil(手续费)`。0 时回退 `SUBSCRIPTION_USD_TO_CNY_RATE`，方便存量只配了订阅汇率的站点。订阅 CNY 仍只看订阅汇率：`round(price × 汇率, 2)`。负数/NaN/Inf/超范围拒绝下单。
+- Infini 下单法币只允许 USD。实例币种填了 CNY/空/其它不支持码时，quote/checkout-info/CreatePayment 一律强制 USD，并仍按套餐 ÷ 汇率换算。Infini 报 `40016 Unsupported order currency` 就是把 CNY 传上去了。
 - Infini 上游下单失败返回 `PAYMENT_PROVIDER_CREATE_FAILED`（检查密钥与环境），不再伪装成「支付方式不可用」。未配置实例返回 `PAYMENT_METHOD_NOT_CONFIGURED`。失败订单写入 `failed_reason`。
 - 前端充值实付金额只展示 `POST /payment/quote` 的后端结果，下单只传套餐 `amount` + `payment_type`。Infini 无商户退款 API。
 

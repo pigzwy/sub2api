@@ -714,16 +714,10 @@ func gatewayBaseAmountDecimal(limitAmount, usdToCnyRate float64, currency, order
 	}
 }
 
-func shouldConvertBalancePayAmountToUSD(paymentType, currency string) bool {
-	if !isUsdtBalancePaymentType(paymentType) {
-		return false
-	}
-	switch strings.ToUpper(strings.TrimSpace(currency)) {
-	case "USD", "USDT":
-		return true
-	default:
-		return false
-	}
+func shouldConvertBalancePayAmountToUSD(paymentType, _ string) bool {
+	// Infini instances are often labeled CNY because packages are RMB-priced.
+	// Conversion is by payment type, not the instance currency label.
+	return isUsdtBalancePaymentType(paymentType)
 }
 
 func isUsdtBalancePaymentType(paymentType string) bool {
