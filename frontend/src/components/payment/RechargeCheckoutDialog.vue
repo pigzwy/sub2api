@@ -140,13 +140,6 @@ import visaIcon from '@/assets/icons/visa.svg'
 import mastercardIcon from '@/assets/icons/mastercard.svg'
 import applePayIcon from '@/assets/icons/apple-pay.svg'
 import dollarIcon from '@/assets/icons/dollar.svg'
-import tronIcon from '@/assets/icons/tron.svg'
-import ethereumIcon from '@/assets/icons/ethereum.svg'
-import bscIcon from '@/assets/icons/bsc.svg'
-import polygonIcon from '@/assets/icons/polygon.svg'
-import solanaIcon from '@/assets/icons/solana.svg'
-import arbitrumIcon from '@/assets/icons/arbitrum.svg'
-import baseIcon from '@/assets/icons/base.svg'
 
 const props = defineProps<{
   open: boolean
@@ -185,16 +178,19 @@ const rmbBrands = [
   { src: applePayIcon, alt: 'Apple Pay', class: 'h-5 w-5 object-contain' },
   { src: dollarIcon, alt: 'USD', class: 'h-5 w-5 object-contain' },
 ]
-const usdtChains = [
-  { src: tronIcon, alt: 'TRON', class: 'h-5 w-5 object-contain' },
-  { src: ethereumIcon, alt: 'Ethereum', class: 'h-5 w-5 object-contain' },
-  { src: bscIcon, alt: 'BNB Chain', class: 'h-5 w-5 object-contain' },
-  { src: polygonIcon, alt: 'Polygon', class: 'h-5 w-5 object-contain' },
-  { src: solanaIcon, alt: 'Solana', class: 'h-5 w-5 object-contain' },
-  { src: arbitrumIcon, alt: 'Arbitrum', class: 'h-5 w-5 object-contain' },
-  { src: baseIcon, alt: 'Base', class: 'h-5 w-5 object-contain' },
-]
-const supportedBrands = computed(() => (props.lane === 'usdt' ? usdtChains : rmbBrands))
+const supportedBrands = computed(() => {
+  const types = new Set(visibleMethods.value.map((method) => method.type.toLowerCase()))
+  if (props.lane === 'usdt') {
+    return types.has('infini') ? [{ src: infiniIcon, alt: 'Infini', class: 'h-5 w-5 object-contain' }] : []
+  }
+  return rmbBrands.filter((brand) => {
+    if (brand.alt === 'Alipay') return types.has('alipay') || types.has('alipay_direct')
+    if (brand.alt === 'WeChat Pay') return types.has('wxpay') || types.has('wxpay_direct')
+    if (['Visa', 'Mastercard', 'Apple Pay'].includes(brand.alt)) return types.has('stripe')
+    if (brand.alt === 'USD') return types.has('stripe') || types.has('airwallex')
+    return false
+  })
+})
 
 function payWithMethod(method: PaymentMethodOption) {
   if (!method.available || props.submitting || props.quoteLoading) return
