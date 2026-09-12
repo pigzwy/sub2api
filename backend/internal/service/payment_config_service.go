@@ -68,14 +68,14 @@ type PaymentConfig struct {
 	// SubscriptionUSDToCNYRate 为 0 时订阅换算关闭（兼容存量行为）。
 	SubscriptionUSDToCNYRate float64 `json:"subscription_usd_to_cny_rate"`
 	// USDTUSDToCNYRate 仅用于 Infini/USDT 余额实付。0 时回退订阅汇率。
-	USDTUSDToCNYRate float64 `json:"usdt_usd_to_cny_rate"`
-	RechargeFeeRate  float64 `json:"recharge_fee_rate"`
-	LoadBalanceStrategy      string  `json:"load_balance_strategy"`
-	ProductNamePrefix        string  `json:"product_name_prefix"`
-	ProductNameSuffix        string  `json:"product_name_suffix"`
-	HelpImageURL             string  `json:"help_image_url"`
-	HelpText                 string  `json:"help_text"`
-	StripePublishableKey     string  `json:"stripe_publishable_key,omitempty"`
+	USDTUSDToCNYRate     float64 `json:"usdt_usd_to_cny_rate"`
+	RechargeFeeRate      float64 `json:"recharge_fee_rate"`
+	LoadBalanceStrategy  string  `json:"load_balance_strategy"`
+	ProductNamePrefix    string  `json:"product_name_prefix"`
+	ProductNameSuffix    string  `json:"product_name_suffix"`
+	HelpImageURL         string  `json:"help_image_url"`
+	HelpText             string  `json:"help_text"`
+	StripePublishableKey string  `json:"stripe_publishable_key,omitempty"`
 
 	// Cancel rate limit settings
 	CancelRateLimitEnabled bool   `json:"cancel_rate_limit_enabled"`

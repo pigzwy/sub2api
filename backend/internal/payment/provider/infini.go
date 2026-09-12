@@ -651,40 +651,24 @@ func infiniCreateOrderFromMap(payload []byte) infiniCreateOrderResponse {
 
 func pickInfiniCreateOrder(raw map[string]any) infiniCreateOrderResponse {
 	return infiniCreateOrderResponse{
-		OrderID:         infiniFlexibleString(firstNonEmpty(jsonAnyString(raw["order_id"]), jsonAnyString(raw["orderId"]), jsonAnyString(raw["id"]))),
-		CheckoutURL:     firstNonEmpty(jsonAnyString(raw["checkout_url"]), jsonAnyString(raw["checkoutUrl"]), jsonAnyString(raw["pay_url"]), jsonAnyString(raw["payUrl"]), jsonAnyString(raw["url"]), jsonAnyString(raw["link"])),
-		Token:           jsonAnyString(raw["token"]),
-		RequestID:       jsonAnyString(raw["request_id"]),
-		ClientReference: jsonAnyString(raw["client_reference"]),
+		OrderID:     infiniFlexibleString(firstNonEmpty(jsonAnyString(raw["order_id"]), jsonAnyString(raw["orderId"]), jsonAnyString(raw["id"]))),
+		CheckoutURL: firstNonEmpty(jsonAnyString(raw["checkout_url"]), jsonAnyString(raw["checkoutUrl"]), jsonAnyString(raw["pay_url"]), jsonAnyString(raw["payUrl"]), jsonAnyString(raw["url"]), jsonAnyString(raw["link"])),
+		Token:       jsonAnyString(raw["token"]),
 	}
 }
 
 func mergeInfiniCreateOrder(base, extra infiniCreateOrderResponse) infiniCreateOrderResponse {
-	if base.OrderID == "" {
+	if base.orderID() == "" {
 		base.OrderID = extra.OrderID
-	}
-	if base.OrderIDCamel == "" {
 		base.OrderIDCamel = extra.OrderIDCamel
-	}
-	if base.ID == "" {
 		base.ID = extra.ID
 	}
-	if base.CheckoutURL == "" {
+	if base.checkoutURL() == "" {
 		base.CheckoutURL = extra.CheckoutURL
-	}
-	if base.CheckoutURLCamel == "" {
 		base.CheckoutURLCamel = extra.CheckoutURLCamel
-	}
-	if base.PayURL == "" {
 		base.PayURL = extra.PayURL
-	}
-	if base.URL == "" {
 		base.URL = extra.URL
-	}
-	if base.Link == "" {
 		base.Link = extra.Link
-	}
-	if base.Token == "" {
 		base.Token = extra.Token
 	}
 	return base
@@ -808,14 +792,12 @@ type infiniCreateOrderResponse struct {
 	OrderID          infiniFlexibleString `json:"order_id"`
 	OrderIDCamel     infiniFlexibleString `json:"orderId"`
 	ID               infiniFlexibleString `json:"id"`
-	RequestID        string               `json:"request_id"`
 	CheckoutURL      string               `json:"checkout_url"`
 	CheckoutURLCamel string               `json:"checkoutUrl"`
 	PayURL           string               `json:"pay_url"`
 	URL              string               `json:"url"`
 	Link             string               `json:"link"`
 	Token            string               `json:"token"`
-	ClientReference  string               `json:"client_reference"`
 }
 
 func (r infiniCreateOrderResponse) orderID() string {
@@ -823,7 +805,14 @@ func (r infiniCreateOrderResponse) orderID() string {
 }
 
 func (r infiniCreateOrderResponse) checkoutURL() string {
-	return firstNonEmpty(r.CheckoutURL, r.CheckoutURLCamel, r.PayURL, r.URL, r.Link)
+	url := firstNonEmpty(r.CheckoutURL, r.CheckoutURLCamel, r.PayURL, r.URL, r.Link)
+	if url != "" {
+		return url
+	}
+	if strings.HasPrefix(r.Token, "https://") || strings.HasPrefix(r.Token, "http://") {
+		return r.Token
+	}
+	return ""
 }
 
 type infiniOrder struct {
