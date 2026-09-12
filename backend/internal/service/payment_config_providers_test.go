@@ -52,6 +52,13 @@ func TestValidateProviderRequest(t *testing.T) {
 			wantErr:        false,
 		},
 		{
+			name:           "valid infini provider",
+			providerKey:    payment.TypeInfini,
+			providerName:   "Infini Provider",
+			supportedTypes: payment.TypeInfini,
+			wantErr:        false,
+		},
+		{
 			name:           "valid alipay provider",
 			providerKey:    "alipay",
 			providerName:   "Alipay Direct",
@@ -243,6 +250,13 @@ func TestIsSensitiveProviderConfigField(t *testing.T) {
 		{payment.TypeAirwallex, "apiBase", false},
 		{payment.TypeAirwallex, "accountId", false},
 		{payment.TypeAirwallex, "currency", false},
+
+		// Infini
+		{payment.TypeInfini, "secretKey", true},
+		{payment.TypeInfini, "webhookSecret", true},
+		{payment.TypeInfini, "keyId", false},
+		{payment.TypeInfini, "apiBase", false},
+		{payment.TypeInfini, "currency", false},
 
 		// Unknown provider: never sensitive
 		{"unknown", "secretKey", false},
@@ -718,6 +732,8 @@ func providerPendingOrderPaymentType(providerKey string) string {
 		return payment.TypeAlipay
 	case payment.TypeAirwallex:
 		return payment.TypeAirwallex
+	case payment.TypeInfini:
+		return payment.TypeInfini
 	case payment.TypeStripe:
 		return payment.TypeStripe
 	default:

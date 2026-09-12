@@ -126,6 +126,7 @@ import alipayIcon from '@/assets/icons/alipay.svg'
 import wxpayIcon from '@/assets/icons/wxpay.svg'
 import stripeIcon from '@/assets/icons/stripe.svg'
 import airwallexIcon from '@/assets/icons/airwallex.svg'
+import infiniIcon from '@/assets/icons/infini.svg'
 import paymentIcon from '@/assets/icons/payment.svg'
 
 const props = defineProps<{
@@ -183,6 +184,7 @@ function methodIcon(type: string): string {
   if (isBuiltInAlipayMethod(type)) return alipayIcon
   if (isBuiltInWxpayMethod(type)) return wxpayIcon
   if (type === 'airwallex') return airwallexIcon
+  if (type === 'infini') return infiniIcon
   if (type === 'stripe') return stripeIcon
   return paymentIcon
 }
@@ -192,6 +194,7 @@ function methodButtonClass(type: string): string {
   if (isBuiltInWxpayMethod(type)) return 'btn-wxpay'
   if (type === 'stripe') return 'btn-stripe'
   if (type === 'airwallex') return 'btn-airwallex'
+  if (type === 'infini') return 'btn-infini'
   if (paymentMethodLane(type) === 'usdt') {
     return 'bg-dark-800 text-white hover:bg-dark-700 dark:bg-dark-700 dark:hover:bg-dark-600'
   }

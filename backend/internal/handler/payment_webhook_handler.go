@@ -67,6 +67,12 @@ func (h *PaymentWebhookHandler) AirwallexWebhook(c *gin.Context) {
 	h.handleNotify(c, payment.TypeAirwallex)
 }
 
+// InfiniWebhook handles Infini hosted-checkout order callbacks.
+// POST /api/v1/payment/webhook/infini
+func (h *PaymentWebhookHandler) InfiniWebhook(c *gin.Context) {
+	h.handleNotify(c, payment.TypeInfini)
+}
+
 // handleNotify is the shared logic for all provider webhook handlers.
 func (h *PaymentWebhookHandler) handleNotify(c *gin.Context, providerKey string) {
 	var rawBody string
@@ -164,6 +170,13 @@ func extractOutTradeNo(rawBody, providerKey string) string {
 		if err := json.Unmarshal([]byte(rawBody), &payload); err == nil {
 			return strings.TrimSpace(payload.Data.Object.MerchantOrderID)
 		}
+	case payment.TypeInfini:
+		var payload struct {
+			ClientReference string `json:"client_reference"`
+		}
+		if err := json.Unmarshal([]byte(rawBody), &payload); err == nil {
+			return strings.TrimSpace(payload.ClientReference)
+		}
 	}
 	// For other providers (Stripe, Alipay direct, WxPay direct), the registry
 	// typically has only one instance, so no instance lookup is needed.
@@ -210,6 +223,8 @@ func writeSuccessResponse(c *gin.Context, providerKey string) {
 		c.JSON(http.StatusOK, wxpaySuccessResponse{Code: wxpaySuccessCode, Message: wxpaySuccessMessage})
 	case payment.TypeStripe, payment.TypeAirwallex:
 		c.String(http.StatusOK, "")
+	case payment.TypeInfini:
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	default:
 		c.String(http.StatusOK, "success")
 	}

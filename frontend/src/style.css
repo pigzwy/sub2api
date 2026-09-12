@@ -133,6 +133,12 @@
     @apply dark:hover:bg-[#62d9ad];
   }
 
+  .btn-infini {
+    @apply border border-gray-200 bg-white text-gray-900 shadow-sm;
+    @apply hover:bg-gray-50;
+    @apply dark:border-dark-600 dark:bg-dark-800 dark:text-white dark:hover:bg-dark-700;
+  }
+
   .btn-alipay {
     @apply bg-[#00AEEF] text-white shadow-md shadow-[#00AEEF]/25;
     @apply hover:bg-[#009dd6] hover:shadow-lg hover:shadow-[#00AEEF]/30;

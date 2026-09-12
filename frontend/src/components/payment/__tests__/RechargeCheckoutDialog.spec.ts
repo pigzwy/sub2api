@@ -55,6 +55,20 @@ describe('RechargeCheckoutDialog', () => {
     wrapper.unmount()
   })
 
+  it('shows Infini on the USDT lane as a hosted checkout method', () => {
+    const wrapper = mountDialog({
+      selected: 'infini',
+      lane: 'usdt',
+      currency: 'USD',
+      payAmountLabel: '$7.50',
+      rmbMethods: [{ type: 'stripe', display_name: 'Stripe', fee_rate: 0, available: true }],
+      usdtMethods: [{ type: 'infini', display_name: 'INFINI Stablecoin Payment', fee_rate: 0, available: true }],
+    })
+
+    expect(document.body.querySelector('[data-testid="checkout-method-infini"]')?.textContent).toContain('INFINI Stablecoin Payment')
+    wrapper.unmount()
+  })
+
   it('does not confirm when the selected method is unavailable or submit is in flight', async () => {
     const unavailable = mountDialog({
       selected: 'stripe',

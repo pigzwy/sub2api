@@ -674,6 +674,23 @@ func TestValidateProviderNotificationMetadataRejectsStripeCurrencyMismatch(t *te
 	assert.ErrorContains(t, err, "stripe currency mismatch")
 }
 
+func TestValidateProviderNotificationMetadataRejectsInfiniCurrencyMismatch(t *testing.T) {
+	t.Parallel()
+
+	order := &dbent.PaymentOrder{
+		PaymentType: payment.TypeInfini,
+		ProviderSnapshot: map[string]any{
+			"schema_version": 2,
+			"currency":       "USD",
+		},
+	}
+
+	err := validateProviderNotificationMetadata(order, payment.TypeInfini, map[string]string{
+		"currency": "EUR",
+	})
+	assert.ErrorContains(t, err, "infini currency mismatch")
+}
+
 func TestPaymentAmountToleranceForThreeDecimalCurrency(t *testing.T) {
 	t.Parallel()
 

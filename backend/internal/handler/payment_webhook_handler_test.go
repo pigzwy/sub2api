@@ -178,6 +178,12 @@ func TestExtractOutTradeNo(t *testing.T) {
 			rawBody:     `{"name":"payment_intent.succeeded","data":{"object":{"merchant_order_id":"sub2_awx_123"}}}`,
 			want:        "sub2_awx_123",
 		},
+		{
+			name:        "infini hosted checkout payload",
+			providerKey: payment.TypeInfini,
+			rawBody:     `{"event":"order.completed","order_id":"ord-123","client_reference":"sub2_infini_9"}`,
+			want:        "sub2_infini_9",
+		},
 	}
 
 	for _, tt := range tests {

@@ -60,6 +60,7 @@ v0.2.3 采用上游 `236_group_model_allowlist_repair.sql` 修复旧列残留或
 | Studio 分组模型售价接口 | ✅ | — | — | — | — |
 | 可配置充值档位与到账公式 | ✅ | ✅ | — | — | 2 项 |
 | 模型广场侧栏与分类目录 | ✅ | ✅ | — | — | 复用上游模型广场开关 |
+| Infini USDT / 稳定币托管收银台 | ✅ | ✅ | — | — | 支付类型 `infini` + 服务商实例 |
 
 ---
 
@@ -809,6 +810,34 @@ frontend/src/components/payment/RechargePackageSettingsEditor.vue
 `ModelPlazaContent.spec.ts`、`PlazaPriceSheet.spec.ts`、`plazaCatalog.spec.ts` 已加入根
 Makefile 的 CI 白名单，覆盖分类切换、保留展示价格、隐藏不兼容单位对比及说明常驻。
 本机不运行构建/测试，最终验证由 GitHub Actions 执行。
+
+---
+
+## 18. Infini USDT / 稳定币托管收银台（2026-09-12）
+
+按 [Infini Hosted Checkout](https://developer.infini.money/docs/en/3-checkout-mode) 新增 `infini` 支付通道，出现在充值确认框的 USDT 栏，样式与 Stripe / Infini 参考图一致：先选 RMB/USDT，再点「INFINI Stablecoin Payment」。
+
+**接入方式**
+
+- 后台「支付设置」启用 `infini`，再建 Infini 实例：Key ID、Secret Key、Webhook Secret、API Base（生产 `https://openapi.infini.money` / 沙箱 `https://openapi-sandbox.infini.money`）、法币币种（默认 USD）。
+- 下单走 `POST /v1/acquiring/order`，用 HMAC-SHA256 签 `keyId + METHOD path + date`；`client_reference` 是本站 `out_trade_no`，返回 `checkout_url` 后走既有跳转/弹窗，不嵌 Infini SDK。
+- 默认 `pay_methods=1`（链上加密/USDT）。Webhook：`POST /api/v1/payment/webhook/infini`，按 `timestamp.event_id.body` 做 HMAC-SHA256 hex 验签；`order.completed` / `order.late_payment` 且 `paid` 才履约，`order.processing` 忽略。
+- 到账公式、实付核对、履约幂等不改。回调金额仍对 `pay_amount`。Infini 没有商户主动退款 API，实例退款开关保持关闭。
+
+**关键文件**
+
+```text
+backend/internal/payment/provider/infini.go
+backend/internal/payment/provider/factory.go
+backend/internal/handler/payment_webhook_handler.go
+frontend/src/components/payment/providerConfig.ts
+frontend/src/components/payment/RechargeCheckoutDialog.vue
+```
+
+**测试**
+
+- 后端：`infini_test.go` 覆盖签名、创建托管单、Webhook 验签与忽略处理中事件。
+- 前端：确认框 USDT 栏展示 Infini；`paymentFlow` 对 `checkout_url` 走 `redirect_waiting`。
 
 ## 媒体转存与异步图片对象存储的补充说明
 

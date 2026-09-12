@@ -48,6 +48,18 @@ describe('PROVIDER_CONFIG_FIELDS.airwallex', () => {
   })
 })
 
+describe('PROVIDER_CONFIG_FIELDS.infini', () => {
+  it('defaults hosted checkout to USD crypto and Infini API hosts', () => {
+    const currency = findField('infini', 'currency')
+    expect(currency?.defaultValue).toBe('USD')
+    expect(findField('infini', 'apiBase')?.defaultValue).toBe('https://openapi.infini.money')
+    expect(findField('infini', 'apiBase')?.hintKey).toBe('admin.settings.payment.field_infiniApiBaseHint')
+    expect(findField('infini', 'payMethods')?.defaultValue).toBe('1')
+    expect(findField('infini', 'secretKey')?.sensitive).toBe(true)
+    expect(findField('infini', 'webhookSecret')?.sensitive).toBe(true)
+  })
+})
+
 describe('PROVIDER_CONFIG_FIELDS.stripe', () => {
   it('adds currency config with CNY as the default', () => {
     const currency = findField('stripe', 'currency')

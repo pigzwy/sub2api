@@ -302,6 +302,7 @@ export default {
       wxpay: 'WeChat Pay',
       stripe: 'Stripe',
       airwallex: 'Airwallex',
+      infini: 'INFINI Stablecoin Payment',
       card: 'Card',
       link: 'Link',
       alipay_direct: 'Alipay (Direct)',

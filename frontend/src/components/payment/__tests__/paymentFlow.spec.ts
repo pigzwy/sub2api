@@ -141,6 +141,22 @@ describe('decidePaymentLaunch', () => {
     expect(decision.paymentState.paymentEnv).toBe('demo')
   })
 
+  it('opens Infini hosted checkout through the existing redirect flow', () => {
+    const decision = decidePaymentLaunch(createOrderResult({
+      pay_url: 'https://checkout.infini.money/pay/xxxx',
+      out_trade_no: 'sub2_infini',
+      currency: 'USD',
+    }), {
+      visibleMethod: 'infini',
+      orderType: 'balance',
+      isMobile: false,
+    })
+
+    expect(decision.kind).toBe('redirect_waiting')
+    expect(decision.paymentState.payUrl).toBe('https://checkout.infini.money/pay/xxxx')
+    expect(decision.paymentState.paymentType).toBe('infini')
+  })
+
   it('keeps hosted redirect metadata for recovery flows', () => {
     const decision = decidePaymentLaunch(createOrderResult({
       pay_url: 'https://pay.example.com/session/abc',
