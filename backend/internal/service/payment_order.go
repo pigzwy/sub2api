@@ -683,6 +683,9 @@ func calculateCreateOrderPayAmountDecimal(base decimal.Decimal, feeRate float64,
 	return payAmountStr, payAmount, nil
 }
 
+// gatewayBaseAmountDecimal 计算网关扣款基数。
+// 订阅 CNY：price × rate（1 USD = rate CNY）；余额 Infini/USDT：套餐 / rate。
+// 到账仍按套餐 × 倍率 + 赠送。汇率未配置、支付宝、Stripe 都不换算。
 func gatewayBaseAmountDecimal(limitAmount, usdToCnyRate float64, currency, orderType, paymentType string) (decimal.Decimal, bool) {
 	base := decimal.NewFromFloat(limitAmount)
 	rate := normalizeSubscriptionUSDToCNYRate(usdToCnyRate)
@@ -701,22 +704,6 @@ func gatewayBaseAmountDecimal(limitAmount, usdToCnyRate float64, currency, order
 	default:
 		return base, false
 	}
-}
-
-// calculateSubscriptionGatewayBaseAmount 计算订阅订单的网关扣款基数。
-// 换算是显式 opt-in：仅当管理员配置了订阅汇率（rate > 0，1 USD = rate CNY）
-// 且网关币种为 CNY 时，按 price × rate 换算；未配置时保持 price 直付的存量行为。
-func calculateSubscriptionGatewayBaseAmount(amount, usdToCnyRate float64, currency string) float64 {
-	base, _ := gatewayBaseAmountDecimal(amount, usdToCnyRate, currency, payment.OrderTypeSubscription, "")
-	return base.InexactFloat64()
-}
-
-// calculateBalanceGatewayBaseAmount 把人民币套餐换成 Infini/USDT 通道的实付金额。
-// 到账仍按套餐金额 × 倍率 + 赠送；这里只改网关 pay_amount。
-// 例：套餐 50，1 USD = 6.67 CNY → 实付 7.50。汇率未配置、支付宝、Stripe 都不换算。
-func calculateBalanceGatewayBaseAmount(amount, usdToCnyRate float64, currency, paymentType string) float64 {
-	base, _ := gatewayBaseAmountDecimal(amount, usdToCnyRate, currency, payment.OrderTypeBalance, paymentType)
-	return base.InexactFloat64()
 }
 
 func shouldConvertBalancePayAmountToUSD(paymentType, currency string) bool {
