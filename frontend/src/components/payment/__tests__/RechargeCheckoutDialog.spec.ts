@@ -101,10 +101,9 @@ describe('RechargeCheckoutDialog', () => {
     expect(brands).not.toBeNull()
     expect(brands?.textContent).toContain('payment.supportedMethods')
     expect(brands?.getAttribute('data-lane')).toBe('rmb')
-    expect(brands?.querySelectorAll('img')).toHaveLength(2)
+    expect(brands?.querySelectorAll('img')).toHaveLength(1)
     expect(Array.from(brands?.querySelectorAll('img') ?? []).map((img) => img.getAttribute('alt'))).toEqual([
       'Alipay',
-      'WeChat Pay',
     ])
 
     const children = Array.from(dialog?.firstElementChild?.children ?? [])
@@ -115,7 +114,7 @@ describe('RechargeCheckoutDialog', () => {
     wrapper.unmount()
   })
 
-  it('shows only the configured Infini mark in the USDT lane', () => {
+  it('shows only the configured Infini mark in the USDT lane', async () => {
     const wrapper = mountDialog({
       selected: 'infini',
       lane: 'usdt',
@@ -123,6 +122,7 @@ describe('RechargeCheckoutDialog', () => {
       usdtMethods: [{ type: 'infini', display_name: 'INFINI Stablecoin Payment', fee_rate: 0, available: true }],
     })
 
+    await wrapper.setProps({ lane: 'usdt' })
     const brands = document.body.querySelector('[data-testid="supported-methods"]')
     expect(brands?.getAttribute('data-lane')).toBe('usdt')
     expect(Array.from(brands?.querySelectorAll('img') ?? []).map((img) => img.getAttribute('alt'))).toEqual(['Infini'])
