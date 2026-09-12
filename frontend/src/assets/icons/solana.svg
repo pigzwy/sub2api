@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="Solana">
+  <circle cx="12" cy="12" r="11" fill="#000000"/>
+  <path fill="#14F195" d="M7.2 8.1h8.4c.3 0 .5.3.3.6L14.7 10H6.9c-.3 0-.5-.3-.3-.6L7.2 8.1z"/>
+  <path fill="#9945FF" d="M7.2 11.1h8.4c.3 0 .5.3.3.6L14.7 13H6.9c-.3 0-.5-.3-.3-.6l.6-1.3z"/>
+  <path fill="#00FFA3" d="M7.2 14.1h8.4c.3 0 .5.3.3.6L14.7 16H6.9c-.3 0-.5-.3-.3-.6l.6-1.3z"/>
+</svg>

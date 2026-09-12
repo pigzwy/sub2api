@@ -100,6 +100,7 @@ describe('RechargeCheckoutDialog', () => {
     const brands = dialog?.querySelector('[data-testid="supported-methods"]')
     expect(brands).not.toBeNull()
     expect(brands?.textContent).toContain('payment.supportedMethods')
+    expect(brands?.getAttribute('data-lane')).toBe('rmb')
     expect(brands?.querySelectorAll('img')).toHaveLength(6)
     expect(Array.from(brands?.querySelectorAll('img') ?? []).map((img) => img.getAttribute('alt'))).toEqual([
       'Alipay',
@@ -115,6 +116,28 @@ describe('RechargeCheckoutDialog', () => {
     expect(dialog?.textContent?.indexOf('quote failed') ?? -1).toBeLessThan(
       dialog?.textContent?.indexOf('payment.supportedMethods') ?? -1,
     )
+    wrapper.unmount()
+  })
+
+  it('swaps the footer to USDT chain marks when the USDT lane is selected', () => {
+    const wrapper = mountDialog({
+      selected: 'infini',
+      lane: 'usdt',
+      rmbMethods: [{ type: 'alipay', display_name: 'Alipay', fee_rate: 0, available: true }],
+      usdtMethods: [{ type: 'infini', display_name: 'INFINI Stablecoin Payment', fee_rate: 0, available: true }],
+    })
+
+    const brands = document.body.querySelector('[data-testid="supported-methods"]')
+    expect(brands?.getAttribute('data-lane')).toBe('usdt')
+    expect(Array.from(brands?.querySelectorAll('img') ?? []).map((img) => img.getAttribute('alt'))).toEqual([
+      'TRON',
+      'Ethereum',
+      'BNB Chain',
+      'Polygon',
+      'Solana',
+      'Arbitrum',
+      'Base',
+    ])
     wrapper.unmount()
   })
 })

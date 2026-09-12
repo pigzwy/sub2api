@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="Ethereum">
+  <circle cx="12" cy="12" r="11" fill="#627EEA"/>
+  <path fill="#FFFFFF" d="M12 4.4 17.4 12 12 15.2 6.6 12 12 4.4zm0 15.2 5.4-7.6L12 15.8 6.6 12l5.4 7.6z"/>
+</svg>
