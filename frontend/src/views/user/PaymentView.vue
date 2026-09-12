@@ -573,12 +573,19 @@ const planGridClass = computed(() => {
   return 'grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3'
 })
 
+// Recharge Infini/USDT limits are on the converted gateway amount; other lanes keep the package amount.
+function methodLimitAmount(amt: number, methodType: string): number {
+  const ml = visibleMethods.value[methodType]
+  if (!ml || activeTab.value !== 'recharge') return amt
+  return balanceGatewayPayAmount(amt, methodType, ml.currency, usdtUsdToCnyRate.value)
+}
+
 // Check if an amount fits a method's [min, max]. 0 = no limit.
 function amountFitsMethod(amt: number, methodType: string): boolean {
   if (amt <= 0) return true
   const ml = visibleMethods.value[methodType]
   if (!ml) return false
-  const limitAmt = balanceGatewayPayAmount(amt, methodType, ml.currency, usdtUsdToCnyRate.value)
+  const limitAmt = methodLimitAmount(amt, methodType)
   if (ml.single_min > 0 && limitAmt < ml.single_min) return false
   if (ml.single_max > 0 && limitAmt > ml.single_max) return false
   return true
@@ -641,6 +648,10 @@ function subscriptionPaymentAmountForCurrency(value: number, currency: string): 
 
 function formatSelectedPaymentAmount(value: number): string {
   return formatPaymentAmount(value, selectedCurrency.value, localeCode.value)
+}
+
+function formatMethodLimitAmount(value: number, currency?: string | null): string {
+  return formatPaymentAmount(value, normalizePaymentCurrency(currency), localeCode.value)
 }
 
 function formatSelectedSubscriptionPaymentAmount(value: number): string {
@@ -735,8 +746,13 @@ const amountError = computed(() => {
   // Selected method can't handle this amount (but others can)
   const ml = selectedLimit.value
   if (ml) {
-    if (ml.single_min > 0 && validAmount.value < ml.single_min) return t('payment.amountTooLow', { min: formatSelectedPaymentAmount(ml.single_min) })
-    if (ml.single_max > 0 && validAmount.value > ml.single_max) return t('payment.amountTooHigh', { max: formatSelectedPaymentAmount(ml.single_max) })
+    const limitAmount = methodLimitAmount(validAmount.value, selectedMethod.value)
+    if (ml.single_min > 0 && limitAmount < ml.single_min) {
+      return t('payment.amountTooLow', { min: formatMethodLimitAmount(ml.single_min, ml.currency) })
+    }
+    if (ml.single_max > 0 && limitAmount > ml.single_max) {
+      return t('payment.amountTooHigh', { max: formatMethodLimitAmount(ml.single_max, ml.currency) })
+    }
   }
   return ''
 })

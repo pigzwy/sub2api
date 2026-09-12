@@ -673,6 +673,95 @@ describe('PaymentView recharge rate preview', () => {
     }))
   })
 
+  it('compares Infini amount limits against the converted USD pay amount', async () => {
+    window.localStorage.clear()
+    const method: MethodLimit = {
+      daily_limit: 0,
+      daily_used: 0,
+      daily_remaining: 0,
+      single_min: 0,
+      single_max: 0,
+      fee_rate: 0,
+      available: true,
+    }
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
+      usdt_usd_to_cny_rate: 6.67,
+      methods: {
+        alipay: { ...method, currency: 'CNY' },
+        infini: { ...method, currency: 'USD', single_max: 20 },
+      },
+    }))
+    quoteOrder.mockImplementation(async (data) => {
+      if (data.payment_type === 'infini') {
+        return quoteOrderFixture(data, {
+          pay_amount: '7.50',
+          pay_amount_value: 7.5,
+          credit_amount: '50.00',
+          fx_rate: 6.67,
+          fx_converted: true,
+          currency: 'USD',
+        })
+      }
+      return quoteOrderFixture(data, { currency: 'CNY', credit_amount: '50.00' })
+    })
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    wrapper.getComponent(RechargePackageGrid).vm.$emit('select', 50)
+    await flushPromises()
+
+    const dialog = wrapper.getComponent(RechargeCheckoutDialog)
+    dialog.vm.$emit('update:lane', 'usdt')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="selected-payment-method"]').text()).toBe('infini')
+    expect(dialog.props('error')).toBe('')
+    expect(dialog.props('payAmountLabel')).toBe(formatPaymentAmount(7.5, 'USD'))
+
+    getCheckoutInfo.mockResolvedValue(checkoutInfoFixture({
+      usdt_usd_to_cny_rate: 6.67,
+      methods: {
+        alipay: { ...method, currency: 'CNY' },
+        infini: { ...method, currency: 'USD', single_min: 10 },
+      },
+    }))
+    wrapper.unmount()
+
+    const lowWrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    lowWrapper.getComponent(RechargePackageGrid).vm.$emit('select', 50)
+    await flushPromises()
+    const lowDialog = lowWrapper.getComponent(RechargeCheckoutDialog)
+    translate.mockClear()
+    lowDialog.vm.$emit('update:lane', 'usdt')
+    await flushPromises()
+
+    expect(lowWrapper.get('[data-testid="selected-payment-method"]').text()).toBe('infini')
+    expect(lowDialog.props('error')).toBe('payment.amountTooLow')
+    expect(translate).toHaveBeenCalledWith('payment.amountTooLow', {
+      min: formatPaymentAmount(10, 'USD'),
+    })
+    lowWrapper.unmount()
+  })
+
   it('updates CNY/USD preview before creating a Stripe order', async () => {
     window.localStorage.clear()
     const method: MethodLimit = {
