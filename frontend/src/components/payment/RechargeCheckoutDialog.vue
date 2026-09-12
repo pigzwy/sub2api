@@ -94,14 +94,23 @@
                   </template>
                 </button>
               </div>
-              <div v-if="visibleMethods.some((method) => method.type === 'stripe')" class="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
-                <span>{{ t('payment.supportedMethods') }}</span>
-                <img :src="alipayIcon" alt="" class="h-5 w-5 object-contain" />
-                <img :src="wxpayIcon" alt="" class="h-5 w-5 object-contain" />
-              </div>
             </div>
 
             <p v-if="error" class="text-xs text-amber-600 dark:text-amber-300">{{ error }}</p>
+          </div>
+
+          <div
+            data-testid="supported-methods"
+            class="flex flex-wrap items-center gap-2 px-5 pb-5 text-xs text-gray-400 dark:text-gray-500"
+          >
+            <span>{{ t('payment.supportedMethods') }}</span>
+            <img
+              v-for="brand in supportedBrands"
+              :key="brand.alt"
+              :src="brand.src"
+              :alt="brand.alt"
+              class="h-5 w-auto object-contain"
+            />
           </div>
         </div>
       </div>
@@ -122,6 +131,10 @@ import stripeIcon from '@/assets/icons/stripe.svg'
 import airwallexIcon from '@/assets/icons/airwallex.svg'
 import infiniIcon from '@/assets/icons/infini.svg'
 import paymentIcon from '@/assets/icons/payment.svg'
+import visaIcon from '@/assets/icons/visa.svg'
+import mastercardIcon from '@/assets/icons/mastercard.svg'
+import applePayIcon from '@/assets/icons/apple-pay.svg'
+import dollarIcon from '@/assets/icons/dollar.svg'
 
 const props = defineProps<{
   open: boolean
@@ -152,6 +165,14 @@ const { t } = useI18n()
 
 const showLaneToggle = computed(() => props.rmbMethods.length > 0 && props.usdtMethods.length > 0)
 const visibleMethods = computed(() => (props.lane === 'usdt' ? props.usdtMethods : props.rmbMethods))
+const supportedBrands = [
+  { src: alipayIcon, alt: 'Alipay' },
+  { src: wxpayIcon, alt: 'WeChat Pay' },
+  { src: visaIcon, alt: 'Visa' },
+  { src: mastercardIcon, alt: 'Mastercard' },
+  { src: applePayIcon, alt: 'Apple Pay' },
+  { src: dollarIcon, alt: 'USD' },
+]
 
 function payWithMethod(method: PaymentMethodOption) {
   if (!method.available || props.submitting || props.quoteLoading) return

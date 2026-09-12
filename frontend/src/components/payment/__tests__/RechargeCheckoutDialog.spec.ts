@@ -90,4 +90,30 @@ describe('RechargeCheckoutDialog', () => {
     expect(submitting.emitted('confirm')).toBeUndefined()
     submitting.unmount()
   })
+
+  it('renders the accepted-brand row at the bottom of the dialog', () => {
+    const wrapper = mountDialog({
+      error: 'quote failed',
+    })
+
+    const dialog = document.body.querySelector('[data-testid="recharge-checkout-dialog"]')
+    const brands = dialog?.querySelector('[data-testid="supported-methods"]')
+    expect(brands).not.toBeNull()
+    expect(brands?.textContent).toContain('payment.supportedMethods')
+    expect(Array.from(brands?.querySelectorAll('img') ?? []).map((img) => img.getAttribute('alt'))).toEqual([
+      'Alipay',
+      'WeChat Pay',
+      'Visa',
+      'Mastercard',
+      'Apple Pay',
+      'USD',
+    ])
+
+    const children = Array.from(dialog?.firstElementChild?.children ?? [])
+    expect(children.at(-1)).toBe(brands)
+    expect(dialog?.textContent?.indexOf('quote failed') ?? -1).toBeLessThan(
+      dialog?.textContent?.indexOf('payment.supportedMethods') ?? -1,
+    )
+    wrapper.unmount()
+  })
 })
