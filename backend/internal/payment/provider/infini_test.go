@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -179,6 +180,161 @@ func TestInfiniQueryOrderMapsPaidStatus(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, payment.ProviderStatusPaid, resp.Status)
 	require.Equal(t, 7.5, resp.Amount)
+}
+
+func TestInfiniVerifyNotificationLatePaymentExpiredWithConfirmedAmount(t *testing.T) {
+	t.Parallel()
+
+	prov, err := NewInfini("1", testInfiniConfig(infiniSandboxAPIBase))
+	require.NoError(t, err)
+	now := time.Unix(1700000000, 0)
+	prov.now = func() time.Time { return now }
+
+	body := `{"event":"order.late_payment","order_id":"ord-123","client_reference":"sub2_order_9","amount":"7.50","currency":"USD","status":"expired","amount_confirmed":"7.50"}`
+	note, err := prov.VerifyNotification(context.Background(), body, infiniWebhookHeaders(t, body, "whsec", now))
+	require.NoError(t, err)
+	require.Equal(t, payment.NotificationStatusSuccess, note.Status)
+	require.Equal(t, "7.5", note.AmountExact)
+	require.Equal(t, 7.5, note.Amount)
+	require.Equal(t, "evt-1", note.EventID)
+}
+
+func TestInfiniVerifyNotificationLatePaymentRejectsMissingConfirmedAmount(t *testing.T) {
+	t.Parallel()
+
+	prov, err := NewInfini("1", testInfiniConfig(infiniSandboxAPIBase))
+	require.NoError(t, err)
+	now := time.Unix(1700000000, 0)
+	prov.now = func() time.Time { return now }
+
+	body := `{"event":"order.late_payment","order_id":"ord-123","client_reference":"sub2_order_9","amount":"7.50","currency":"USD","status":"expired"}`
+	_, err = prov.VerifyNotification(context.Background(), body, infiniWebhookHeaders(t, body, "whsec", now))
+	require.ErrorContains(t, err, "amount_confirmed")
+}
+
+func TestInfiniVerifyNotificationExpiredWithoutConfirmedStaysFailed(t *testing.T) {
+	t.Parallel()
+
+	prov, err := NewInfini("1", testInfiniConfig(infiniSandboxAPIBase))
+	require.NoError(t, err)
+	now := time.Unix(1700000000, 0)
+	prov.now = func() time.Time { return now }
+
+	body := `{"event":"order.expired","order_id":"ord-123","client_reference":"sub2_order_9","amount":"7.50","currency":"USD","status":"expired"}`
+	note, err := prov.VerifyNotification(context.Background(), body, infiniWebhookHeaders(t, body, "whsec", now))
+	require.NoError(t, err)
+	require.Equal(t, payment.ProviderStatusFailed, note.Status)
+}
+
+func TestInfiniVerifyNotificationExpiredWithConfirmedIsFulfillCandidate(t *testing.T) {
+	t.Parallel()
+
+	prov, err := NewInfini("1", testInfiniConfig(infiniSandboxAPIBase))
+	require.NoError(t, err)
+	now := time.Unix(1700000000, 0)
+	prov.now = func() time.Time { return now }
+
+	body := `{"event":"order.expired","order_id":"ord-123","client_reference":"sub2_order_9","amount":"7.50","currency":"USD","status":"expired","amount_confirmed":"7.50"}`
+	note, err := prov.VerifyNotification(context.Background(), body, infiniWebhookHeaders(t, body, "whsec", now))
+	require.NoError(t, err)
+	require.Equal(t, payment.NotificationStatusSuccess, note.Status)
+	require.Equal(t, 7.5, note.Amount)
+}
+
+func TestInfiniVerifyNotificationRejectsReplayAndTampering(t *testing.T) {
+	t.Parallel()
+
+	prov, err := NewInfini("1", testInfiniConfig(infiniSandboxAPIBase))
+	require.NoError(t, err)
+	now := time.Unix(1700000000, 0)
+	prov.now = func() time.Time { return now }
+
+	body := `{"event":"order.completed","order_id":"ord-123","client_reference":"sub2_order_9","amount":"7.50","currency":"USD","status":"paid","amount_confirmed":"7.50"}`
+	headers := infiniWebhookHeaders(t, body, "whsec", now)
+
+	tampered := strings.Replace(body, "7.50", "9.99", 1)
+	_, err = prov.VerifyNotification(context.Background(), tampered, headers)
+	require.ErrorContains(t, err, "invalid signature")
+
+	stale := infiniWebhookHeaders(t, body, "whsec", now.Add(-10*time.Minute))
+	_, err = prov.VerifyNotification(context.Background(), body, stale)
+	require.ErrorContains(t, err, "timestamp")
+
+	headers["x-webhook-event-id"] = "evt-other"
+	_, err = prov.VerifyNotification(context.Background(), body, headers)
+	require.ErrorContains(t, err, "invalid signature")
+}
+
+func TestInfiniQueryOrderExpiredUsesConfirmedAmountOnly(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(infiniOrder{
+			OrderID:         "ord-123",
+			Status:          "expired",
+			Amount:          "7.50",
+			Currency:        "USD",
+			AmountConfirmed: "7.50",
+		})
+	}))
+	defer server.Close()
+
+	prov, err := NewInfini("1", testInfiniConfig(infiniSandboxAPIBase))
+	require.NoError(t, err)
+	prov.httpClient = server.Client()
+	prov.httpClient.Transport = rewriteInfiniHost(server)
+
+	resp, err := prov.QueryOrder(context.Background(), "ord-123")
+	require.NoError(t, err)
+	require.Equal(t, payment.ProviderStatusPaid, resp.Status)
+	require.Equal(t, 7.5, resp.Amount)
+}
+
+func TestInfiniQueryOrderExpiredWithoutConfirmedIsFailed(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(infiniOrder{
+			OrderID:  "ord-123",
+			Status:   "expired",
+			Amount:   "7.50",
+			Currency: "USD",
+		})
+	}))
+	defer server.Close()
+
+	prov, err := NewInfini("1", testInfiniConfig(infiniSandboxAPIBase))
+	require.NoError(t, err)
+	prov.httpClient = server.Client()
+	prov.httpClient.Transport = rewriteInfiniHost(server)
+
+	resp, err := prov.QueryOrder(context.Background(), "ord-123")
+	require.NoError(t, err)
+	require.Equal(t, payment.ProviderStatusFailed, resp.Status)
+}
+
+func TestInfiniQueryOrderPartialPaidIsNotPaid(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(infiniOrder{
+			OrderID:         "ord-123",
+			Status:          "partial_paid",
+			Amount:          "7.50",
+			Currency:        "USD",
+			AmountConfirmed: "3.00",
+		})
+	}))
+	defer server.Close()
+
+	prov, err := NewInfini("1", testInfiniConfig(infiniSandboxAPIBase))
+	require.NoError(t, err)
+	prov.httpClient = server.Client()
+	prov.httpClient.Transport = rewriteInfiniHost(server)
+
+	resp, err := prov.QueryOrder(context.Background(), "ord-123")
+	require.NoError(t, err)
+	require.Equal(t, payment.ProviderStatusFailed, resp.Status)
 }
 
 func TestInfiniRefundIsUnsupported(t *testing.T) {

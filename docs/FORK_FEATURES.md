@@ -821,9 +821,11 @@ Makefile 的 CI 白名单，覆盖分类切换、保留展示价格、隐藏不�
 
 - 后台「支付设置」启用 `infini`，再建 Infini 实例：Key ID、Secret Key、Webhook Secret、API Base（生产 `https://openapi.infini.money` / 沙箱 `https://openapi-sandbox.infini.money`）、法币币种（默认 USD）。
 - 下单走 `POST /v1/acquiring/order`，用 HMAC-SHA256 签 `keyId + METHOD path + date`；`client_reference` 是本站 `out_trade_no`，返回 `checkout_url` 后走既有跳转/弹窗，不嵌 Infini SDK。
-- 默认 `pay_methods=1`（链上加密/USDT）。Webhook：`POST /api/v1/payment/webhook/infini`，按 `timestamp.event_id.body` 做 HMAC-SHA256 hex 验签；`order.completed` / `order.late_payment` 且 `paid` 才履约，`order.processing` 忽略。
-- 到账公式、实付核对、履约幂等不改。回调金额仍对 `pay_amount`。Infini 没有商户主动退款 API，实例退款开关保持关闭。
-- 余额套餐仍按人民币数字定价。配置了 `subscription_usd_to_cny_rate`（1 USD = X CNY）时，Infini/USDT 实付 `pay_amount = 套餐金额 / 汇率`（如 50 / 6.67 = 7.50），到账仍按原套餐公式。汇率为 0 时不换算。支付宝 CNY、Stripe USD 不换算。前端下单仍传套餐 `amount`。
+- 默认 `pay_methods=1`（链上加密/USDT）。Webhook：`POST /api/v1/payment/webhook/infini`，按 `timestamp.event_id.raw_body` 做 HMAC-SHA256 hex 验签（5 分钟时间窗，原始 body，禁止重序列化）。`event_id` 持久化去重。
+- Infini 官方 `order.late_payment` 的 `status` 仍是 `expired`，以 `amount_confirmed` 为准。足额到账必须履约；不足额/缺金额/币种不符拒绝履约并写审计。`order.expired` 仅在存在 `amount_confirmed` 时作为迟到账候选，禁止用应付 `amount` 冒充已付。
+- 下单写入 schema_version=3 金额快照（套餐/到账/实付/手续费/汇率/币种/通道/实例）。Webhook 按快照 `pay_amount` 做最小货币单位精确比对，配置变更不影响旧单。
+- 余额套餐仍按人民币数字定价。汇率含义：`1 USD = X CNY`。Infini/USDT 实付 `round(套餐 / 汇率, 2) + ceil(手续费)`；到账仍是 `round(套餐 × 倍率 + 赠送, 2)`。订阅 CNY 是 `round(price × 汇率, 2)`，方向相反。汇率为 0 关闭换算；负数/NaN/Inf/超范围拒绝下单。支付宝 CNY、Stripe USD 不换算。
+- 前端充值实付金额只展示 `POST /payment/quote` 的后端结果，下单只传套餐 `amount` + `payment_type`。Infini 无商户退款 API。
 
 **关键文件**
 
@@ -837,8 +839,8 @@ frontend/src/components/payment/RechargeCheckoutDialog.vue
 
 **测试**
 
-- 后端：`infini_test.go` 覆盖签名、创建托管单、Webhook 验签与忽略处理中事件。
-- 前端：确认框 USDT 栏展示 Infini；`paymentFlow` 对 `checkout_url` 走 `redirect_waiting`。配置汇率后 USDT 实付按套餐 ÷ 汇率展示，下单仍传套餐金额。
+- 后端：`infini_test.go` 覆盖签名、late_payment、过期查询、重放/篡改；履约测试覆盖金额精确比对、重复 event_id、并发回调与快照不一致。
+- 前端：确认框展示后端 quote 的实付/到账/汇率；下单仍只传套餐金额。
 
 ## 媒体转存与异步图片对象存储的补充说明
 

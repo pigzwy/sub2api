@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -318,6 +319,32 @@ func TestCalculateCreateOrderPayAmountForInfiniKeepsPackageWhenRateDisabled(t *t
 	}
 	if amountStr != "50.00" || amount != 50 {
 		t.Fatalf("Infini USD pay amount without rate = (%q, %v), want (50.00, 50)", amountStr, amount)
+	}
+}
+
+func TestCalculateCreateOrderPayAmountRejectsInvalidFxRates(t *testing.T) {
+	t.Parallel()
+
+	for _, rate := range []float64{-1, math.NaN(), math.Inf(1), math.Inf(-1), 1e-9, 1e9} {
+		_, _, err := calculateCreateOrderPayAmountForOrderType(50, 0, "USD", payment.OrderTypeBalance, payment.TypeInfini, rate)
+		if err == nil {
+			t.Fatalf("expected invalid fx rate %v to fail", rate)
+		}
+		if appErr := infraerrors.FromError(err); appErr.Reason != "INVALID_FX_RATE" {
+			t.Fatalf("rate %v reason = %q, want INVALID_FX_RATE", rate, appErr.Reason)
+		}
+	}
+}
+
+func TestCalculateCreateOrderPayAmountForUsdtCurrencyUsesTwoDecimalPrecision(t *testing.T) {
+	t.Parallel()
+
+	amountStr, amount, err := calculateCreateOrderPayAmountForOrderType(50, 0, "USDT", payment.OrderTypeBalance, "usdt_trc20", 6.67)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if amountStr != "7.50" || amount != 7.5 {
+		t.Fatalf("USDT pay amount = (%q, %v), want (7.50, 7.5)", amountStr, amount)
 	}
 }
 

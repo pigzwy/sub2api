@@ -28,6 +28,17 @@ import (
 // misconfigured to point at us, or when our orders table has been wiped).
 var ErrOrderNotFound = errors.New("payment order not found")
 
+// ErrPaymentRejected is a terminal validation failure (amount/currency/snapshot
+// mismatch). Webhook handlers should ACK 2xx after audit so the provider stops retrying.
+var ErrPaymentRejected = errors.New("payment notification rejected")
+
+func paymentRejected(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: %v", ErrPaymentRejected, err)
+}
+
 const paymentFulfillmentLeaseDuration = 5 * time.Minute
 
 type paymentFulfillmentLease struct {
@@ -46,14 +57,29 @@ func (s *PaymentService) HandlePaymentNotification(ctx context.Context, n *payme
 		// Fallback only for true legacy "sub2_N" DB-ID payloads when the
 		// current out_trade_no lookup genuinely did not find an order.
 		if oid, ok := parseLegacyPaymentOrderID(n.OrderID, err); ok {
-			return s.confirmPayment(ctx, oid, n.TradeNo, n.Amount, pk, n.Metadata)
+			return s.confirmPayment(ctx, confirmPaymentInput{
+				orderID: oid, tradeNo: n.TradeNo, paid: n.Amount, paidExact: n.AmountExact, eventID: n.EventID, providerKey: pk, metadata: n.Metadata, outTradeNo: n.OrderID,
+			})
 		}
 		if dbent.IsNotFound(err) {
 			return fmt.Errorf("%w: out_trade_no=%s", ErrOrderNotFound, n.OrderID)
 		}
 		return fmt.Errorf("lookup order failed for out_trade_no %s: %w", n.OrderID, err)
 	}
-	return s.confirmPayment(ctx, order.ID, n.TradeNo, n.Amount, pk, n.Metadata)
+	return s.confirmPayment(ctx, confirmPaymentInput{
+		orderID: order.ID, tradeNo: n.TradeNo, paid: n.Amount, paidExact: n.AmountExact, eventID: n.EventID, providerKey: pk, metadata: n.Metadata, outTradeNo: n.OrderID,
+	})
+}
+
+type confirmPaymentInput struct {
+	orderID     int64
+	tradeNo     string
+	paid        float64
+	paidExact   string
+	eventID     string
+	providerKey string
+	outTradeNo  string
+	metadata    map[string]string
 }
 
 func parseLegacyPaymentOrderID(orderID string, lookupErr error) (int64, bool) {
@@ -75,7 +101,12 @@ func parseLegacyPaymentOrderID(orderID string, lookupErr error) (int64, bool) {
 	return oid, true
 }
 
-func (s *PaymentService) confirmPayment(ctx context.Context, oid int64, tradeNo string, paid float64, pk string, metadata map[string]string) error {
+func (s *PaymentService) confirmPayment(ctx context.Context, in confirmPaymentInput) error {
+	oid := in.orderID
+	tradeNo := in.tradeNo
+	paid := in.paid
+	pk := in.providerKey
+	metadata := in.metadata
 	o, err := s.entClient.PaymentOrder.Get(ctx, oid)
 	if err != nil {
 		slog.Error("order not found", "orderID", oid)
@@ -92,28 +123,77 @@ func (s *PaymentService) confirmPayment(ctx context.Context, oid int64, tradeNo 
 			"actualProvider":   pk,
 			"tradeNo":          tradeNo,
 		})
-		return fmt.Errorf("provider mismatch: expected %s, got %s", expectedProviderKey, pk)
+		return paymentRejected(fmt.Errorf("provider mismatch: expected %s, got %s", expectedProviderKey, pk))
+	}
+	if storedOutTradeNo := strings.TrimSpace(o.OutTradeNo); storedOutTradeNo != "" && strings.TrimSpace(in.outTradeNo) != "" &&
+		!strings.EqualFold(storedOutTradeNo, strings.TrimSpace(in.outTradeNo)) {
+		s.writeAuditLog(ctx, o.ID, "PAYMENT_ORDER_REF_MISMATCH", pk, map[string]any{
+			"expected": storedOutTradeNo,
+			"actual":   in.outTradeNo,
+			"tradeNo":  tradeNo,
+		})
+		return paymentRejected(fmt.Errorf("order reference mismatch"))
+	}
+	if infiniTradeNoBound(pk, expectedProviderKey) {
+		if storedTradeNo := strings.TrimSpace(o.PaymentTradeNo); storedTradeNo != "" && strings.TrimSpace(tradeNo) != "" && !strings.EqualFold(storedTradeNo, strings.TrimSpace(tradeNo)) {
+			s.writeAuditLog(ctx, o.ID, "PAYMENT_TRADE_NO_MISMATCH", pk, map[string]any{
+				"expected": storedTradeNo,
+				"actual":   tradeNo,
+			})
+			return paymentRejected(fmt.Errorf("trade number mismatch: expected %s, got %s", storedTradeNo, tradeNo))
+		}
 	}
 	if err := validateProviderNotificationMetadata(o, pk, metadata); err != nil {
 		s.writeAuditLog(ctx, o.ID, "PAYMENT_PROVIDER_METADATA_MISMATCH", pk, map[string]any{
 			"detail":  err.Error(),
 			"tradeNo": tradeNo,
 		})
-		return err
+		return paymentRejected(err)
 	}
-	if !isValidProviderAmount(paid) {
-		s.writeAuditLog(ctx, o.ID, "PAYMENT_INVALID_AMOUNT", pk, map[string]any{
-			"expected": o.PayAmount,
-			"paid":     paid,
+	snapshot := psOrderProviderSnapshot(o)
+	if err := validatePaymentOrderFinancialSnapshot(o, snapshot); err != nil {
+		s.writeAuditLog(ctx, o.ID, "PAYMENT_SNAPSHOT_MISMATCH", pk, map[string]any{
+			"detail":  err.Error(),
+			"tradeNo": tradeNo,
+		})
+		return paymentRejected(err)
+	}
+	currency := PaymentOrderCurrency(o)
+	expectedExact := snapshotPayAmountExact(o.PayAmount, currency, snapshot)
+	if err := paymentAmountsMatch(in.paidExact, paid, expectedExact, o.PayAmount, currency); err != nil {
+		s.writeAuditLog(ctx, o.ID, "PAYMENT_AMOUNT_MISMATCH", pk, map[string]any{
+			"expected": expectedExact,
+			"paid":     firstNonEmpty(in.paidExact, strconv.FormatFloat(paid, 'f', -1, 64)),
 			"tradeNo":  tradeNo,
 		})
-		return fmt.Errorf("invalid paid amount from provider: %v", paid)
+		return paymentRejected(err)
 	}
-	if math.Abs(paid-o.PayAmount) > paymentAmountToleranceForCurrency(PaymentOrderCurrency(o)) {
-		s.writeAuditLog(ctx, o.ID, "PAYMENT_AMOUNT_MISMATCH", pk, map[string]any{"expected": o.PayAmount, "paid": paid, "tradeNo": tradeNo})
-		return fmt.Errorf("amount mismatch: expected %s, got %s", strconv.FormatFloat(o.PayAmount, 'f', -1, 64), strconv.FormatFloat(paid, 'f', -1, 64))
+	if o.Status == OrderStatusCancelled {
+		s.writeAuditLog(ctx, o.ID, "PAYMENT_CANCELLED_ORDER", pk, map[string]any{
+			"tradeNo": tradeNo,
+			"status":  o.Status,
+		})
+		return paymentRejected(fmt.Errorf("cancelled order cannot be fulfilled"))
 	}
-	return s.toPaid(ctx, o, tradeNo, paid, pk)
+	if claimed, claimErr := s.claimPaymentWebhookEvent(ctx, pk, in.eventID, in.outTradeNo); claimErr != nil {
+		return claimErr
+	} else if !claimed {
+		switch o.Status {
+		case OrderStatusCompleted, OrderStatusPaid, OrderStatusRecharging, OrderStatusRefunded:
+			s.writeAuditLog(ctx, o.ID, "WEBHOOK_DUPLICATE", pk, map[string]any{
+				"eventID": in.eventID,
+				"tradeNo": tradeNo,
+				"status":  o.Status,
+			})
+			return nil
+		}
+	}
+	return s.toPaid(ctx, o, tradeNo, o.PayAmount, pk)
+}
+
+func infiniTradeNoBound(providerKey, expectedProviderKey string) bool {
+	return strings.EqualFold(strings.TrimSpace(providerKey), payment.TypeInfini) ||
+		strings.EqualFold(strings.TrimSpace(expectedProviderKey), payment.TypeInfini)
 }
 
 func paymentAmountToleranceForCurrency(currency string) float64 {
@@ -150,25 +230,20 @@ func expectedNotificationProviderKey(registry *payment.Registry, orderPaymentTyp
 func (s *PaymentService) toPaid(ctx context.Context, o *dbent.PaymentOrder, tradeNo string, paid float64, pk string) error {
 	previousStatus := o.Status
 	now := time.Now()
-	grace := now.Add(-paymentGraceMinutes * time.Minute)
 	c, err := s.entClient.PaymentOrder.Update().Where(
 		paymentorder.IDEQ(o.ID),
 		paymentorder.Or(
 			paymentorder.StatusEQ(OrderStatusPending),
-			paymentorder.StatusEQ(OrderStatusCancelled),
-			paymentorder.And(
-				paymentorder.StatusEQ(OrderStatusExpired),
-				paymentorder.UpdatedAtGTE(grace),
-			),
+			paymentorder.StatusEQ(OrderStatusExpired),
 		),
-	).SetStatus(OrderStatusPaid).SetPayAmount(paid).SetPaymentTradeNo(tradeNo).SetPaidAt(now).ClearFailedAt().ClearFailedReason().Save(ctx)
+	).SetStatus(OrderStatusPaid).SetPaymentTradeNo(tradeNo).SetPaidAt(now).ClearFailedAt().ClearFailedReason().Save(ctx)
 	if err != nil {
 		return fmt.Errorf("update to PAID: %w", err)
 	}
 	if c == 0 {
 		return s.alreadyProcessed(ctx, o)
 	}
-	if previousStatus == OrderStatusCancelled || previousStatus == OrderStatusExpired {
+	if previousStatus == OrderStatusExpired {
 		slog.Info("order recovered from webhook payment success",
 			"orderID", o.ID,
 			"previousStatus", previousStatus,
@@ -196,8 +271,13 @@ func (s *PaymentService) alreadyProcessed(ctx context.Context, o *dbent.PaymentO
 		return nil
 	case OrderStatusFailed, OrderStatusPaid, OrderStatusRecharging:
 		return s.executeFulfillment(ctx, o.ID)
+	case OrderStatusCancelled:
+		return paymentRejected(fmt.Errorf("cancelled order cannot be fulfilled"))
 	case OrderStatusExpired:
-		slog.Warn("webhook payment success for expired order beyond grace period",
+		if cur.PaidAt != nil {
+			return s.executeFulfillment(ctx, o.ID)
+		}
+		slog.Warn("verified payment on expired order could not transition",
 			"orderID", o.ID,
 			"status", cur.Status,
 			"updatedAt", cur.UpdatedAt,
@@ -205,9 +285,9 @@ func (s *PaymentService) alreadyProcessed(ctx context.Context, o *dbent.PaymentO
 		s.writeAuditLog(ctx, o.ID, "PAYMENT_AFTER_EXPIRY", "system", map[string]any{
 			"status":    cur.Status,
 			"updatedAt": cur.UpdatedAt,
-			"reason":    "payment arrived after expiry grace period",
+			"reason":    "verified payment matched but order could not leave EXPIRED",
 		})
-		return nil
+		return fmt.Errorf("expired order could not be recovered after verified payment")
 	default:
 		return nil
 	}

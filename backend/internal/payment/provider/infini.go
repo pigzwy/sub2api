@@ -168,7 +168,7 @@ func (i *Infini) CreatePayment(ctx context.Context, req payment.CreatePaymentReq
 	}
 	currency := i.currency()
 	payload := infiniCreateOrderRequest{
-		Amount:          payment.FormatAmountForCurrency(amount.InexactFloat64(), currency),
+		Amount:          amount.StringFixed(int32(payment.CurrencyMaxFractionDigits(currency))),
 		RequestID:       infiniDeterministicRequestID("order", req.OrderID, req.Amount, currency),
 		ClientReference: req.OrderID,
 		OrderDesc:       strings.TrimSpace(req.Subject),
@@ -204,12 +204,17 @@ func (i *Infini) QueryOrder(ctx context.Context, tradeNo string) (*payment.Query
 	if err := i.doJSON(ctx, http.MethodGet, path, nil, &resp); err != nil {
 		return nil, fmt.Errorf("infini query order: %w", err)
 	}
-	amount, _ := parseInfiniAmount(resp.AmountConfirmed, resp.Amount)
+	confirmedExact, confirmed, confirmedErr := parseInfiniAmount(resp.AmountConfirmed)
+	listedExact, listed, listedErr := parseInfiniAmount(resp.Amount)
+	status, amountExact, amount, err := infiniQueryDecision(resp.Status, confirmedExact, confirmed, confirmedErr, listedExact, listed, listedErr)
+	if err != nil {
+		return nil, err
+	}
 	return &payment.QueryOrderResponse{
 		TradeNo:  firstNonEmpty(resp.OrderID, orderID),
-		Status:   infiniProviderStatus(resp.Status),
+		Status:   status,
 		Amount:   amount,
-		Metadata: i.orderMetadata(resp),
+		Metadata: i.orderMetadata(resp, amountExact),
 	}, nil
 }
 
@@ -243,28 +248,23 @@ func (i *Infini) VerifyNotification(_ context.Context, rawBody string, headers m
 		return nil, fmt.Errorf("infini webhook missing order_id")
 	}
 
-	var status string
-	switch {
-	case infiniWebhookPaid(event):
-		status = payment.NotificationStatusSuccess
-	case strings.EqualFold(event.Event, infiniEventExpired) || strings.EqualFold(event.Status, infiniStatusExpired):
-		status = payment.ProviderStatusFailed
-	default:
+	status, amountExact, amount, err := infiniWebhookDecision(event)
+	if err != nil {
+		return nil, err
+	}
+	if status == "" {
 		return nil, nil
 	}
 
-	amount, err := parseInfiniAmount(event.AmountConfirmed, event.Amount)
-	if err != nil && status == payment.NotificationStatusSuccess {
-		return nil, fmt.Errorf("infini webhook invalid amount: %w", err)
-	}
-
 	return &payment.PaymentNotification{
-		TradeNo:  tradeNo,
-		OrderID:  orderID,
-		Amount:   amount,
-		Status:   status,
-		RawData:  rawBody,
-		Metadata: i.eventMetadata(event),
+		TradeNo:     tradeNo,
+		OrderID:     orderID,
+		Amount:      amount,
+		AmountExact: amountExact,
+		EventID:     strings.TrimSpace(headerCI(headers, "x-webhook-event-id")),
+		Status:      status,
+		RawData:     rawBody,
+		Metadata:    i.eventMetadata(event, amountExact),
 	}, nil
 }
 
@@ -279,18 +279,24 @@ func (i *Infini) checkoutEnv() string {
 	return "sandbox"
 }
 
-func (i *Infini) orderMetadata(order infiniOrder) map[string]string {
+func (i *Infini) orderMetadata(order infiniOrder, amountExact string) map[string]string {
 	return map[string]string{
-		"currency": strings.ToUpper(strings.TrimSpace(order.Currency)),
-		"status":   strings.ToLower(strings.TrimSpace(order.Status)),
+		"currency":          strings.ToUpper(strings.TrimSpace(order.Currency)),
+		"status":            strings.ToLower(strings.TrimSpace(order.Status)),
+		"amount_exact":      amountExact,
+		"client_reference":  strings.TrimSpace(order.ClientReference),
+		"provider_order_id": strings.TrimSpace(order.OrderID),
 	}
 }
 
-func (i *Infini) eventMetadata(event infiniWebhookEvent) map[string]string {
+func (i *Infini) eventMetadata(event infiniWebhookEvent, amountExact string) map[string]string {
 	return map[string]string{
-		"currency": strings.ToUpper(strings.TrimSpace(event.Currency)),
-		"status":   strings.ToLower(strings.TrimSpace(event.Status)),
-		"event":    strings.ToLower(strings.TrimSpace(event.Event)),
+		"currency":          strings.ToUpper(strings.TrimSpace(event.Currency)),
+		"status":            strings.ToLower(strings.TrimSpace(event.Status)),
+		"event":             strings.ToLower(strings.TrimSpace(event.Event)),
+		"amount_exact":      amountExact,
+		"client_reference":  strings.TrimSpace(event.ClientReference),
+		"provider_order_id": strings.TrimSpace(event.OrderID),
 	}
 }
 
@@ -411,27 +417,77 @@ func headerCI(headers map[string]string, key string) string {
 	return headers[strings.ToLower(key)]
 }
 
-func infiniWebhookPaid(event infiniWebhookEvent) bool {
+func infiniWebhookDecision(event infiniWebhookEvent) (status, amountExact string, amount float64, err error) {
 	eventName := strings.ToLower(strings.TrimSpace(event.Event))
-	status := strings.ToLower(strings.TrimSpace(event.Status))
-	if eventName != infiniEventCompleted && eventName != infiniEventLatePayment {
-		return false
+	eventStatus := strings.ToLower(strings.TrimSpace(event.Status))
+	confirmedExact, confirmed, confirmedErr := parseInfiniAmount(event.AmountConfirmed)
+	listedExact, listed, listedErr := parseInfiniAmount(event.Amount)
+
+	switch eventName {
+	case infiniEventCompleted:
+		if eventStatus != infiniStatusPaid {
+			return "", "", 0, nil
+		}
+		if confirmedErr == nil {
+			return payment.NotificationStatusSuccess, confirmedExact, confirmed, nil
+		}
+		if listedErr == nil {
+			return payment.NotificationStatusSuccess, listedExact, listed, nil
+		}
+		return "", "", 0, fmt.Errorf("infini webhook invalid amount: missing amount_confirmed")
+	case infiniEventLatePayment:
+		if confirmedErr != nil {
+			return "", "", 0, fmt.Errorf("infini late_payment missing amount_confirmed")
+		}
+		if eventStatus != "" && eventStatus != infiniStatusPaid && eventStatus != infiniStatusExpired {
+			return "", "", 0, fmt.Errorf("infini late_payment has non-payable status %s", eventStatus)
+		}
+		// Official late_payment keeps status=expired; amount_confirmed is the
+		// settled amount and may be partial. Fulfillment still exact-matches
+		// the order snapshot and rejects under/over pay.
+		return payment.NotificationStatusSuccess, confirmedExact, confirmed, nil
+	case infiniEventExpired:
+		if confirmedErr == nil {
+			return payment.NotificationStatusSuccess, confirmedExact, confirmed, nil
+		}
+		return payment.ProviderStatusFailed, listedExact, listed, nil
+	default:
+		return "", "", 0, nil
 	}
-	return status == infiniStatusPaid || status == ""
 }
 
-func infiniProviderStatus(status string) string {
+func infiniQueryDecision(status, confirmedExact string, confirmed float64, confirmedErr error, listedExact string, listed float64, listedErr error) (string, string, float64, error) {
 	switch strings.ToLower(strings.TrimSpace(status)) {
 	case infiniStatusPaid:
-		return payment.ProviderStatusPaid
-	case infiniStatusExpired, infiniStatusPartialPaid:
-		return payment.ProviderStatusFailed
+		if confirmedErr == nil {
+			return payment.ProviderStatusPaid, confirmedExact, confirmed, nil
+		}
+		if listedErr == nil {
+			return payment.ProviderStatusPaid, listedExact, listed, nil
+		}
+		return "", "", 0, fmt.Errorf("infini query order: missing confirmed amount")
+	case infiniStatusExpired:
+		// Late payment stays expired; only amount_confirmed may prove settlement.
+		// Never fall back to the original payable `amount`.
+		if confirmedErr == nil {
+			return payment.ProviderStatusPaid, confirmedExact, confirmed, nil
+		}
+		return payment.ProviderStatusFailed, listedExact, listed, nil
+	case infiniStatusPartialPaid:
+		return payment.ProviderStatusFailed, firstNonEmpty(confirmedExact, listedExact), confirmedOrListed(confirmed, listed, confirmedErr), nil
 	default:
-		return payment.ProviderStatusPending
+		return payment.ProviderStatusPending, firstNonEmpty(confirmedExact, listedExact), confirmedOrListed(confirmed, listed, confirmedErr), nil
 	}
 }
 
-func parseInfiniAmount(values ...string) (float64, error) {
+func confirmedOrListed(confirmed, listed float64, confirmedErr error) float64 {
+	if confirmedErr == nil {
+		return confirmed
+	}
+	return listed
+}
+
+func parseInfiniAmount(values ...string) (string, float64, error) {
 	for _, raw := range values {
 		raw = strings.TrimSpace(raw)
 		if raw == "" {
@@ -441,10 +497,11 @@ func parseInfiniAmount(values ...string) (float64, error) {
 		if err != nil || amount.LessThanOrEqual(decimal.Zero) {
 			continue
 		}
+		exact := amount.String()
 		f, _ := amount.Float64()
-		return f, nil
+		return exact, f, nil
 	}
-	return 0, fmt.Errorf("missing amount")
+	return "", 0, fmt.Errorf("missing amount")
 }
 
 func infiniDeterministicRequestID(parts ...string) string {

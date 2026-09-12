@@ -8,6 +8,7 @@ import (
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
+	"github.com/shopspring/decimal"
 )
 
 type paymentOrderProviderSnapshot struct {
@@ -18,6 +19,26 @@ type paymentOrderProviderSnapshot struct {
 	MerchantAppID      string
 	MerchantID         string
 	Currency           string
+	PackageAmount      string
+	CreditAmount       string
+	PayAmount          string
+	FeeRate            string
+	FxRate             string
+	FxConverted        bool
+	PaymentType        string
+	OrderType          string
+}
+
+type paymentOrderFinancialSnapshot struct {
+	PackageAmount string
+	CreditAmount  string
+	PayAmount     string
+	FeeRate       string
+	FxRate        string
+	FxConverted   bool
+	PaymentType   string
+	OrderType     string
+	Currency      string
 }
 
 func psOrderProviderSnapshot(order *dbent.PaymentOrder) *paymentOrderProviderSnapshot {
@@ -33,6 +54,14 @@ func psOrderProviderSnapshot(order *dbent.PaymentOrder) *paymentOrderProviderSna
 		MerchantAppID:      psSnapshotStringValue(order.ProviderSnapshot["merchant_app_id"]),
 		MerchantID:         psSnapshotStringValue(order.ProviderSnapshot["merchant_id"]),
 		Currency:           psSnapshotStringValue(order.ProviderSnapshot["currency"]),
+		PackageAmount:      psSnapshotStringValue(order.ProviderSnapshot["package_amount"]),
+		CreditAmount:       psSnapshotStringValue(order.ProviderSnapshot["credit_amount"]),
+		PayAmount:          psSnapshotStringValue(order.ProviderSnapshot["pay_amount"]),
+		FeeRate:            psSnapshotStringValue(order.ProviderSnapshot["fee_rate"]),
+		FxRate:             psSnapshotStringValue(order.ProviderSnapshot["fx_rate"]),
+		FxConverted:        psSnapshotBoolValue(order.ProviderSnapshot["fx_converted"]),
+		PaymentType:        psSnapshotStringValue(order.ProviderSnapshot["payment_type"]),
+		OrderType:          psSnapshotStringValue(order.ProviderSnapshot["order_type"]),
 	}
 	if snapshot.SchemaVersion == 0 &&
 		snapshot.ProviderInstanceID == "" &&
@@ -40,7 +69,8 @@ func psOrderProviderSnapshot(order *dbent.PaymentOrder) *paymentOrderProviderSna
 		snapshot.PaymentMode == "" &&
 		snapshot.MerchantAppID == "" &&
 		snapshot.MerchantID == "" &&
-		snapshot.Currency == "" {
+		snapshot.Currency == "" &&
+		snapshot.PayAmount == "" {
 		return nil
 	}
 	return snapshot
@@ -53,6 +83,100 @@ func psSnapshotStringValue(value any) string {
 	default:
 		return ""
 	}
+}
+
+func psSnapshotBoolValue(value any) bool {
+	switch typed := value.(type) {
+	case bool:
+		return typed
+	case string:
+		return strings.EqualFold(strings.TrimSpace(typed), "true")
+	default:
+		return false
+	}
+}
+
+func newPaymentOrderFinancialSnapshot(
+	req CreateOrderRequest,
+	cfg *PaymentConfig,
+	sel *payment.InstanceSelection,
+	orderAmount, limitAmount, feeRate, payAmount float64,
+) paymentOrderFinancialSnapshot {
+	currency := payment.DefaultPaymentCurrency
+	if sel != nil {
+		currency = paymentProviderConfigCurrency(sel.ProviderKey, sel.Config)
+	}
+	fxRate := 0.0
+	if cfg != nil {
+		fxRate = normalizeSubscriptionUSDToCNYRate(cfg.SubscriptionUSDToCNYRate)
+	}
+	return paymentOrderFinancialSnapshot{
+		PackageAmount: decimalAmountString(limitAmount, 2),
+		CreditAmount:  decimalAmountString(orderAmount, 2),
+		PayAmount:     formatPaymentAmountExact(payAmount, currency),
+		FeeRate:       decimalAmountString(feeRate, 4),
+		FxRate:        decimalAmountString(fxRate, 4),
+		FxConverted:   quoteUsesFX(req.OrderType, req.PaymentType, currency, fxRate),
+		PaymentType:   strings.TrimSpace(req.PaymentType),
+		OrderType:     strings.TrimSpace(req.OrderType),
+		Currency:      currency,
+	}
+}
+
+func attachPaymentOrderFinancialSnapshot(snapshot map[string]any, fin paymentOrderFinancialSnapshot) map[string]any {
+	if snapshot == nil {
+		snapshot = map[string]any{}
+	}
+	snapshot["schema_version"] = 3
+	snapshot["package_amount"] = fin.PackageAmount
+	snapshot["credit_amount"] = fin.CreditAmount
+	snapshot["pay_amount"] = fin.PayAmount
+	snapshot["fee_rate"] = fin.FeeRate
+	snapshot["fx_rate"] = fin.FxRate
+	snapshot["fx_converted"] = fin.FxConverted
+	if fin.PaymentType != "" {
+		snapshot["payment_type"] = fin.PaymentType
+	}
+	if fin.OrderType != "" {
+		snapshot["order_type"] = fin.OrderType
+	}
+	if fin.Currency != "" {
+		snapshot["currency"] = fin.Currency
+	}
+	return snapshot
+}
+
+func decimalAmountString(amount float64, digits int32) string {
+	return decimal.NewFromFloat(amount).Round(digits).StringFixed(digits)
+}
+
+func validatePaymentOrderFinancialSnapshot(order *dbent.PaymentOrder, snapshot *paymentOrderProviderSnapshot) error {
+	if order == nil || snapshot == nil {
+		return nil
+	}
+	if snapshot.PaymentType != "" && strings.TrimSpace(order.PaymentType) != "" &&
+		!strings.EqualFold(snapshot.PaymentType, strings.TrimSpace(order.PaymentType)) {
+		return fmt.Errorf("payment type snapshot mismatch: expected %s, got %s", snapshot.PaymentType, order.PaymentType)
+	}
+	if snapshot.OrderType != "" && strings.TrimSpace(order.OrderType) != "" &&
+		!strings.EqualFold(snapshot.OrderType, strings.TrimSpace(order.OrderType)) {
+		return fmt.Errorf("order type snapshot mismatch: expected %s, got %s", snapshot.OrderType, order.OrderType)
+	}
+	if snapshot.CreditAmount != "" {
+		if err := paymentAmountsMatch(snapshot.CreditAmount, 0, formatPaymentAmountExact(order.Amount, "USD"), order.Amount, "USD"); err != nil {
+			return fmt.Errorf("credit snapshot mismatch: %w", err)
+		}
+	}
+	if snapshot.PayAmount != "" {
+		currency := snapshot.Currency
+		if currency == "" {
+			currency = PaymentOrderCurrency(order)
+		}
+		if err := paymentAmountsMatch(snapshot.PayAmount, 0, formatPaymentAmountExact(order.PayAmount, currency), order.PayAmount, currency); err != nil {
+			return fmt.Errorf("pay amount snapshot mismatch: %w", err)
+		}
+	}
+	return nil
 }
 
 func psSnapshotIntValue(value any) int {
@@ -228,6 +352,16 @@ func validateProviderSnapshotMetadata(order *dbent.PaymentOrder, providerKey str
 			}
 			if !strings.EqualFold(expected, actual) {
 				return fmt.Errorf("infini currency mismatch: expected %s, got %s", expected, actual)
+			}
+		}
+		if expected := strings.TrimSpace(order.OutTradeNo); expected != "" {
+			if actual := strings.TrimSpace(metadata["client_reference"]); actual != "" && !strings.EqualFold(expected, actual) {
+				return fmt.Errorf("infini client_reference mismatch: expected %s, got %s", expected, actual)
+			}
+		}
+		if expected := strings.TrimSpace(order.PaymentTradeNo); expected != "" {
+			if actual := strings.TrimSpace(metadata["provider_order_id"]); actual != "" && !strings.EqualFold(expected, actual) {
+				return fmt.Errorf("infini order_id mismatch: expected %s, got %s", expected, actual)
 			}
 		}
 	}

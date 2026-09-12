@@ -11,7 +11,8 @@ import type {
   CheckoutInfoResponse,
   CreateOrderRequest,
   CreateOrderResult,
-  PaymentOrder
+  PaymentOrder,
+  PaymentQuote,
 } from '@/types/payment'
 import type { BasePaginationResponse } from '@/types'
 
@@ -42,6 +43,11 @@ export const paymentAPI = {
   /** Get payment method limits and fee rates */
   getLimits() {
     return apiClient.get<MethodLimitsResponse>('/payment/limits')
+  },
+
+  /** Backend-calculated pay/credit amounts for the selected package and method */
+  quoteOrder(data: Pick<CreateOrderRequest, 'amount' | 'payment_type' | 'order_type' | 'plan_id'>) {
+    return apiClient.post<PaymentQuote>('/payment/quote', data)
   },
 
   /** Create a new payment order */

@@ -346,9 +346,8 @@ func (s *PaymentConfigService) UpdatePaymentConfig(ctx context.Context, req Upda
 		rechargePackagesJSON = string(raw)
 	}
 	if req.SubscriptionUSDToCNYRate != nil {
-		v := *req.SubscriptionUSDToCNYRate
-		if math.IsNaN(v) || math.IsInf(v, 0) || v < 0 {
-			return infraerrors.BadRequest("INVALID_SUBSCRIPTION_USD_TO_CNY_RATE", "subscription USD to CNY rate must be 0 (disabled) or a positive number")
+		if err := validateSubscriptionUSDToCNYRate(*req.SubscriptionUSDToCNYRate); err != nil {
+			return err
 		}
 	}
 	if req.RechargeFeeRate != nil {

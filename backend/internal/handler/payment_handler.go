@@ -217,6 +217,32 @@ func parseFeatures(raw string) []string {
 	return out
 }
 
+// QuoteOrder returns backend-calculated pay/credit amounts without creating an order.
+// POST /api/v1/payment/quote
+func (h *PaymentHandler) QuoteOrder(c *gin.Context) {
+	subject, ok := requireAuth(c)
+	if !ok {
+		return
+	}
+	var req CreateOrderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	result, err := h.paymentService.QuoteOrder(c.Request.Context(), service.CreateOrderRequest{
+		UserID:      subject.UserID,
+		Amount:      req.Amount,
+		PaymentType: req.PaymentType,
+		OrderType:   req.OrderType,
+		PlanID:      req.PlanID,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
 // GetLimits returns per-payment-type limits derived from enabled provider instances.
 // GET /api/v1/payment/limits
 func (h *PaymentHandler) GetLimits(c *gin.Context) {

@@ -112,6 +112,17 @@ func TestWriteSuccessResponse(t *testing.T) {
 //     (empty 200) — matching what handleNotify calls on the ack path.
 //
 // If either contract breaks, the Stripe "unknown order → 500 loop" regresses.
+func TestWriteSuccessResponseInfiniJSON(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	writeSuccessResponse(c, payment.TypeInfini)
+	require.Equal(t, http.StatusOK, w.Code)
+	var resp map[string]string
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	require.Equal(t, "ok", resp["status"])
+}
+
 func TestUnknownOrderWebhookAcksWithSuccess(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -125,6 +136,10 @@ func TestUnknownOrderWebhookAcksWithSuccess(t *testing.T) {
 	// swallowed as an ack.
 	other := errors.New("lookup order failed: connection refused")
 	require.False(t, errors.Is(other, service.ErrOrderNotFound))
+
+	rejected := fmt.Errorf("%w: amount mismatch", service.ErrPaymentRejected)
+	require.True(t, errors.Is(rejected, service.ErrPaymentRejected))
+	require.False(t, errors.Is(rejected, service.ErrOrderNotFound))
 
 	// 2) Provider-specific success body is what handleNotify emits on the
 	// ack path. Asserted again here because this is the shape Stripe expects

@@ -76,6 +76,20 @@ export interface MethodLimitsResponse {
 }
 
 /** Response from /payment/checkout-info API — single call for the payment page */
+export interface PaymentQuote {
+  order_type: OrderType
+  payment_type: string
+  package_amount: string
+  credit_amount: string
+  pay_amount: string
+  pay_amount_value: number
+  fee_amount: string
+  fee_rate: number
+  fx_rate: number
+  fx_converted: boolean
+  currency: string
+}
+
 export interface CheckoutInfoResponse {
   methods: Record<string, MethodLimit>
   global_min: number

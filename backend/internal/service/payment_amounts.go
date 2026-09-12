@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/Wei-Shaw/sub2api/internal/payment"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/shopspring/decimal"
 )
 
@@ -16,10 +17,31 @@ func normalizeBalanceRechargeMultiplier(multiplier float64) float64 {
 	return multiplier
 }
 
-// normalizeSubscriptionUSDToCNYRate 将非法值归一为 0（换算关闭）。
+const (
+	minUsableSubscriptionUSDToCNYRate = 0.0001
+	maxUsableSubscriptionUSDToCNYRate = 1000000
+)
+
+// validateSubscriptionUSDToCNYRate rejects NaN/Inf/negative/out-of-range rates.
+// 0 remains valid and means FX conversion is disabled.
+func validateSubscriptionUSDToCNYRate(rate float64) error {
+	if math.IsNaN(rate) || math.IsInf(rate, 0) {
+		return infraerrors.BadRequest("INVALID_FX_RATE", "USD/CNY rate is invalid")
+	}
+	if rate < 0 {
+		return infraerrors.BadRequest("INVALID_FX_RATE", "USD/CNY rate must be 0 or a positive number")
+	}
+	if rate > 0 && (rate < minUsableSubscriptionUSDToCNYRate || rate > maxUsableSubscriptionUSDToCNYRate) {
+		return infraerrors.BadRequest("INVALID_FX_RATE", "USD/CNY rate is out of range")
+	}
+	return nil
+}
+
+// normalizeSubscriptionUSDToCNYRate 将非法或超范围值归一为 0（换算关闭）。
 // 0 表示：订阅按 price 直付；Infini/USDT 余额充值也不把套餐换成美元实付。
+// CreateOrder/Quote 必须先走 validateSubscriptionUSDToCNYRate，避免把非法汇率静默当成 0。
 func normalizeSubscriptionUSDToCNYRate(rate float64) float64 {
-	if math.IsNaN(rate) || math.IsInf(rate, 0) || rate < 0 {
+	if err := validateSubscriptionUSDToCNYRate(rate); err != nil {
 		return 0
 	}
 	return rate

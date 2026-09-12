@@ -76,18 +76,20 @@
             />
             <RechargeCheckoutDialog
               :open="showPayDialog"
-              :pay-amount-label="formatSelectedPaymentAmount(totalAmount)"
-              :credit-amount-label="`$${creditedAmount.toFixed(2)}`"
-              :fee-amount-label="formatSelectedPaymentAmount(feeAmount)"
-              :fee-rate="feeRate"
+              :pay-amount-label="rechargePayAmountLabel"
+              :credit-amount-label="rechargeCreditAmountLabel"
+              :fee-amount-label="rechargeFeeAmountLabel"
+              :fee-rate="rechargeQuote?.fee_rate ?? 0"
               :multiplier="balanceRechargeMultiplier"
-              :currency="selectedCurrency"
+              :currency="rechargeQuote?.currency || selectedCurrency"
               :selected="selectedMethod"
               :lane="payLane"
               :rmb-methods="rmbMethods"
               :usdt-methods="usdtMethods"
               :submitting="submitting"
-              :error="amountError"
+              :quote-loading="quoteLoading"
+              :fx-rate-label="rechargeFxRateLabel"
+              :error="amountError || quoteError"
               @close="closeRechargeCheckout"
               @update:lane="selectPayLane"
               @select="selectCheckoutMethod"
@@ -272,13 +274,12 @@ import { paymentAPI } from '@/api/payment'
 import { extractApiErrorMessage, extractI18nErrorMessage } from '@/utils/apiError'
 import { isMobileDevice } from '@/utils/device'
 import { hasPeakRate, formatPeakRateWindow, serverTimezoneLabel, type PeakRateFields } from '@/utils/peak-rate'
-import type { SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType } from '@/types/payment'
+import type { SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType, PaymentQuote } from '@/types/payment'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector.vue'
 import RechargePackageGrid from '@/components/payment/RechargePackageGrid.vue'
 import RechargeCheckoutDialog from '@/components/payment/RechargeCheckoutDialog.vue'
 import {
-  balanceGatewayPayAmount,
   filterRechargePackages,
   maxRechargeBonus,
   packageCreditAmount,
@@ -671,22 +672,54 @@ const packageDisplayCurrency = computed(() => {
 })
 
 const feeRate = computed(() => checkout.value?.recharge_fee_rate ?? 0)
-const rechargeGatewayBaseAmount = computed(() =>
-  balanceGatewayPayAmount(
-    validAmount.value,
-    selectedMethod.value,
-    selectedCurrency.value,
-    subscriptionUsdToCnyRate.value,
-  ),
-)
-const feeAmount = computed(() => {
-  if (feeRate.value <= 0 || rechargeGatewayBaseAmount.value <= 0) return 0
-  return ceilPaymentAmount((rechargeGatewayBaseAmount.value * feeRate.value) / 100, selectedCurrency.value)
+const rechargeQuote = ref<PaymentQuote | null>(null)
+const quoteLoading = ref(false)
+const quoteError = ref('')
+let quoteRequestSeq = 0
+
+const rechargePayAmountLabel = computed(() => {
+  if (!rechargeQuote.value) return ''
+  return formatPaymentAmount(Number(rechargeQuote.value.pay_amount), rechargeQuote.value.currency, localeCode.value)
 })
-const totalAmount = computed(() => {
-  if (feeRate.value <= 0 || rechargeGatewayBaseAmount.value <= 0) return rechargeGatewayBaseAmount.value
-  return roundPaymentAmount(rechargeGatewayBaseAmount.value + feeAmount.value, selectedCurrency.value)
+const rechargeCreditAmountLabel = computed(() => {
+  if (rechargeQuote.value) return `$${Number(rechargeQuote.value.credit_amount).toFixed(2)}`
+  return `$${creditedAmount.value.toFixed(2)}`
 })
+const rechargeFeeAmountLabel = computed(() => {
+  if (!rechargeQuote.value) return formatPaymentAmount(0, selectedCurrency.value, localeCode.value)
+  return formatPaymentAmount(Number(rechargeQuote.value.fee_amount), rechargeQuote.value.currency, localeCode.value)
+})
+const rechargeFxRateLabel = computed(() => {
+  if (!rechargeQuote.value?.fx_converted || !(rechargeQuote.value.fx_rate > 0)) return ''
+  return t('payment.fxRateLabel', { rate: String(rechargeQuote.value.fx_rate) })
+})
+
+async function loadRechargeQuote() {
+  if (!showPayDialog.value || validAmount.value <= 0 || !selectedMethod.value) {
+    rechargeQuote.value = null
+    quoteError.value = ''
+    return
+  }
+  const seq = ++quoteRequestSeq
+  quoteLoading.value = true
+  quoteError.value = ''
+  try {
+    const { data } = await paymentAPI.quoteOrder({
+      amount: validAmount.value,
+      payment_type: selectedMethod.value,
+      order_type: 'balance',
+    })
+    if (seq !== quoteRequestSeq) return
+    rechargeQuote.value = data
+  } catch (err) {
+    if (seq !== quoteRequestSeq) return
+    rechargeQuote.value = null
+    quoteError.value = t('payment.quoteFailed')
+    console.warn('quote order failed', err)
+  } finally {
+    if (seq === quoteRequestSeq) quoteLoading.value = false
+  }
+}
 
 const amountError = computed(() => {
   if (validAmount.value <= 0) return ''
@@ -707,6 +740,11 @@ const canSubmit = computed(() =>
   validAmount.value > 0
     && amountFitsMethod(validAmount.value, selectedMethod.value)
     && selectedLimit.value?.available !== false
+    && !quoteLoading.value
+    && !quoteError.value
+    && !!rechargeQuote.value
+    && rechargeQuote.value.payment_type === selectedMethod.value
+    && Number(rechargeQuote.value.package_amount) === validAmount.value
 )
 
 const subPaymentAmount = computed(() => {
@@ -766,6 +804,18 @@ watch(() => [validAmount.value, selectedMethod.value, payLane.value] as const, (
     payLane.value = paymentMethodLane(preferred.type, preferred.currency)
   }
 })
+
+watch(
+  () => [showPayDialog.value, validAmount.value, selectedMethod.value] as const,
+  ([open]) => {
+    if (open) {
+      void loadRechargeQuote()
+      return
+    }
+    rechargeQuote.value = null
+    quoteError.value = ''
+  },
+)
 
 function selectPayLane(lane: PaymentMethodLane) {
   if (submitting.value || rechargeConfirmLock) return
@@ -875,6 +925,13 @@ async function confirmRechargeCheckout(type: string) {
   try {
     await nextTick()
     if (selectedMethod.value !== requestType) return
+    await loadRechargeQuote()
+    const quote = rechargeQuote.value
+    if (quoteLoading.value || quoteError.value || !quote) return
+    if (quote.payment_type !== requestType || Number(quote.package_amount) !== validAmount.value) {
+      quoteError.value = t('payment.quoteFailed')
+      return
+    }
     await handleSubmitRecharge()
     if (paymentPhase.value === 'paying') {
       showPayDialog.value = false

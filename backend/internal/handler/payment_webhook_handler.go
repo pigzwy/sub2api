@@ -126,6 +126,9 @@ func (h *PaymentWebhookHandler) handleNotify(c *gin.Context, providerKey string)
 		writeSuccessResponse(c, resolvedProviderKey)
 		return
 	}
+	if strings.TrimSpace(notification.EventID) == "" {
+		notification.EventID = strings.TrimSpace(headers["x-webhook-event-id"])
+	}
 
 	if err := h.paymentService.HandlePaymentNotification(c.Request.Context(), notification, resolvedProviderKey); err != nil {
 		// Unknown order: ack with 2xx so the provider stops retrying. This
@@ -138,6 +141,16 @@ func (h *PaymentWebhookHandler) handleNotify(c *gin.Context, providerKey string)
 				"provider", resolvedProviderKey,
 				"outTradeNo", notification.OrderID,
 				"tradeNo", notification.TradeNo,
+			)
+			writeSuccessResponse(c, resolvedProviderKey)
+			return
+		}
+		if errors.Is(err, service.ErrPaymentRejected) {
+			slog.Warn("[Payment Webhook] notification rejected, acking to stop retries",
+				"provider", resolvedProviderKey,
+				"outTradeNo", notification.OrderID,
+				"tradeNo", notification.TradeNo,
+				"error", err,
 			)
 			writeSuccessResponse(c, resolvedProviderKey)
 			return

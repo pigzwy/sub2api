@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -192,9 +193,23 @@ func (s *PaymentService) checkPaidWithOptions(ctx context.Context, o *dbent.Paym
 			}
 			notificationTradeNo = upstreamTradeNo
 		}
-		if err := s.HandlePaymentNotification(ctx, &payment.PaymentNotification{TradeNo: notificationTradeNo, OrderID: o.OutTradeNo, Amount: resp.Amount, Status: payment.ProviderStatusSuccess, Metadata: resp.Metadata}, prov.ProviderKey()); err != nil {
+		amountExact := ""
+		if resp.Metadata != nil {
+			amountExact = strings.TrimSpace(resp.Metadata["amount_exact"])
+		}
+		if err := s.HandlePaymentNotification(ctx, &payment.PaymentNotification{
+			TradeNo:     notificationTradeNo,
+			OrderID:     o.OutTradeNo,
+			Amount:      resp.Amount,
+			AmountExact: amountExact,
+			Status:      payment.ProviderStatusSuccess,
+			Metadata:    resp.Metadata,
+		}, prov.ProviderKey()); err != nil {
 			slog.Error("fulfillment failed during checkPaid", "orderID", o.ID, "error", err)
-			// Still return already_paid — order was paid, fulfillment can be retried
+			if errors.Is(err, ErrPaymentRejected) {
+				return ""
+			}
+			// Accepted payment but fulfillment failed; reload callers treat this as paid.
 		}
 		return checkPaidResultAlreadyPaid
 	}
@@ -303,8 +318,8 @@ func (s *PaymentService) VerifyOrderByOutTradeNo(ctx context.Context, outTradeNo
 	return o, nil
 }
 
-// ReconcilePendingPaymentOrders actively checks recent pending Alipay and WeChat
-// orders so missed provider notifications do not wait until order expiry to fulfill.
+// ReconcilePendingPaymentOrders actively checks recent pending Alipay, WeChat,
+// and Infini orders so missed provider notifications do not wait until expiry.
 func (s *PaymentService) ReconcilePendingPaymentOrders(ctx context.Context) (int, error) {
 	now := time.Now()
 	orders, err := s.entClient.PaymentOrder.Query().
@@ -320,6 +335,8 @@ func (s *PaymentService) ReconcilePendingPaymentOrders(ctx context.Context) (int
 				paymentorder.PaymentTypeHasPrefix(payment.TypeAlipay+"_"),
 				paymentorder.ProviderKeyEQ(payment.TypeAlipay),
 				paymentorder.ProviderKeyHasPrefix(payment.TypeAlipay+"_"),
+				paymentorder.PaymentTypeEQ(payment.TypeInfini),
+				paymentorder.ProviderKeyEQ(payment.TypeInfini),
 			),
 		).
 		Order(dbent.Asc(paymentorder.FieldCreatedAt)).

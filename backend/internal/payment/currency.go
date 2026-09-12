@@ -64,6 +64,15 @@ func NormalizePaymentCurrency(raw string) (string, error) {
 	return currency, nil
 }
 
+// CanonicalAmountCurrency maps settlement aliases (USDT) onto amount-precision
+// rules without relaxing ISO currency validation for provider config.
+func CanonicalAmountCurrency(raw string) (string, error) {
+	if strings.EqualFold(strings.TrimSpace(raw), "USDT") {
+		return "USDT", nil
+	}
+	return NormalizePaymentCurrency(raw)
+}
+
 func CurrencyMinorUnit(currency string) int {
 	return paymentCurrencyAmountUnitFor(currency).apiMinorUnit
 }
@@ -79,6 +88,9 @@ func FormatAmountForCurrency(amount float64, currency string) string {
 }
 
 func paymentCurrencyAmountUnitFor(currency string) paymentCurrencyAmountUnit {
+	if strings.EqualFold(strings.TrimSpace(currency), "USDT") {
+		return twoDecimalAmountUnit
+	}
 	normalized, err := NormalizePaymentCurrency(currency)
 	if err != nil {
 		return twoDecimalAmountUnit
@@ -94,7 +106,7 @@ func AmountToMinorUnit(amountStr, currency string) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("invalid amount: %s", amountStr)
 	}
-	normalizedCurrency, err := NormalizePaymentCurrency(currency)
+	normalizedCurrency, err := CanonicalAmountCurrency(currency)
 	if err != nil {
 		return 0, err
 	}

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"math"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -1384,6 +1385,294 @@ func TestExecuteSubscriptionFulfillmentDoesNotDuplicateWorkAfterLegacySuccessAud
 	require.Equal(t, OrderStatusCompleted, reloaded.Status)
 	require.Empty(t, affiliateRepo.accrueCalls)
 	require.Zero(t, subRepo.createCalls)
+}
+
+func TestInfiniLatePaymentExpiredOrderFulfillsWhenConfirmedMatchesSnapshot(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+	ensurePaymentAuditOrderActionUniqueIndex(t, ctx, client)
+	order := createInfiniBalanceOrder(t, ctx, client, OrderStatusExpired, 50, 7.5, nil)
+
+	balance := 0.0
+	userRepo := &mockUserRepo{getByIDUser: &User{ID: order.UserID, Balance: 0}}
+	userRepo.updateBalanceFn = func(_ context.Context, id int64, amount float64) error {
+		require.Equal(t, order.UserID, id)
+		balance += amount
+		return nil
+	}
+	svc := &PaymentService{
+		entClient:     client,
+		userRepo:      userRepo,
+		redeemService: NewRedeemService(&paymentFulfillmentRedeemRepo{}, userRepo, nil, &paymentFulfillmentRedeemCacheStub{}, nil, client, nil, nil),
+	}
+
+	err := svc.HandlePaymentNotification(ctx, &payment.PaymentNotification{
+		TradeNo:     "ord-late",
+		OrderID:     order.OutTradeNo,
+		Amount:      7.5,
+		AmountExact: "7.50",
+		EventID:     "evt-late-full",
+		Status:      payment.NotificationStatusSuccess,
+		Metadata: map[string]string{
+			"currency":          "USD",
+			"client_reference":  order.OutTradeNo,
+			"provider_order_id": "ord-late",
+		},
+	}, payment.TypeInfini)
+	require.NoError(t, err)
+	require.InDelta(t, 50, balance, 1e-8)
+
+	reloaded, err := client.PaymentOrder.Get(ctx, order.ID)
+	require.NoError(t, err)
+	require.Equal(t, OrderStatusCompleted, reloaded.Status)
+	require.InDelta(t, 7.5, reloaded.PayAmount, 1e-8)
+}
+
+func TestInfiniLatePaymentRejectsUnderpayAndOverpay(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+	ensurePaymentAuditOrderActionUniqueIndex(t, ctx, client)
+	order := createInfiniBalanceOrder(t, ctx, client, OrderStatusExpired, 50, 7.5, nil)
+	svc := &PaymentService{entClient: client}
+
+	err := svc.HandlePaymentNotification(ctx, &payment.PaymentNotification{
+		TradeNo:     "ord-late",
+		OrderID:     order.OutTradeNo,
+		AmountExact: "3.00",
+		Amount:      3,
+		EventID:     "evt-under",
+		Status:      payment.NotificationStatusSuccess,
+		Metadata:    map[string]string{"currency": "USD", "client_reference": order.OutTradeNo},
+	}, payment.TypeInfini)
+	require.ErrorIs(t, err, ErrPaymentRejected)
+	require.ErrorContains(t, err, "amount mismatch")
+
+	err = svc.HandlePaymentNotification(ctx, &payment.PaymentNotification{
+		TradeNo:     "ord-late",
+		OrderID:     order.OutTradeNo,
+		AmountExact: "8.00",
+		Amount:      8,
+		EventID:     "evt-over",
+		Status:      payment.NotificationStatusSuccess,
+		Metadata:    map[string]string{"currency": "USD", "client_reference": order.OutTradeNo},
+	}, payment.TypeInfini)
+	require.ErrorIs(t, err, ErrPaymentRejected)
+	require.ErrorContains(t, err, "amount mismatch")
+
+	reloaded, err := client.PaymentOrder.Get(ctx, order.ID)
+	require.NoError(t, err)
+	require.Equal(t, OrderStatusExpired, reloaded.Status)
+}
+
+func TestInfiniNotificationRejectsTradeNumberMismatch(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+	ensurePaymentAuditOrderActionUniqueIndex(t, ctx, client)
+	order := createInfiniBalanceOrder(t, ctx, client, OrderStatusPending, 50, 7.5, nil)
+	svc := &PaymentService{entClient: client}
+
+	err := svc.HandlePaymentNotification(ctx, &payment.PaymentNotification{
+		TradeNo:     "ord-other",
+		OrderID:     order.OutTradeNo,
+		AmountExact: "7.50",
+		Status:      payment.NotificationStatusSuccess,
+		Metadata:    map[string]string{"currency": "USD", "client_reference": order.OutTradeNo},
+	}, payment.TypeInfini)
+	require.ErrorIs(t, err, ErrPaymentRejected)
+	require.ErrorContains(t, err, "trade number mismatch")
+}
+
+func TestInfiniNotificationRejectsCurrencyMismatchAndCancelledOrder(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+	ensurePaymentAuditOrderActionUniqueIndex(t, ctx, client)
+	order := createInfiniBalanceOrder(t, ctx, client, OrderStatusPending, 50, 7.5, nil)
+	svc := &PaymentService{entClient: client}
+
+	err := svc.HandlePaymentNotification(ctx, &payment.PaymentNotification{
+		TradeNo:     "ord-late",
+		OrderID:     order.OutTradeNo,
+		AmountExact: "7.50",
+		Status:      payment.NotificationStatusSuccess,
+		Metadata:    map[string]string{"currency": "CNY", "client_reference": order.OutTradeNo},
+	}, payment.TypeInfini)
+	require.ErrorIs(t, err, ErrPaymentRejected)
+	require.ErrorContains(t, err, "currency mismatch")
+
+	_, err = client.PaymentOrder.UpdateOneID(order.ID).SetStatus(OrderStatusCancelled).Save(ctx)
+	require.NoError(t, err)
+	err = svc.HandlePaymentNotification(ctx, &payment.PaymentNotification{
+		TradeNo:     "ord-late",
+		OrderID:     order.OutTradeNo,
+		AmountExact: "7.50",
+		Status:      payment.NotificationStatusSuccess,
+		Metadata:    map[string]string{"currency": "USD", "client_reference": order.OutTradeNo},
+	}, payment.TypeInfini)
+	require.ErrorIs(t, err, ErrPaymentRejected)
+	require.ErrorContains(t, err, "cancelled")
+}
+
+func TestDuplicateWebhookEventIDDoesNotCreditTwice(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+	ensurePaymentAuditOrderActionUniqueIndex(t, ctx, client)
+	order := createInfiniBalanceOrder(t, ctx, client, OrderStatusPending, 50, 7.5, nil)
+
+	balance := 0.0
+	userRepo := &mockUserRepo{getByIDUser: &User{ID: order.UserID, Balance: 0}}
+	userRepo.updateBalanceFn = func(_ context.Context, id int64, amount float64) error {
+		balance += amount
+		return nil
+	}
+	svc := &PaymentService{
+		entClient:     client,
+		userRepo:      userRepo,
+		redeemService: NewRedeemService(&paymentFulfillmentRedeemRepo{}, userRepo, nil, &paymentFulfillmentRedeemCacheStub{}, nil, client, nil, nil),
+	}
+	note := &payment.PaymentNotification{
+		TradeNo:     "ord-late",
+		OrderID:     order.OutTradeNo,
+		AmountExact: "7.50",
+		EventID:     "evt-dup",
+		Status:      payment.NotificationStatusSuccess,
+		Metadata:    map[string]string{"currency": "USD", "client_reference": order.OutTradeNo},
+	}
+	require.NoError(t, svc.HandlePaymentNotification(ctx, note, payment.TypeInfini))
+	require.NoError(t, svc.HandlePaymentNotification(ctx, note, payment.TypeInfini))
+	require.InDelta(t, 50, balance, 1e-8)
+}
+
+func TestConcurrentDuplicateWebhookEventIDCreditsOnce(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+	ensurePaymentAuditOrderActionUniqueIndex(t, ctx, client)
+	order := createInfiniBalanceOrder(t, ctx, client, OrderStatusPending, 50, 7.5, nil)
+
+	var (
+		mu      sync.Mutex
+		balance float64
+	)
+	userRepo := &mockUserRepo{getByIDUser: &User{ID: order.UserID, Balance: 0}}
+	userRepo.updateBalanceFn = func(_ context.Context, id int64, amount float64) error {
+		mu.Lock()
+		defer mu.Unlock()
+		balance += amount
+		return nil
+	}
+	svc := &PaymentService{
+		entClient:     client,
+		userRepo:      userRepo,
+		redeemService: NewRedeemService(&paymentFulfillmentRedeemRepo{}, userRepo, nil, &paymentFulfillmentRedeemCacheStub{}, nil, client, nil, nil),
+	}
+	note := &payment.PaymentNotification{
+		TradeNo:     "ord-late",
+		OrderID:     order.OutTradeNo,
+		AmountExact: "7.50",
+		EventID:     "evt-concurrent",
+		Status:      payment.NotificationStatusSuccess,
+		Metadata:    map[string]string{"currency": "USD", "client_reference": order.OutTradeNo},
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	for i := 0; i < 2; i++ {
+		go func() {
+			defer wg.Done()
+			_ = svc.HandlePaymentNotification(ctx, note, payment.TypeInfini)
+		}()
+	}
+	wg.Wait()
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.InDelta(t, 50, balance, 1e-8)
+}
+
+func TestFailedWebhookDoesNotOverrideCompletedInfiniOrder(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+	ensurePaymentAuditOrderActionUniqueIndex(t, ctx, client)
+	order := createInfiniBalanceOrder(t, ctx, client, OrderStatusCompleted, 50, 7.5, timePtr(time.Now()))
+	svc := &PaymentService{entClient: client}
+
+	require.NoError(t, svc.HandlePaymentNotification(ctx, &payment.PaymentNotification{
+		TradeNo:     "ord-late",
+		OrderID:     order.OutTradeNo,
+		AmountExact: "7.50",
+		Status:      payment.ProviderStatusFailed,
+		Metadata:    map[string]string{"currency": "USD"},
+	}, payment.TypeInfini))
+
+	reloaded, err := client.PaymentOrder.Get(ctx, order.ID)
+	require.NoError(t, err)
+	require.Equal(t, OrderStatusCompleted, reloaded.Status)
+}
+
+func TestInfiniSnapshotKeepsOldPayAmountAfterConfigChange(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+	ensurePaymentAuditOrderActionUniqueIndex(t, ctx, client)
+	order := createInfiniBalanceOrder(t, ctx, client, OrderStatusPending, 50, 7.5, nil)
+	_, err := client.PaymentOrder.UpdateOneID(order.ID).SetPayAmount(10).Save(ctx)
+	require.NoError(t, err)
+
+	svc := &PaymentService{entClient: client}
+	err = svc.HandlePaymentNotification(ctx, &payment.PaymentNotification{
+		TradeNo:     "ord-late",
+		OrderID:     order.OutTradeNo,
+		AmountExact: "7.50",
+		Status:      payment.NotificationStatusSuccess,
+		Metadata:    map[string]string{"currency": "USD", "client_reference": order.OutTradeNo},
+	}, payment.TypeInfini)
+	require.ErrorIs(t, err, ErrPaymentRejected)
+	require.ErrorContains(t, err, "pay amount snapshot mismatch")
+}
+
+func createInfiniBalanceOrder(t *testing.T, ctx context.Context, client *dbent.Client, status string, credit, pay float64, paidAt *time.Time) *dbent.PaymentOrder {
+	t.Helper()
+	user, err := client.User.Create().
+		SetEmail("infini-" + strconv.FormatInt(time.Now().UnixNano(), 10) + "@example.com").
+		SetPasswordHash("hash").
+		SetUsername("infini-user").
+		Save(ctx)
+	require.NoError(t, err)
+
+	builder := client.PaymentOrder.Create().
+		SetUserID(user.ID).
+		SetUserEmail(user.Email).
+		SetUserName(user.Username).
+		SetAmount(credit).
+		SetPayAmount(pay).
+		SetFeeRate(0).
+		SetRechargeCode("PAY-INFINI-" + strconv.FormatInt(time.Now().UnixNano(), 10)).
+		SetOutTradeNo("sub2_infini_" + strconv.FormatInt(time.Now().UnixNano(), 10)).
+		SetPaymentType(payment.TypeInfini).
+		SetPaymentTradeNo("ord-late").
+		SetProviderKey(payment.TypeInfini).
+		SetOrderType(payment.OrderTypeBalance).
+		SetStatus(status).
+		SetExpiresAt(time.Now().Add(time.Hour)).
+		SetClientIP("127.0.0.1").
+		SetSrcHost("api.example.com").
+		SetProviderSnapshot(map[string]any{
+			"schema_version": 3,
+			"provider_key":   payment.TypeInfini,
+			"currency":       "USD",
+			"package_amount": "50.00",
+			"credit_amount":  decimalAmountString(credit, 2),
+			"pay_amount":     "7.50",
+			"fee_rate":       "0.0000",
+			"fx_rate":        "6.6700",
+			"fx_converted":   true,
+			"payment_type":   payment.TypeInfini,
+			"order_type":     payment.OrderTypeBalance,
+		})
+	if paidAt != nil {
+		builder.SetPaidAt(*paidAt)
+	}
+	order, err := builder.Save(ctx)
+	require.NoError(t, err)
+	return order
 }
 
 var _ AffiliateRepository = (*paymentFulfillmentAffiliateRepoStub)(nil)

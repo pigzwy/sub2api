@@ -23,16 +23,20 @@
           <div class="space-y-4 p-5">
             <div class="rounded-xl bg-gray-50 px-4 py-4 dark:bg-dark-800">
               <p class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.paymentInfo') }}</p>
-              <p class="mt-1 text-3xl font-bold text-gray-900 dark:text-white">{{ payAmountLabel }}</p>
-              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                {{ t('payment.creditedBalance') }} {{ creditAmountLabel }}
-              </p>
-              <p v-if="feeRate > 0" class="mt-2 text-xs text-gray-400 dark:text-gray-500">
-                {{ t('payment.fee') }} ({{ feeRate }}%): {{ feeAmountLabel }}
-              </p>
-              <p v-if="multiplier !== 1" class="mt-2 text-xs text-gray-400 dark:text-gray-500">
-                {{ t('payment.rechargeRatePreview', { currency, usd: multiplier.toFixed(2) }) }}
-              </p>
+              <p v-if="quoteLoading" class="mt-2 text-sm text-gray-500 dark:text-gray-400">{{ t('payment.quoteLoading') }}</p>
+              <template v-else>
+                <p class="mt-1 text-3xl font-bold text-gray-900 dark:text-white">{{ payAmountLabel }}</p>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  {{ t('payment.creditedBalance') }} {{ creditAmountLabel }}
+                </p>
+                <p v-if="feeRate > 0" class="mt-2 text-xs text-gray-400 dark:text-gray-500">
+                  {{ t('payment.fee') }} ({{ feeRate }}%): {{ feeAmountLabel }}
+                </p>
+                <p v-if="fxRateLabel" class="mt-2 text-xs text-gray-400 dark:text-gray-500">{{ fxRateLabel }}</p>
+                <p v-if="multiplier !== 1" class="mt-2 text-xs text-gray-400 dark:text-gray-500">
+                  {{ t('payment.rechargeRatePreview', { currency, usd: multiplier.toFixed(2) }) }}
+                </p>
+              </template>
             </div>
 
             <div v-if="showLaneToggle" class="flex rounded-xl bg-gray-100 p-1 dark:bg-dark-800">
@@ -73,7 +77,7 @@
                   :key="method.type"
                   type="button"
                   :data-testid="`checkout-method-${method.type}`"
-                  :disabled="!method.available || submitting"
+                  :disabled="!method.available || submitting || quoteLoading"
                   :class="[
                     'btn w-full justify-center py-3 text-base font-medium',
                     methodButtonClass(method.type),
@@ -133,6 +137,8 @@ const props = defineProps<{
   usdtMethods: PaymentMethodOption[]
   submitting: boolean
   error?: string
+  quoteLoading?: boolean
+  fxRateLabel?: string
 }>()
 
 const emit = defineEmits<{
@@ -148,7 +154,7 @@ const showLaneToggle = computed(() => props.rmbMethods.length > 0 && props.usdtM
 const visibleMethods = computed(() => (props.lane === 'usdt' ? props.usdtMethods : props.rmbMethods))
 
 function payWithMethod(method: PaymentMethodOption) {
-  if (!method.available || props.submitting) return
+  if (!method.available || props.submitting || props.quoteLoading) return
   emit('select', method.type)
   emit('confirm', method.type)
 }

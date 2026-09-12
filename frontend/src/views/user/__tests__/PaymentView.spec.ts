@@ -25,6 +25,7 @@ const showError = vi.hoisted(() => vi.fn())
 const showInfo = vi.hoisted(() => vi.fn())
 const showWarning = vi.hoisted(() => vi.fn())
 const getCheckoutInfo = vi.hoisted(() => vi.fn())
+const quoteOrder = vi.hoisted(() => vi.fn())
 const bridgeInvoke = vi.hoisted(() => vi.fn())
 const translate = vi.hoisted(() => vi.fn((key: string) => key))
 
@@ -85,6 +86,7 @@ vi.mock('@/stores', () => ({
 vi.mock('@/api/payment', () => ({
   paymentAPI: {
     getCheckoutInfo,
+    quoteOrder,
   },
 }))
 
@@ -161,6 +163,29 @@ function checkoutInfoWithPlansFixture(options: {
         },
       },
       plans: [plan],
+    },
+  }
+}
+
+function quoteOrderFixture(data: { amount?: number; payment_type?: string; order_type?: string }, extras: Record<string, unknown> = {}) {
+  const amount = Number(data.amount) || 0
+  const paymentType = String(data.payment_type || '')
+  const currency = extras.currency
+    || (paymentType === 'infini' || paymentType === 'stripe' ? 'USD' : paymentType === 'usdt_trc20' ? 'USDT' : 'CNY')
+  return {
+    data: {
+      order_type: data.order_type || 'balance',
+      payment_type: paymentType,
+      package_amount: amount.toFixed(2),
+      credit_amount: extras.credit_amount ?? amount.toFixed(2),
+      pay_amount: extras.pay_amount ?? amount.toFixed(2),
+      pay_amount_value: extras.pay_amount_value ?? Number(extras.pay_amount ?? amount),
+      fee_amount: extras.fee_amount ?? '0.00',
+      fee_rate: extras.fee_rate ?? 0,
+      fx_rate: extras.fx_rate ?? 0,
+      fx_converted: extras.fx_converted ?? false,
+      currency,
+      ...extras,
     },
   }
 }
@@ -364,6 +389,7 @@ describe('PaymentView recharge rate preview', () => {
   beforeEach(() => {
     window.localStorage.clear()
     createOrder.mockReset()
+    quoteOrder.mockReset().mockImplementation(async (data) => quoteOrderFixture(data))
   })
 
   it('uses the selected payment method currency in both locale templates', async () => {
@@ -474,6 +500,10 @@ describe('PaymentView recharge rate preview', () => {
         { id: 'cny200', amount: 200, bonus: 5, name: '加赠', description: '' },
       ],
     }))
+    quoteOrder.mockImplementation(async (data) => {
+      const credit = data.amount === 200 ? '33.00' : data.amount === 100 ? '14.00' : Number(data.amount || 0).toFixed(2)
+      return quoteOrderFixture(data, { credit_amount: credit })
+    })
 
     const wrapper = shallowMount(PaymentView, {
       global: {
@@ -592,6 +622,19 @@ describe('PaymentView recharge rate preview', () => {
       payment_type: 'infini',
       result_type: 'qr_ready',
     })
+    quoteOrder.mockImplementation(async (data) => {
+      if (data.payment_type === 'infini') {
+        return quoteOrderFixture(data, {
+          pay_amount: '7.50',
+          pay_amount_value: 7.5,
+          credit_amount: '50.00',
+          fx_rate: 6.67,
+          fx_converted: true,
+          currency: 'USD',
+        })
+      }
+      return quoteOrderFixture(data, { currency: 'CNY', credit_amount: '50.00' })
+    })
 
     const wrapper = shallowMount(PaymentView, {
       global: {
@@ -617,6 +660,7 @@ describe('PaymentView recharge rate preview', () => {
     expect(dialog.props('currency')).toBe('USD')
     expect(dialog.props('payAmountLabel')).toBe(formatPaymentAmount(7.5, 'USD'))
     expect(dialog.props('creditAmountLabel')).toBe('$50.00')
+    expect(dialog.props('fxRateLabel')).toBe('payment.fxRateLabel')
 
     dialog.vm.$emit('confirm', 'infini')
     await flushPromises()

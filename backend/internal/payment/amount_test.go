@@ -141,6 +141,8 @@ func TestPaymentCurrencyHelpers(t *testing.T) {
 		{name: "isk uses Stripe legacy two-decimal API amount", currency: "ISK", amount: "12", wantMinor: 1200, wantBack: 12},
 		{name: "ugx uses Stripe legacy two-decimal API amount", currency: "UGX", amount: "12.00", wantMinor: 1200, wantBack: 12},
 		{name: "empty currency defaults to cny", currency: "", amount: "1.23", wantMinor: 123, wantBack: 1.23},
+		{name: "usdt uses two decimal cents like usd", currency: "USDT", amount: "7.50", wantMinor: 750, wantBack: 7.5},
+		{name: "usd cents", currency: "USD", amount: "7.50", wantMinor: 750, wantBack: 7.5},
 	}
 
 	for _, tt := range tests {
@@ -225,5 +227,12 @@ func TestNormalizePaymentCurrencyRejectsInvalidCodes(t *testing.T) {
 	}
 	if _, err := NormalizePaymentCurrency("US1"); err == nil {
 		t.Fatal("expected non-letter currency to fail")
+	}
+	if _, err := NormalizePaymentCurrency("USDT"); err == nil {
+		t.Fatal("expected USDT to remain an amount alias, not an ISO config currency")
+	}
+	got, err := CanonicalAmountCurrency("USDT")
+	if err != nil || got != "USDT" {
+		t.Fatalf("CanonicalAmountCurrency(USDT) = (%q, %v), want (USDT, nil)", got, err)
 	}
 }
