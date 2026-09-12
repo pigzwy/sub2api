@@ -101,14 +101,10 @@ describe('RechargeCheckoutDialog', () => {
     expect(brands).not.toBeNull()
     expect(brands?.textContent).toContain('payment.supportedMethods')
     expect(brands?.getAttribute('data-lane')).toBe('rmb')
-    expect(brands?.querySelectorAll('img')).toHaveLength(6)
+    expect(brands?.querySelectorAll('img')).toHaveLength(2)
     expect(Array.from(brands?.querySelectorAll('img') ?? []).map((img) => img.getAttribute('alt'))).toEqual([
       'Alipay',
       'WeChat Pay',
-      'Visa',
-      'Mastercard',
-      'Apple Pay',
-      'USD',
     ])
 
     const children = Array.from(dialog?.firstElementChild?.children ?? [])
@@ -119,7 +115,7 @@ describe('RechargeCheckoutDialog', () => {
     wrapper.unmount()
   })
 
-  it('swaps the footer to USDT chain marks when the USDT lane is selected', () => {
+  it('shows only the configured Infini mark in the USDT lane', () => {
     const wrapper = mountDialog({
       selected: 'infini',
       lane: 'usdt',
@@ -129,15 +125,7 @@ describe('RechargeCheckoutDialog', () => {
 
     const brands = document.body.querySelector('[data-testid="supported-methods"]')
     expect(brands?.getAttribute('data-lane')).toBe('usdt')
-    expect(Array.from(brands?.querySelectorAll('img') ?? []).map((img) => img.getAttribute('alt'))).toEqual([
-      'TRON',
-      'Ethereum',
-      'BNB Chain',
-      'Polygon',
-      'Solana',
-      'Arbitrum',
-      'Base',
-    ])
+    expect(Array.from(brands?.querySelectorAll('img') ?? []).map((img) => img.getAttribute('alt'))).toEqual(['Infini'])
     wrapper.unmount()
   })
 })
