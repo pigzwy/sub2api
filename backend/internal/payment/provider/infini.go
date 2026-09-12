@@ -178,20 +178,46 @@ func (i *Infini) CreatePayment(ctx context.Context, req payment.CreatePaymentReq
 		Currency:        currency,
 	}
 
-	var resp infiniCreateOrderResponse
-	if err := i.doJSON(ctx, http.MethodPost, "/v1/acquiring/order", payload, &resp); err != nil {
+	raw, err := i.doJSONBytes(ctx, http.MethodPost, "/v1/acquiring/order", payload)
+	if err != nil {
 		return nil, fmt.Errorf("infini create payment: %w", err)
 	}
-	if strings.TrimSpace(resp.OrderID) == "" || strings.TrimSpace(resp.CheckoutURL) == "" {
-		return nil, fmt.Errorf("infini create payment: missing order_id or checkout_url")
+	resp, err := parseInfiniCreateOrderResponse(raw)
+	if err != nil {
+		return nil, fmt.Errorf("infini create payment: %w", err)
+	}
+	orderID := resp.orderID()
+	checkoutURL := resp.checkoutURL()
+	if orderID != "" && checkoutURL == "" {
+		if reissued, reissueErr := i.reissueCheckoutURL(ctx, orderID); reissueErr == nil {
+			checkoutURL = reissued
+		}
+	}
+	if orderID == "" || checkoutURL == "" {
+		return nil, fmt.Errorf("infini create payment: missing order_id or checkout_url: %s", summarizeInfiniResponse(raw))
 	}
 	return &payment.CreatePaymentResponse{
-		TradeNo:    resp.OrderID,
-		PayURL:     resp.CheckoutURL,
+		TradeNo:    orderID,
+		PayURL:     checkoutURL,
 		Currency:   currency,
 		PaymentEnv: i.checkoutEnv(),
 		ResultType: payment.CreatePaymentResultOrderCreated,
 	}, nil
+}
+
+func (i *Infini) reissueCheckoutURL(ctx context.Context, orderID string) (string, error) {
+	raw, err := i.doJSONBytes(ctx, http.MethodPost, "/v1/acquiring/token/reissue", map[string]string{"order_id": orderID})
+	if err != nil {
+		return "", err
+	}
+	resp, err := parseInfiniCreateOrderResponse(raw)
+	if err != nil {
+		return "", err
+	}
+	if url := resp.checkoutURL(); url != "" {
+		return url, nil
+	}
+	return "", fmt.Errorf("reissue missing checkout_url: %s", summarizeInfiniResponse(raw))
 }
 
 func (i *Infini) QueryOrder(ctx context.Context, tradeNo string) (*payment.QueryOrderResponse, error) {
@@ -203,6 +229,9 @@ func (i *Infini) QueryOrder(ctx context.Context, tradeNo string) (*payment.Query
 	var resp infiniOrder
 	if err := i.doJSON(ctx, http.MethodGet, path, nil, &resp); err != nil {
 		return nil, fmt.Errorf("infini query order: %w", err)
+	}
+	if strings.TrimSpace(resp.OrderID) == "" {
+		resp.OrderID = orderID
 	}
 	confirmedExact, confirmed, confirmedErr := parseInfiniAmount(resp.AmountConfirmed)
 	listedExact, listed, listedErr := parseInfiniAmount(resp.Amount)
@@ -301,17 +330,38 @@ func (i *Infini) eventMetadata(event infiniWebhookEvent, amountExact string) map
 }
 
 func (i *Infini) doJSON(ctx context.Context, method, path string, payload any, out any) error {
+	respBody, err := i.doJSONBytes(ctx, method, path, payload)
+	if err != nil {
+		return err
+	}
+	if out == nil || len(bytes.TrimSpace(respBody)) == 0 {
+		return nil
+	}
+	payloadBody, err := unwrapInfiniPayload(respBody)
+	if err != nil {
+		return err
+	}
+	if len(bytes.TrimSpace(payloadBody)) == 0 {
+		return nil
+	}
+	if err := json.Unmarshal(payloadBody, out); err != nil {
+		return fmt.Errorf("parse response: %w; body=%s", err, summarizeInfiniResponse(respBody))
+	}
+	return nil
+}
+
+func (i *Infini) doJSONBytes(ctx context.Context, method, path string, payload any) ([]byte, error) {
 	var bodyBytes []byte
 	if payload != nil {
 		b, err := json.Marshal(payload)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		bodyBytes = b
 	}
 	headers, err := infiniSignRequest(i.config["keyId"], i.config["secretKey"], method, path, bodyBytes, i.now)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var body io.Reader
@@ -321,8 +371,9 @@ func (i *Infini) doJSON(ctx context.Context, method, path string, payload any, o
 	}
 	req, err := http.NewRequestWithContext(ctx, method, i.config["apiBase"]+path, body)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	req.Header.Set("Accept", "application/json")
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
@@ -333,23 +384,25 @@ func (i *Infini) doJSON(ctx context.Context, method, path string, payload any, o
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, infiniMaxResponseSize))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, summarizeInfiniResponse(respBody))
+		if unwrapped, unwrapErr := unwrapInfiniPayload(respBody); unwrapErr != nil {
+			return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, unwrapErr.Error())
+		} else if msg := infiniEnvelopeMessage(unwrapped); msg != "" {
+			return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, msg)
+		}
+		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, summarizeInfiniResponse(respBody))
 	}
-	if out == nil || len(bytes.TrimSpace(respBody)) == 0 {
-		return nil
+	if _, err := unwrapInfiniPayload(respBody); err != nil {
+		return nil, err
 	}
-	if err := json.Unmarshal(respBody, out); err != nil {
-		return fmt.Errorf("parse response: %w", err)
-	}
-	return nil
+	return respBody, nil
 }
 
 func infiniSignRequest(keyID, secretKey, method, path string, body []byte, now func() time.Time) (map[string]string, error) {
@@ -533,6 +586,203 @@ func summarizeInfiniResponse(body []byte) string {
 	return summary
 }
 
+func unwrapInfiniPayload(body []byte) ([]byte, error) {
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) == 0 || trimmed[0] != '{' {
+		return trimmed, nil
+	}
+	var env infiniAPIEnvelope
+	if err := json.Unmarshal(trimmed, &env); err != nil {
+		return trimmed, nil
+	}
+	if env.Success != nil && !*env.Success {
+		return nil, fmt.Errorf("%s", firstNonEmpty(env.Error, env.Message, env.Detail, "infini request failed"))
+	}
+	if code, ok := parseInfiniEnvelopeCode(env.Code); ok && !infiniEnvelopeCodeOK(code) {
+		return nil, fmt.Errorf("infini error %s: %s", code, firstNonEmpty(env.Message, env.Detail, env.Error, "request failed"))
+	}
+	if payload := nonemptyJSONObject(env.Data); len(payload) > 0 {
+		return payload, nil
+	}
+	if payload := nonemptyJSONObject(env.Result); len(payload) > 0 {
+		return payload, nil
+	}
+	return trimmed, nil
+}
+
+func parseInfiniCreateOrderResponse(body []byte) (infiniCreateOrderResponse, error) {
+	payload, err := unwrapInfiniPayload(body)
+	if err != nil {
+		return infiniCreateOrderResponse{}, err
+	}
+	var resp infiniCreateOrderResponse
+	if len(bytes.TrimSpace(payload)) > 0 {
+		_ = json.Unmarshal(payload, &resp)
+	}
+	if resp.orderID() == "" || resp.checkoutURL() == "" {
+		if found := infiniCreateOrderFromMap(payload); found.orderID() != "" || found.checkoutURL() != "" {
+			resp = mergeInfiniCreateOrder(resp, found)
+		}
+	}
+	return resp, nil
+}
+
+func infiniCreateOrderFromMap(payload []byte) infiniCreateOrderResponse {
+	var raw map[string]any
+	if err := json.Unmarshal(payload, &raw); err != nil || raw == nil {
+		return infiniCreateOrderResponse{}
+	}
+	found := pickInfiniCreateOrder(raw)
+	if found.orderID() != "" && found.checkoutURL() != "" {
+		return found
+	}
+	for _, value := range raw {
+		child, ok := value.(map[string]any)
+		if !ok {
+			continue
+		}
+		nested := pickInfiniCreateOrder(child)
+		if nested.orderID() != "" || nested.checkoutURL() != "" {
+			return mergeInfiniCreateOrder(found, nested)
+		}
+	}
+	return found
+}
+
+func pickInfiniCreateOrder(raw map[string]any) infiniCreateOrderResponse {
+	return infiniCreateOrderResponse{
+		OrderID:         infiniFlexibleString(firstNonEmpty(jsonAnyString(raw["order_id"]), jsonAnyString(raw["orderId"]), jsonAnyString(raw["id"]))),
+		CheckoutURL:     firstNonEmpty(jsonAnyString(raw["checkout_url"]), jsonAnyString(raw["checkoutUrl"]), jsonAnyString(raw["pay_url"]), jsonAnyString(raw["payUrl"]), jsonAnyString(raw["url"]), jsonAnyString(raw["link"])),
+		Token:           jsonAnyString(raw["token"]),
+		RequestID:       jsonAnyString(raw["request_id"]),
+		ClientReference: jsonAnyString(raw["client_reference"]),
+	}
+}
+
+func mergeInfiniCreateOrder(base, extra infiniCreateOrderResponse) infiniCreateOrderResponse {
+	if base.OrderID == "" {
+		base.OrderID = extra.OrderID
+	}
+	if base.OrderIDCamel == "" {
+		base.OrderIDCamel = extra.OrderIDCamel
+	}
+	if base.ID == "" {
+		base.ID = extra.ID
+	}
+	if base.CheckoutURL == "" {
+		base.CheckoutURL = extra.CheckoutURL
+	}
+	if base.CheckoutURLCamel == "" {
+		base.CheckoutURLCamel = extra.CheckoutURLCamel
+	}
+	if base.PayURL == "" {
+		base.PayURL = extra.PayURL
+	}
+	if base.URL == "" {
+		base.URL = extra.URL
+	}
+	if base.Link == "" {
+		base.Link = extra.Link
+	}
+	if base.Token == "" {
+		base.Token = extra.Token
+	}
+	return base
+}
+
+func parseInfiniEnvelopeCode(raw json.RawMessage) (string, bool) {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || string(raw) == "null" {
+		return "", false
+	}
+	var asNumber json.Number
+	if err := json.Unmarshal(raw, &asNumber); err == nil {
+		return asNumber.String(), true
+	}
+	var asString string
+	if err := json.Unmarshal(raw, &asString); err == nil {
+		asString = strings.TrimSpace(asString)
+		if asString == "" {
+			return "", false
+		}
+		return asString, true
+	}
+	return strings.TrimSpace(string(raw)), true
+}
+
+func infiniEnvelopeCodeOK(code string) bool {
+	switch strings.ToLower(strings.TrimSpace(code)) {
+	case "", "0", "200", "ok", "success", "succeeded":
+		return true
+	default:
+		return false
+	}
+}
+
+func nonemptyJSONObject(raw json.RawMessage) []byte {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+	if raw[0] == '{' || raw[0] == '[' {
+		return raw
+	}
+	var encoded string
+	if err := json.Unmarshal(raw, &encoded); err == nil {
+		encoded = strings.TrimSpace(encoded)
+		if strings.HasPrefix(encoded, "{") || strings.HasPrefix(encoded, "[") {
+			return []byte(encoded)
+		}
+	}
+	return nil
+}
+
+func infiniEnvelopeMessage(body []byte) string {
+	var env infiniAPIEnvelope
+	if err := json.Unmarshal(bytes.TrimSpace(body), &env); err != nil {
+		return ""
+	}
+	return firstNonEmpty(env.Message, env.Detail, env.Error)
+}
+
+func jsonAnyString(value any) string {
+	switch typed := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return strings.TrimSpace(typed)
+	case json.Number:
+		return strings.TrimSpace(typed.String())
+	case float64:
+		if typed == 0 {
+			return ""
+		}
+		return strconv.FormatInt(int64(typed), 10)
+	default:
+		return strings.TrimSpace(fmt.Sprint(typed))
+	}
+}
+
+type infiniFlexibleString string
+
+func (s *infiniFlexibleString) UnmarshalJSON(raw []byte) error {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || string(raw) == "null" {
+		*s = ""
+		return nil
+	}
+	if raw[0] == '"' {
+		var text string
+		if err := json.Unmarshal(raw, &text); err != nil {
+			return err
+		}
+		*s = infiniFlexibleString(strings.TrimSpace(text))
+		return nil
+	}
+	*s = infiniFlexibleString(strings.Trim(string(raw), `"`))
+	return nil
+}
+
 type infiniCreateOrderRequest struct {
 	Amount          string `json:"amount"`
 	RequestID       string `json:"request_id"`
@@ -544,11 +794,36 @@ type infiniCreateOrderRequest struct {
 	Currency        string `json:"currency,omitempty"`
 }
 
+type infiniAPIEnvelope struct {
+	Code    json.RawMessage `json:"code"`
+	Success *bool           `json:"success"`
+	Message string          `json:"message"`
+	Detail  string          `json:"detail"`
+	Error   string          `json:"error"`
+	Data    json.RawMessage `json:"data"`
+	Result  json.RawMessage `json:"result"`
+}
+
 type infiniCreateOrderResponse struct {
-	OrderID         string `json:"order_id"`
-	RequestID       string `json:"request_id"`
-	CheckoutURL     string `json:"checkout_url"`
-	ClientReference string `json:"client_reference"`
+	OrderID          infiniFlexibleString `json:"order_id"`
+	OrderIDCamel     infiniFlexibleString `json:"orderId"`
+	ID               infiniFlexibleString `json:"id"`
+	RequestID        string               `json:"request_id"`
+	CheckoutURL      string               `json:"checkout_url"`
+	CheckoutURLCamel string               `json:"checkoutUrl"`
+	PayURL           string               `json:"pay_url"`
+	URL              string               `json:"url"`
+	Link             string               `json:"link"`
+	Token            string               `json:"token"`
+	ClientReference  string               `json:"client_reference"`
+}
+
+func (r infiniCreateOrderResponse) orderID() string {
+	return firstNonEmpty(string(r.OrderID), string(r.OrderIDCamel), string(r.ID))
+}
+
+func (r infiniCreateOrderResponse) checkoutURL() string {
+	return firstNonEmpty(r.CheckoutURL, r.CheckoutURLCamel, r.PayURL, r.URL, r.Link)
 }
 
 type infiniOrder struct {
