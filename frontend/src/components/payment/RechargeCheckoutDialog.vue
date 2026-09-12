@@ -101,7 +101,7 @@
 
           <div
             data-testid="supported-methods"
-            class="flex flex-wrap items-center gap-2 px-5 pb-5 text-xs text-gray-400 dark:text-gray-500"
+            class="flex flex-wrap items-center gap-2 border-t border-gray-100 bg-gray-50 px-5 py-3 text-xs text-gray-500 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-300"
           >
             <span>{{ t('payment.supportedMethods') }}</span>
             <img
@@ -168,7 +168,7 @@ const visibleMethods = computed(() => (props.lane === 'usdt' ? props.usdtMethods
 const supportedBrands = [
   { src: alipayIcon, alt: 'Alipay', class: 'h-5 w-5 object-contain' },
   { src: wxpayIcon, alt: 'WeChat Pay', class: 'h-5 w-5 object-contain' },
-  { src: visaIcon, alt: 'Visa', class: 'h-3.5 w-auto object-contain' },
+  { src: visaIcon, alt: 'Visa', class: 'h-3.5 w-auto object-contain dark:brightness-0 dark:invert' },
   { src: mastercardIcon, alt: 'Mastercard', class: 'h-5 w-auto object-contain' },
   { src: applePayIcon, alt: 'Apple Pay', class: 'h-5 w-5 object-contain dark:brightness-0 dark:invert' },
   { src: dollarIcon, alt: 'USD', class: 'h-5 w-5 object-contain' },
