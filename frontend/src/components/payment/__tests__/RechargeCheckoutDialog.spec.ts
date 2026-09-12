@@ -100,6 +100,7 @@ describe('RechargeCheckoutDialog', () => {
     const brands = dialog?.querySelector('[data-testid="supported-methods"]')
     expect(brands).not.toBeNull()
     expect(brands?.textContent).toContain('payment.supportedMethods')
+    expect(brands?.querySelectorAll('img')).toHaveLength(6)
     expect(Array.from(brands?.querySelectorAll('img') ?? []).map((img) => img.getAttribute('alt'))).toEqual([
       'Alipay',
       'WeChat Pay',
