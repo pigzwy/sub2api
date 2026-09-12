@@ -14,6 +14,9 @@ func TestQuoteUsesFXDistinguishesBalanceAndSubscription(t *testing.T) {
 	if !quoteUsesFX(payment.OrderTypeBalance, payment.TypeInfini, "USD", 6.67) {
 		t.Fatal("Infini balance should convert when rate > 0")
 	}
+	if !quoteUsesFX(payment.OrderTypeBalance, payment.TypeInfini, "CNY", 6.67) {
+		t.Fatal("Infini labeled CNY must still convert RMB packages")
+	}
 	if quoteUsesFX(payment.OrderTypeBalance, payment.TypeAlipay, "CNY", 6.67) {
 		t.Fatal("Alipay balance should not convert")
 	}

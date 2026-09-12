@@ -68,6 +68,7 @@ describe('rechargePackages', () => {
     expect(shouldConvertBalancePayAmountToUsd('alipay', 'CNY', 6.67)).toBe(false)
     expect(shouldConvertBalancePayAmountToUsd('infini', 'USD', 0)).toBe(false)
     expect(balanceGatewayPayAmount(50, 'infini', 'USD', 6.67)).toBe(7.5)
+    expect(balanceGatewayPayAmount(50, 'infini', 'CNY', 6.67)).toBe(7.5)
     expect(balanceGatewayPayAmount(50, 'usdt_trc20', 'USDT', 6.67)).toBe(7.5)
     expect(balanceGatewayPayAmount(50, 'infini', 'USD', 0)).toBe(50)
     expect(balanceGatewayPayAmount(50, 'stripe', 'USD', 6.67)).toBe(50)

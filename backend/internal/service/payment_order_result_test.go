@@ -297,6 +297,14 @@ func TestCalculateCreateOrderPayAmountForInfiniConvertsCNYPackageWhenRateConfigu
 	if amountStr != "7.50" || amount != 7.5 {
 		t.Fatalf("Infini USD pay amount = (%q, %v), want (7.50, 7.5)", amountStr, amount)
 	}
+
+	amountStr, amount, err = calculateCreateOrderPayAmountForOrderType(50, 0, "CNY", payment.OrderTypeBalance, payment.TypeInfini, 6.67)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if amountStr != "7.50" || amount != 7.5 {
+		t.Fatalf("Infini labeled CNY pay amount = (%q, %v), want (7.50, 7.5)", amountStr, amount)
+	}
 }
 
 func TestCalculateCreateOrderPayAmountForInfiniAppliesFeeAfterUSDConversion(t *testing.T) {
@@ -371,6 +379,9 @@ func TestResolvePayFXRateUsesDedicatedUSDTRateWithoutTouchingAlipayOrSubscriptio
 	if got := resolvePayFXRate(cfg, payment.OrderTypeBalance, payment.TypeInfini, "USD"); got != 6.67 {
 		t.Fatalf("Infini dedicated rate = %v, want 6.67", got)
 	}
+	if got := resolvePayFXRate(cfg, payment.OrderTypeBalance, payment.TypeInfini, "CNY"); got != 6.67 {
+		t.Fatalf("Infini labeled CNY dedicated rate = %v, want 6.67", got)
+	}
 	if got := resolvePayFXRate(cfg, payment.OrderTypeBalance, payment.TypeAlipay, "CNY"); got != 0 {
 		t.Fatalf("Alipay FX rate = %v, want 0", got)
 	}
@@ -381,6 +392,20 @@ func TestResolvePayFXRateUsesDedicatedUSDTRateWithoutTouchingAlipayOrSubscriptio
 	cfg.USDTUSDToCNYRate = 0
 	if got := resolveUSDTBalanceUSDToCNYRate(cfg.USDTUSDToCNYRate, cfg.SubscriptionUSDToCNYRate); got != 7.15 {
 		t.Fatalf("Infini fallback rate = %v, want 7.15", got)
+	}
+}
+
+func TestPaymentProviderConfigCurrencyForcesInfiniUSD(t *testing.T) {
+	t.Parallel()
+
+	if got := paymentProviderConfigCurrency(payment.TypeInfini, map[string]string{"currency": "CNY"}); got != "USD" {
+		t.Fatalf("Infini CNY config currency = %q, want USD", got)
+	}
+	if got := paymentProviderConfigCurrency(payment.TypeInfini, nil); got != "USD" {
+		t.Fatalf("Infini empty config currency = %q, want USD", got)
+	}
+	if got := paymentProviderConfigCurrency(payment.TypeAlipay, map[string]string{"currency": "USD"}); got != payment.DefaultPaymentCurrency {
+		t.Fatalf("Alipay currency = %q, want CNY", got)
 	}
 }
 
