@@ -146,6 +146,12 @@ func TestInfiniVerifyNotificationIgnoresProcessingAndRejectsBadSignature(t *test
 	paid := `{"event":"order.completed","order_id":"ord-123","client_reference":"sub2_order_9","amount":"7.50","currency":"USD","status":"paid"}`
 	_, err = prov.VerifyNotification(context.Background(), paid, infiniWebhookHeaders(t, paid, "other", now))
 	require.ErrorContains(t, err, "invalid signature")
+
+	expired := `{"event":"order.expired","order_id":"ord-123","client_reference":"sub2_order_9","status":"expired"}`
+	note, err = prov.VerifyNotification(context.Background(), expired, infiniWebhookHeaders(t, expired, "whsec", now))
+	require.NoError(t, err)
+	require.Equal(t, payment.ProviderStatusFailed, note.Status)
+	require.Equal(t, "sub2_order_9", note.OrderID)
 }
 
 func TestInfiniQueryOrderMapsPaidStatus(t *testing.T) {

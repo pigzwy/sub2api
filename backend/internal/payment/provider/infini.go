@@ -243,12 +243,13 @@ func (i *Infini) VerifyNotification(_ context.Context, rawBody string, headers m
 		return nil, fmt.Errorf("infini webhook missing order_id")
 	}
 
-	status := payment.ProviderStatusFailed
-	if infiniWebhookPaid(event) {
+	var status string
+	switch {
+	case infiniWebhookPaid(event):
 		status = payment.NotificationStatusSuccess
-	} else if strings.EqualFold(event.Event, infiniEventExpired) || strings.EqualFold(event.Status, infiniStatusExpired) {
+	case strings.EqualFold(event.Event, infiniEventExpired) || strings.EqualFold(event.Status, infiniStatusExpired):
 		status = payment.ProviderStatusFailed
-	} else {
+	default:
 		return nil, nil
 	}
 
