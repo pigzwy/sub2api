@@ -485,6 +485,8 @@ export default {
       TOO_MANY_PENDING: '待支付订单过多（最多 {max} 个），请先完成或取消现有订单',
       DAILY_LIMIT_EXCEEDED: '今日充值已达上限，剩余额度 {remaining}',
       PAYMENT_GATEWAY_ERROR: '支付方式不可用',
+      PAYMENT_METHOD_NOT_CONFIGURED: '该支付方式尚未配置可用实例',
+      PAYMENT_PROVIDER_CREATE_FAILED: '支付渠道下单失败，请检查密钥与环境配置',
       NO_AVAILABLE_INSTANCE: '暂无可用的支付通道',
       PAYMENT_PROVIDER_MISCONFIGURED: '支付通道配置错误，请联系管理员',
       WXPAY_CONFIG_MISSING_KEY: '微信支付配置缺少必填项：{key}',

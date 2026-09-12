@@ -745,8 +745,12 @@ export default {
         packageBadgeNone: '无',
         subscriptionUsdToCnyRate: '订阅 CNY 换算汇率',
         subscriptionUsdToCnyRateHint:
-          '1 USD = 多少 CNY（如 6.67）。订阅 CNY 通道按 price × 汇率收款；Infini/USDT 余额充值按套餐金额 ÷ 汇率收款（¥50 → $7.50）。0 或留空 = 不换算。支付宝 CNY、Stripe USD 余额充值不换算。启用后订阅套餐 price 必须按 USD 定价',
+          '仅用于订阅 CNY 通道：1 USD = 多少 CNY（如 7.15）。订阅按 price × 汇率收款。0 或留空 = 不换算。不改变支付宝到账倍率。Infini/USDT 请用下方「USDT 余额换算汇率」；若 USDT 汇率为 0，才会回退使用本项。',
         subscriptionUsdToCnyRateDisabled: '未启用（按 price 直付）',
+        usdtUsdToCnyRate: 'USDT 余额换算汇率',
+        usdtUsdToCnyRateHint:
+          '仅用于 Infini/USDT 余额充值，不影响支付宝到账倍率。含义：1 USD = 多少 CNY（如 6.67）。实付 = 套餐金额 ÷ 汇率（¥50 → $7.50），到账仍按「余额充值倍率 + 赠送」。0 或留空 = 回退使用「订阅 CNY 换算汇率」。',
+        usdtUsdToCnyRateDisabled: '未单独设置（回退订阅汇率）',
         rechargeFeeRate: '充值手续费率',
         rechargeFeeRateHint: '用户充值时额外收取的手续费百分比，0 表示不收取手续费',
         rechargeFeePreview: '预览：充值 100 元，手续费 {fee} 元',

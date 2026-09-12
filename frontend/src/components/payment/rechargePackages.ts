@@ -112,6 +112,12 @@ export function isUsdtPaymentMethod(type: string, currency?: string | null): boo
     || normalizedType.includes('stablecoin')
 }
 
+export function resolveUsdtUsdToCnyRate(usdtRate = 0, subscriptionRate = 0): number {
+  if (Number.isFinite(usdtRate) && usdtRate > 0) return usdtRate
+  if (Number.isFinite(subscriptionRate) && subscriptionRate > 0) return subscriptionRate
+  return 0
+}
+
 export function shouldConvertBalancePayAmountToUsd(
   type: string,
   currency?: string | null,

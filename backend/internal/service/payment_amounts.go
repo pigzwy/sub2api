@@ -38,13 +38,39 @@ func validateSubscriptionUSDToCNYRate(rate float64) error {
 }
 
 // normalizeSubscriptionUSDToCNYRate 将非法或超范围值归一为 0（换算关闭）。
-// 0 表示：订阅按 price 直付；Infini/USDT 余额充值也不把套餐换成美元实付。
+// 0 表示该字段未启用。订阅按 price 直付；Infini/USDT 若专用汇率也为 0 则不换算。
 // CreateOrder/Quote 必须先走 validateSubscriptionUSDToCNYRate，避免把非法汇率静默当成 0。
 func normalizeSubscriptionUSDToCNYRate(rate float64) float64 {
 	if err := validateSubscriptionUSDToCNYRate(rate); err != nil {
 		return 0
 	}
 	return rate
+}
+
+// resolveUSDTBalanceUSDToCNYRate 只服务 Infini/USDT 余额实付。
+// 专用汇率优先；未配置时回退订阅汇率，避免存量只配了订阅汇率时 Infini 突然按原价收款。
+func resolveUSDTBalanceUSDToCNYRate(usdtRate, subscriptionRate float64) float64 {
+	if rate := normalizeSubscriptionUSDToCNYRate(usdtRate); rate > 0 {
+		return rate
+	}
+	return normalizeSubscriptionUSDToCNYRate(subscriptionRate)
+}
+
+func resolvePayFXRate(cfg *PaymentConfig, orderType, paymentType, currency string) float64 {
+	if cfg == nil {
+		return 0
+	}
+	switch orderType {
+	case payment.OrderTypeSubscription:
+		return normalizeSubscriptionUSDToCNYRate(cfg.SubscriptionUSDToCNYRate)
+	case payment.OrderTypeBalance:
+		if shouldConvertBalancePayAmountToUSD(paymentType, currency) {
+			return resolveUSDTBalanceUSDToCNYRate(cfg.USDTUSDToCNYRate, cfg.SubscriptionUSDToCNYRate)
+		}
+		return 0
+	default:
+		return 0
+	}
 }
 
 // calculateCreditedBalance converts the paid amount with the recharge rate, then

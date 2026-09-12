@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -357,6 +358,43 @@ func TestCalculateCreateOrderPayAmountForUsdtLaneConvertsWhenRateConfigured(t *t
 	}
 	if amountStr != "7.50" || amount != 7.5 {
 		t.Fatalf("USDT pay amount = (%q, %v), want (7.50, 7.5)", amountStr, amount)
+	}
+}
+
+func TestResolvePayFXRateUsesDedicatedUSDTRateWithoutTouchingAlipayOrSubscription(t *testing.T) {
+	t.Parallel()
+
+	cfg := &PaymentConfig{
+		SubscriptionUSDToCNYRate: 7.15,
+		USDTUSDToCNYRate:         6.67,
+	}
+	if got := resolvePayFXRate(cfg, payment.OrderTypeBalance, payment.TypeInfini, "USD"); got != 6.67 {
+		t.Fatalf("Infini dedicated rate = %v, want 6.67", got)
+	}
+	if got := resolvePayFXRate(cfg, payment.OrderTypeBalance, payment.TypeAlipay, "CNY"); got != 0 {
+		t.Fatalf("Alipay FX rate = %v, want 0", got)
+	}
+	if got := resolvePayFXRate(cfg, payment.OrderTypeSubscription, payment.TypeAlipay, "CNY"); got != 7.15 {
+		t.Fatalf("subscription FX rate = %v, want 7.15", got)
+	}
+
+	cfg.USDTUSDToCNYRate = 0
+	if got := resolveUSDTBalanceUSDToCNYRate(cfg.USDTUSDToCNYRate, cfg.SubscriptionUSDToCNYRate); got != 7.15 {
+		t.Fatalf("Infini fallback rate = %v, want 7.15", got)
+	}
+}
+
+func TestClassifyCreatePaymentErrorKeepsInfiniGatewayFailureDistinct(t *testing.T) {
+	t.Parallel()
+
+	err := classifyCreatePaymentError(
+		CreateOrderRequest{PaymentType: payment.TypeInfini},
+		payment.TypeInfini,
+		fmt.Errorf("infini create payment: unauthorized"),
+	)
+	appErr := infraerrors.FromError(err)
+	if appErr.Reason != "PAYMENT_PROVIDER_CREATE_FAILED" {
+		t.Fatalf("reason = %q, want PAYMENT_PROVIDER_CREATE_FAILED", appErr.Reason)
 	}
 }
 

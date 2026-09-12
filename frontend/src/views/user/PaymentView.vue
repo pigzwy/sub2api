@@ -280,11 +280,13 @@ import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector.vu
 import RechargePackageGrid from '@/components/payment/RechargePackageGrid.vue'
 import RechargeCheckoutDialog from '@/components/payment/RechargeCheckoutDialog.vue'
 import {
+  balanceGatewayPayAmount,
   filterRechargePackages,
   maxRechargeBonus,
   packageCreditAmount,
   paymentMethodLane,
   resolveRechargePackages,
+  resolveUsdtUsdToCnyRate,
   type PaymentMethodLane,
 } from '@/components/payment/rechargePackages'
 import { METHOD_ORDER, getPaymentPopupFeatures, isBuiltInAlipayMethod, isBuiltInWxpayMethod } from '@/components/payment/providerConfig'
@@ -526,7 +528,7 @@ function onPaymentSettled() {
 // All checkout data from single API call
 const checkout = ref<CheckoutInfoResponse>({
   methods: {}, global_min: 0, global_max: 0,
-  plans: [], balance_disabled: false, balance_recharge_multiplier: 1, balance_recharge_packages: [], subscription_usd_to_cny_rate: 0, recharge_fee_rate: 0, help_text: '', help_image_url: '', stripe_publishable_key: '',
+  plans: [], balance_disabled: false, balance_recharge_multiplier: 1, balance_recharge_packages: [], subscription_usd_to_cny_rate: 0, usdt_usd_to_cny_rate: 0, recharge_fee_rate: 0, help_text: '', help_image_url: '', stripe_publishable_key: '',
 })
 
 const renderedHelpText = computed(() => DOMPurify.sanitize(
@@ -547,12 +549,14 @@ const balanceRechargeMultiplier = computed(() => {
   const multiplier = checkout.value.balance_recharge_multiplier
   return Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1
 })
-// USD/CNY 汇率（1 USD = X CNY）。0 = 未配置。
-// 订阅 CNY：price × rate；Infini/USDT 余额：套餐 / rate。到账公式不变。
+// 订阅 CNY：price × 订阅汇率。Infini/USDT 余额实付用专用汇率，未配置才回退订阅汇率。
 const subscriptionUsdToCnyRate = computed(() => {
   const rate = checkout.value.subscription_usd_to_cny_rate
   return Number.isFinite(rate) && rate > 0 ? rate : 0
 })
+const usdtUsdToCnyRate = computed(() =>
+  resolveUsdtUsdToCnyRate(checkout.value.usdt_usd_to_cny_rate, subscriptionUsdToCnyRate.value),
+)
 const configuredPackages = computed(() => resolveRechargePackages(checkout.value.balance_recharge_packages))
 const creditedAmount = computed(() => {
   const selected = configuredPackages.value.find((pkg) => pkg.amount === validAmount.value)
@@ -574,8 +578,9 @@ function amountFitsMethod(amt: number, methodType: string): boolean {
   if (amt <= 0) return true
   const ml = visibleMethods.value[methodType]
   if (!ml) return false
-  if (ml.single_min > 0 && amt < ml.single_min) return false
-  if (ml.single_max > 0 && amt > ml.single_max) return false
+  const limitAmt = balanceGatewayPayAmount(amt, methodType, ml.currency, usdtUsdToCnyRate.value)
+  if (ml.single_min > 0 && limitAmt < ml.single_min) return false
+  if (ml.single_max > 0 && limitAmt > ml.single_max) return false
   return true
 }
 

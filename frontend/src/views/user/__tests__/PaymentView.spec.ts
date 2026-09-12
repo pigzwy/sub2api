@@ -114,6 +114,7 @@ function checkoutInfoFixture(overrides: Partial<CheckoutInfoResponse> = {}) {
     balance_disabled: false,
     balance_recharge_multiplier: 1,
     subscription_usd_to_cny_rate: 0,
+    usdt_usd_to_cny_rate: 0,
     recharge_fee_rate: 0,
     help_text: '',
     help_image_url: '',
@@ -829,6 +830,26 @@ describe('PaymentView recharge rate preview', () => {
 })
 
 describe('PaymentView subscription confirmation amounts', () => {
+  it('keeps subscription CNY conversion on the subscription rate when a USDT rate is also set', async () => {
+    const wrapper = await mountSubscriptionConfirm({
+      checkout: {
+        balance_recharge_multiplier: 1,
+        subscription_usd_to_cny_rate: 7.15,
+        usdt_usd_to_cny_rate: 6.67,
+      },
+      method: {
+        currency: 'CNY',
+      },
+      plan: {
+        price: 9.99,
+      },
+    })
+
+    const text = wrapper.text()
+    expect(text).toContain(formatPaymentAmount(71.43, 'CNY'))
+    expect(text).not.toContain(formatPaymentAmount(66.63, 'CNY'))
+  })
+
   it('shows converted CNY pay amount using the subscription rate, not the balance multiplier', async () => {
     const wrapper = await mountSubscriptionConfirm({
       checkout: {
