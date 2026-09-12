@@ -94,14 +94,28 @@
                   </template>
                 </button>
               </div>
-              <div v-if="visibleMethods.some((method) => method.type === 'stripe')" class="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
-                <span>{{ t('payment.supportedMethods') }}</span>
-                <img :src="alipayIcon" alt="" class="h-5 w-5 object-contain" />
-                <img :src="wxpayIcon" alt="" class="h-5 w-5 object-contain" />
-              </div>
             </div>
 
             <p v-if="error" class="text-xs text-amber-600 dark:text-amber-300">{{ error }}</p>
+          </div>
+
+          <div
+            data-testid="supported-methods"
+            :data-lane="lane"
+            class="flex flex-wrap items-center gap-2 border-t border-gray-100 bg-gray-50 px-5 py-3 text-xs font-medium text-gray-600 dark:border-white/10 dark:bg-white/10 dark:text-gray-100"
+          >
+            <span>{{ t('payment.supportedMethods') }}</span>
+            <span
+              v-for="brand in supportedBrands"
+              :key="brand.alt"
+              class="inline-flex h-6 items-center rounded-md bg-white px-1 shadow-sm"
+            >
+              <img
+                :src="brand.src"
+                :alt="brand.alt"
+                :class="brand.class"
+              />
+            </span>
           </div>
         </div>
       </div>
@@ -122,6 +136,17 @@ import stripeIcon from '@/assets/icons/stripe.svg'
 import airwallexIcon from '@/assets/icons/airwallex.svg'
 import infiniIcon from '@/assets/icons/infini.svg'
 import paymentIcon from '@/assets/icons/payment.svg'
+import visaIcon from '@/assets/icons/visa.svg'
+import mastercardIcon from '@/assets/icons/mastercard.svg'
+import applePayIcon from '@/assets/icons/apple-pay.svg'
+import dollarIcon from '@/assets/icons/dollar.svg'
+import tronIcon from '@/assets/icons/tron.svg'
+import ethereumIcon from '@/assets/icons/ethereum.svg'
+import bscIcon from '@/assets/icons/bsc.svg'
+import polygonIcon from '@/assets/icons/polygon.svg'
+import solanaIcon from '@/assets/icons/solana.svg'
+import arbitrumIcon from '@/assets/icons/arbitrum.svg'
+import baseIcon from '@/assets/icons/base.svg'
 
 const props = defineProps<{
   open: boolean
@@ -152,6 +177,24 @@ const { t } = useI18n()
 
 const showLaneToggle = computed(() => props.rmbMethods.length > 0 && props.usdtMethods.length > 0)
 const visibleMethods = computed(() => (props.lane === 'usdt' ? props.usdtMethods : props.rmbMethods))
+const rmbBrands = [
+  { src: alipayIcon, alt: 'Alipay', class: 'h-5 w-5 object-contain' },
+  { src: wxpayIcon, alt: 'WeChat Pay', class: 'h-5 w-5 object-contain' },
+  { src: visaIcon, alt: 'Visa', class: 'h-3.5 w-auto object-contain' },
+  { src: mastercardIcon, alt: 'Mastercard', class: 'h-5 w-auto object-contain' },
+  { src: applePayIcon, alt: 'Apple Pay', class: 'h-5 w-5 object-contain' },
+  { src: dollarIcon, alt: 'USD', class: 'h-5 w-5 object-contain' },
+]
+const usdtChains = [
+  { src: tronIcon, alt: 'TRON', class: 'h-5 w-5 object-contain' },
+  { src: ethereumIcon, alt: 'Ethereum', class: 'h-5 w-5 object-contain' },
+  { src: bscIcon, alt: 'BNB Chain', class: 'h-5 w-5 object-contain' },
+  { src: polygonIcon, alt: 'Polygon', class: 'h-5 w-5 object-contain' },
+  { src: solanaIcon, alt: 'Solana', class: 'h-5 w-5 object-contain' },
+  { src: arbitrumIcon, alt: 'Arbitrum', class: 'h-5 w-5 object-contain' },
+  { src: baseIcon, alt: 'Base', class: 'h-5 w-5 object-contain' },
+]
+const supportedBrands = computed(() => (props.lane === 'usdt' ? usdtChains : rmbBrands))
 
 function payWithMethod(method: PaymentMethodOption) {
   if (!method.available || props.submitting || props.quoteLoading) return
