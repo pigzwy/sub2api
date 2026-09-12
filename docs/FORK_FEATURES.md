@@ -820,11 +820,13 @@ Makefile 的 CI 白名单，覆盖分类切换、保留展示价格、隐藏不�
 **接入方式**
 
 - 后台「支付设置」启用 `infini`，再建 Infini 实例：Key ID、Secret Key、Webhook Secret、API Base（生产 `https://openapi.infini.money` / 沙箱 `https://openapi-sandbox.infini.money`）、法币币种（默认 USD）。
-- 下单走 `POST /v1/acquiring/order`，用 HMAC-SHA256 签 `keyId + METHOD path + date`；`client_reference` 是本站 `out_trade_no`，返回 `checkout_url` 后走既有跳转/弹窗，不嵌 Infini SDK。
+- 下单走 `POST /v1/acquiring/order`，用 HMAC-SHA256 签 `keyId + METHOD path + date`；`client_reference` 是本站 `out_trade_no`。响应兼容官方扁平字段和 `{code,data}` 包一层；只有 `order_id` 时会再调 `/v1/acquiring/token/reissue` 取收银台。HTTP 200 的业务错误（`code/message/detail`）按失败处理，不再报成「missing order_id or checkout_url」。
 - 默认 `pay_methods=1`（链上加密/USDT）。Webhook：`POST /api/v1/payment/webhook/infini`，按 `timestamp.event_id.raw_body` 做 HMAC-SHA256 hex 验签（5 分钟时间窗，原始 body，禁止重序列化）。`event_id` 持久化去重。
 - Infini 官方 `order.late_payment` 的 `status` 仍是 `expired`，以 `amount_confirmed` 为准。足额到账必须履约；不足额/缺金额/币种不符拒绝履约并写审计。`order.expired` 仅在存在 `amount_confirmed` 时作为迟到账候选，禁止用应付 `amount` 冒充已付。
 - 下单写入 schema_version=3 金额快照（套餐/到账/实付/手续费/汇率/币种/通道/实例）。Webhook 按快照 `pay_amount` 做最小货币单位精确比对，配置变更不影响旧单。
-- 余额套餐仍按人民币数字定价。汇率含义：`1 USD = X CNY`。Infini/USDT 实付 `round(套餐 / 汇率, 2) + ceil(手续费)`；到账仍是 `round(套餐 × 倍率 + 赠送, 2)`。订阅 CNY 是 `round(price × 汇率, 2)`，方向相反。汇率为 0 关闭换算；负数/NaN/Inf/超范围拒绝下单。支付宝 CNY、Stripe USD 不换算。
+- 余额套餐仍按人民币数字定价。到账公式不变：`round(套餐 × 余额充值倍率 + 赠送, 2)`。支付宝/Stripe 不换算，也不要用全局倍率去“充当” USDT 汇率。
+- Infini/USDT 实付用独立设置 `USDT_USD_TO_CNY_RATE`（后台「USDT 余额换算汇率」）：`round(套餐 / 汇率, 2) + ceil(手续费)`。0 时回退 `SUBSCRIPTION_USD_TO_CNY_RATE`，方便存量只配了订阅汇率的站点。订阅 CNY 仍只看订阅汇率：`round(price × 汇率, 2)`。负数/NaN/Inf/超范围拒绝下单。
+- Infini 上游下单失败返回 `PAYMENT_PROVIDER_CREATE_FAILED`（检查密钥与环境），不再伪装成「支付方式不可用」。未配置实例返回 `PAYMENT_METHOD_NOT_CONFIGURED`。失败订单写入 `failed_reason`。
 - 前端充值实付金额只展示 `POST /payment/quote` 的后端结果，下单只传套餐 `amount` + `payment_type`。Infini 无商户退款 API。
 
 **关键文件**

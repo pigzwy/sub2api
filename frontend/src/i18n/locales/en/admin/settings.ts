@@ -750,8 +750,12 @@ export default {
         packageBadgeNone: 'None',
         subscriptionUsdToCnyRate: 'Subscription USD to CNY Rate',
         subscriptionUsdToCnyRateHint:
-          'CNY per 1 USD (e.g. 6.67). CNY subscriptions charge price × rate. Infini/USDT balance recharges charge package ÷ rate (¥50 → $7.50). 0 or empty = no conversion. Alipay CNY and Stripe USD recharges stay unconverted. When enabled, subscription prices must be set in USD',
+          'CNY subscriptions only: CNY per 1 USD (e.g. 7.15). Charge price × rate. 0 or empty = no conversion. Does not change Alipay credit. Infini/USDT use “USDT Balance FX Rate” below; if that field is 0, they fall back to this rate.',
         subscriptionUsdToCnyRateDisabled: 'Disabled (price charged as-is)',
+        usdtUsdToCnyRate: 'USDT Balance FX Rate',
+        usdtUsdToCnyRateHint:
+          'Infini/USDT balance recharges only. Does not change the Alipay credit multiplier. CNY per 1 USD (e.g. 6.67). Pay amount = package ÷ rate (¥50 → $7.50). Credit still uses the global recharge multiplier + bonus. 0 or empty = fall back to the subscription rate.',
+        usdtUsdToCnyRateDisabled: 'Not set (fall back to subscription rate)',
         rechargeFeeRate: 'Recharge Fee Rate',
         rechargeFeeRateHint: 'Percentage of service fee charged on top of recharge amount, 0 means no fee',
         rechargeFeePreview: 'Preview: Recharge 100, fee {fee}',

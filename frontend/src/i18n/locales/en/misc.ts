@@ -461,6 +461,8 @@ export default {
       TOO_MANY_PENDING: 'Too many pending orders (max {max}). Please complete or cancel existing orders first.',
       DAILY_LIMIT_EXCEEDED: 'Daily recharge limit reached. Remaining: {remaining}.',
       PAYMENT_GATEWAY_ERROR: 'Payment method is unavailable.',
+      PAYMENT_METHOD_NOT_CONFIGURED: 'This payment method has no usable provider instance.',
+      PAYMENT_PROVIDER_CREATE_FAILED: 'The payment provider could not create the order. Check the API keys and environment.',
       NO_AVAILABLE_INSTANCE: 'No payment channel available right now.',
       PAYMENT_PROVIDER_MISCONFIGURED: 'Payment provider misconfigured. Please contact an administrator.',
       WXPAY_CONFIG_MISSING_KEY: 'WeChat Pay config missing required key: {key}.',
