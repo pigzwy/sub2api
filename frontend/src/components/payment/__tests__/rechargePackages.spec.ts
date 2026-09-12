@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_RECHARGE_PACKAGES,
+  balanceGatewayPayAmount,
   creditedRechargeAmount,
   filterRechargePackages,
   isUsdtPaymentMethod,
@@ -10,6 +11,7 @@ import {
   paymentMethodLane,
   rechargeBonusAmount,
   resolveRechargePackages,
+  shouldConvertBalancePayAmountToUsd,
 } from '@/components/payment/rechargePackages'
 
 describe('rechargePackages', () => {
@@ -56,5 +58,18 @@ describe('rechargePackages', () => {
     expect(isUsdtPaymentMethod('stripe', 'USD')).toBe(false)
     expect(paymentMethodLane('alipay', 'CNY')).toBe('rmb')
     expect(paymentMethodLane('usdt_trc20')).toBe('usdt')
+  })
+
+  it('converts Infini/USDT recharge pay amounts by the USD/CNY rate', () => {
+    expect(shouldConvertBalancePayAmountToUsd('infini', 'USD', 6.67)).toBe(true)
+    expect(shouldConvertBalancePayAmountToUsd('usdt_trc20', 'USDT', 6.67)).toBe(true)
+    expect(shouldConvertBalancePayAmountToUsd('stripe', 'USD', 6.67)).toBe(false)
+    expect(shouldConvertBalancePayAmountToUsd('alipay', 'CNY', 6.67)).toBe(false)
+    expect(shouldConvertBalancePayAmountToUsd('infini', 'USD', 0)).toBe(false)
+    expect(balanceGatewayPayAmount(50, 'infini', 'USD', 6.67)).toBe(7.5)
+    expect(balanceGatewayPayAmount(50, 'usdt_trc20', 'USDT', 6.67)).toBe(7.5)
+    expect(balanceGatewayPayAmount(50, 'infini', 'USD', 0)).toBe(50)
+    expect(balanceGatewayPayAmount(50, 'stripe', 'USD', 6.67)).toBe(50)
+    expect(balanceGatewayPayAmount(50, 'alipay', 'CNY', 6.67)).toBe(50)
   })
 })

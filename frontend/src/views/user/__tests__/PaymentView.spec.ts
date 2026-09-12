@@ -563,6 +563,71 @@ describe('PaymentView recharge rate preview', () => {
     }))
   })
 
+  it('converts Infini USDT pay amount by the USD/CNY rate without changing credit or order amount', async () => {
+    window.localStorage.clear()
+    const method: MethodLimit = {
+      daily_limit: 0,
+      daily_used: 0,
+      daily_remaining: 0,
+      single_min: 0,
+      single_max: 0,
+      fee_rate: 0,
+      available: true,
+    }
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
+      subscription_usd_to_cny_rate: 6.67,
+      methods: {
+        alipay: { ...method, currency: 'CNY' },
+        infini: { ...method, currency: 'USD' },
+      },
+    }))
+    createOrder.mockReset().mockResolvedValue({
+      order_id: 93,
+      amount: 50,
+      pay_amount: 7.5,
+      qr_code: 'qr',
+      expires_at: '2099-01-01T00:10:00.000Z',
+      payment_type: 'infini',
+      result_type: 'qr_ready',
+    })
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    wrapper.getComponent(RechargePackageGrid).vm.$emit('select', 50)
+    await flushPromises()
+
+    const dialog = wrapper.getComponent(RechargeCheckoutDialog)
+    expect(dialog.props('payAmountLabel')).toBe(formatPaymentAmount(50, 'CNY'))
+    expect(dialog.props('creditAmountLabel')).toBe('$50.00')
+
+    dialog.vm.$emit('update:lane', 'usdt')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="selected-payment-method"]').text()).toBe('infini')
+    expect(dialog.props('currency')).toBe('USD')
+    expect(dialog.props('payAmountLabel')).toBe(formatPaymentAmount(7.5, 'USD'))
+    expect(dialog.props('creditAmountLabel')).toBe('$50.00')
+
+    dialog.vm.$emit('confirm', 'infini')
+    await flushPromises()
+
+    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({
+      amount: 50,
+      order_type: 'balance',
+      payment_type: 'infini',
+    }))
+  })
+
   it('updates CNY/USD preview before creating a Stripe order', async () => {
     window.localStorage.clear()
     const method: MethodLimit = {
@@ -577,6 +642,7 @@ describe('PaymentView recharge rate preview', () => {
     routeState.path = '/purchase'
     routeState.query = {}
     getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
+      subscription_usd_to_cny_rate: 6.67,
       methods: {
         alipay: { ...method, currency: 'CNY' },
         stripe: { ...method, currency: 'USD' },

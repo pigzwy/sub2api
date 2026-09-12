@@ -745,7 +745,7 @@ export default {
         packageBadgeNone: '无',
         subscriptionUsdToCnyRate: '订阅 CNY 换算汇率',
         subscriptionUsdToCnyRateHint:
-          'CNY 支付通道下，套餐每 1 USD 价格收取多少 CNY（如 7.15）。0 或留空 = 不换算，订阅按 price 数值直接收款。启用后所有套餐 price 必须按 USD 定价',
+          '1 USD = 多少 CNY（如 6.67）。订阅 CNY 通道按 price × 汇率收款；Infini/USDT 余额充值按套餐金额 ÷ 汇率收款（¥50 → $7.50）。0 或留空 = 不换算。支付宝 CNY、Stripe USD 余额充值不换算。启用后订阅套餐 price 必须按 USD 定价',
         subscriptionUsdToCnyRateDisabled: '未启用（按 price 直付）',
         rechargeFeeRate: '充值手续费率',
         rechargeFeeRateHint: '用户充值时额外收取的手续费百分比，0 表示不收取手续费',

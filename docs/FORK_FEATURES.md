@@ -823,6 +823,7 @@ Makefile 的 CI 白名单，覆盖分类切换、保留展示价格、隐藏不�
 - 下单走 `POST /v1/acquiring/order`，用 HMAC-SHA256 签 `keyId + METHOD path + date`；`client_reference` 是本站 `out_trade_no`，返回 `checkout_url` 后走既有跳转/弹窗，不嵌 Infini SDK。
 - 默认 `pay_methods=1`（链上加密/USDT）。Webhook：`POST /api/v1/payment/webhook/infini`，按 `timestamp.event_id.body` 做 HMAC-SHA256 hex 验签；`order.completed` / `order.late_payment` 且 `paid` 才履约，`order.processing` 忽略。
 - 到账公式、实付核对、履约幂等不改。回调金额仍对 `pay_amount`。Infini 没有商户主动退款 API，实例退款开关保持关闭。
+- 余额套餐仍按人民币数字定价。配置了 `subscription_usd_to_cny_rate`（1 USD = X CNY）时，Infini/USDT 实付 `pay_amount = 套餐金额 / 汇率`（如 50 / 6.67 = 7.50），到账仍按原套餐公式。汇率为 0 时不换算。支付宝 CNY、Stripe USD 不换算。前端下单仍传套餐 `amount`。
 
 **关键文件**
 
@@ -837,7 +838,7 @@ frontend/src/components/payment/RechargeCheckoutDialog.vue
 **测试**
 
 - 后端：`infini_test.go` 覆盖签名、创建托管单、Webhook 验签与忽略处理中事件。
-- 前端：确认框 USDT 栏展示 Infini；`paymentFlow` 对 `checkout_url` 走 `redirect_waiting`。
+- 前端：确认框 USDT 栏展示 Infini；`paymentFlow` 对 `checkout_url` 走 `redirect_waiting`。配置汇率后 USDT 实付按套餐 ÷ 汇率展示，下单仍传套餐金额。
 
 ## 媒体转存与异步图片对象存储的补充说明
 

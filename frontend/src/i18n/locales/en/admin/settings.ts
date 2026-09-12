@@ -750,7 +750,7 @@ export default {
         packageBadgeNone: 'None',
         subscriptionUsdToCnyRate: 'Subscription USD to CNY Rate',
         subscriptionUsdToCnyRateHint:
-          'CNY charged per 1 USD of plan price on CNY channels (e.g. 7.15). 0 or empty = disabled, plan price is charged as-is. When enabled, all plan prices must be set in USD',
+          'CNY per 1 USD (e.g. 6.67). CNY subscriptions charge price × rate. Infini/USDT balance recharges charge package ÷ rate (¥50 → $7.50). 0 or empty = no conversion. Alipay CNY and Stripe USD recharges stay unconverted. When enabled, subscription prices must be set in USD',
         subscriptionUsdToCnyRateDisabled: 'Disabled (price charged as-is)',
         rechargeFeeRate: 'Recharge Fee Rate',
         rechargeFeeRateHint: 'Percentage of service fee charged on top of recharge amount, 0 means no fee',

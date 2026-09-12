@@ -278,6 +278,7 @@ import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector.vu
 import RechargePackageGrid from '@/components/payment/RechargePackageGrid.vue'
 import RechargeCheckoutDialog from '@/components/payment/RechargeCheckoutDialog.vue'
 import {
+  balanceGatewayPayAmount,
   filterRechargePackages,
   maxRechargeBonus,
   packageCreditAmount,
@@ -545,7 +546,8 @@ const balanceRechargeMultiplier = computed(() => {
   const multiplier = checkout.value.balance_recharge_multiplier
   return Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1
 })
-// 订阅 CNY 换算汇率（1 USD = X CNY）。0 = 未配置，订阅保持 price 直付（与后端 opt-in 条件严格镜像）。
+// USD/CNY 汇率（1 USD = X CNY）。0 = 未配置。
+// 订阅 CNY：price × rate；Infini/USDT 余额：套餐 / rate。到账公式不变。
 const subscriptionUsdToCnyRate = computed(() => {
   const rate = checkout.value.subscription_usd_to_cny_rate
   return Number.isFinite(rate) && rate > 0 ? rate : 0
@@ -669,16 +671,22 @@ const packageDisplayCurrency = computed(() => {
 })
 
 const feeRate = computed(() => checkout.value?.recharge_fee_rate ?? 0)
-const feeAmount = computed(() =>
-  feeRate.value > 0 && validAmount.value > 0
-    ? Math.ceil(((validAmount.value * feeRate.value) / 100) * 100) / 100
-    : 0
+const rechargeGatewayBaseAmount = computed(() =>
+  balanceGatewayPayAmount(
+    validAmount.value,
+    selectedMethod.value,
+    selectedCurrency.value,
+    subscriptionUsdToCnyRate.value,
+  ),
 )
-const totalAmount = computed(() =>
-  feeRate.value > 0 && validAmount.value > 0
-    ? Math.round((validAmount.value + feeAmount.value) * 100) / 100
-    : validAmount.value
-)
+const feeAmount = computed(() => {
+  if (feeRate.value <= 0 || rechargeGatewayBaseAmount.value <= 0) return 0
+  return ceilPaymentAmount((rechargeGatewayBaseAmount.value * feeRate.value) / 100, selectedCurrency.value)
+})
+const totalAmount = computed(() => {
+  if (feeRate.value <= 0 || rechargeGatewayBaseAmount.value <= 0) return rechargeGatewayBaseAmount.value
+  return roundPaymentAmount(rechargeGatewayBaseAmount.value + feeAmount.value, selectedCurrency.value)
+})
 
 const amountError = computed(() => {
   if (validAmount.value <= 0) return ''

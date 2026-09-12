@@ -69,7 +69,7 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 			return nil, err
 		}
 	}
-	payAmountStr, payAmount, err := calculateCreateOrderPayAmountForOrderType(limitAmount, feeRate, methodCurrency, req.OrderType, cfg.SubscriptionUSDToCNYRate)
+	payAmountStr, payAmount, err := calculateCreateOrderPayAmountForOrderType(limitAmount, feeRate, methodCurrency, req.OrderType, req.PaymentType, cfg.SubscriptionUSDToCNYRate)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 		selectedCurrency = paymentProviderConfigCurrency(sel.ProviderKey, sel.Config)
 	}
 	if selectedCurrency != methodCurrency {
-		payAmountStr, payAmount, err = calculateCreateOrderPayAmountForOrderType(limitAmount, feeRate, selectedCurrency, req.OrderType, cfg.SubscriptionUSDToCNYRate)
+		payAmountStr, payAmount, err = calculateCreateOrderPayAmountForOrderType(limitAmount, feeRate, selectedCurrency, req.OrderType, req.PaymentType, cfg.SubscriptionUSDToCNYRate)
 		if err != nil {
 			return nil, err
 		}
@@ -646,10 +646,13 @@ func calculateCreateOrderPayAmount(limitAmount, feeRate float64, currency string
 	return payAmountStr, payAmount, nil
 }
 
-func calculateCreateOrderPayAmountForOrderType(limitAmount, feeRate float64, currency, orderType string, usdToCnyRate float64) (string, float64, error) {
+func calculateCreateOrderPayAmountForOrderType(limitAmount, feeRate float64, currency, orderType, paymentType string, usdToCnyRate float64) (string, float64, error) {
 	paymentAmount := limitAmount
-	if orderType == payment.OrderTypeSubscription {
+	switch orderType {
+	case payment.OrderTypeSubscription:
 		paymentAmount = calculateSubscriptionGatewayBaseAmount(limitAmount, usdToCnyRate, currency)
+	case payment.OrderTypeBalance:
+		paymentAmount = calculateBalanceGatewayBaseAmount(limitAmount, usdToCnyRate, currency, paymentType)
 	}
 	return calculateCreateOrderPayAmount(paymentAmount, feeRate, currency)
 }
@@ -666,6 +669,43 @@ func calculateSubscriptionGatewayBaseAmount(amount, usdToCnyRate float64, curren
 		Mul(decimal.NewFromFloat(rate)).
 		Round(int32(payment.CurrencyMaxFractionDigits(currency))).
 		InexactFloat64()
+}
+
+// calculateBalanceGatewayBaseAmount 把人民币套餐换成 Infini/USDT 通道的实付金额。
+// 到账仍按套餐金额 × 倍率 + 赠送；这里只改网关 pay_amount。
+// 例：套餐 50，1 USD = 6.67 CNY → 实付 7.50。汇率未配置、支付宝、Stripe 都不换算。
+func calculateBalanceGatewayBaseAmount(amount, usdToCnyRate float64, currency, paymentType string) float64 {
+	rate := normalizeSubscriptionUSDToCNYRate(usdToCnyRate)
+	if rate <= 0 || !shouldConvertBalancePayAmountToUSD(paymentType, currency) {
+		return amount
+	}
+	return decimal.NewFromFloat(amount).
+		Div(decimal.NewFromFloat(rate)).
+		Round(int32(payment.CurrencyMaxFractionDigits(currency))).
+		InexactFloat64()
+}
+
+func shouldConvertBalancePayAmountToUSD(paymentType, currency string) bool {
+	if !isUsdtBalancePaymentType(paymentType) {
+		return false
+	}
+	switch strings.ToUpper(strings.TrimSpace(currency)) {
+	case "USD", "USDT":
+		return true
+	default:
+		return false
+	}
+}
+
+func isUsdtBalancePaymentType(paymentType string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(payment.GetBasePaymentType(paymentType)))
+	if normalized == "" {
+		return false
+	}
+	if normalized == payment.TypeInfini {
+		return true
+	}
+	return strings.Contains(normalized, "usdt") || strings.Contains(normalized, "infini") || strings.Contains(normalized, "stablecoin")
 }
 
 func validateCreateOrderAmountCurrency(amount float64, currency string) error {

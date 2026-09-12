@@ -27,8 +27,9 @@ const (
 	SettingBalancePayDisabled      = "BALANCE_PAYMENT_DISABLED"
 	SettingBalanceRechargeMult     = "BALANCE_RECHARGE_MULTIPLIER"
 	SettingBalanceRechargePackages = "BALANCE_RECHARGE_PACKAGES"
-	// SettingSubscriptionUSDToCNYRate 是订阅 CNY 换算汇率（1 USD = X CNY）。
-	// 0/未配置 = 关闭换算（订阅按 price 数值直付），显式配置后 CNY 通道订阅按 price × rate 收款。
+	// SettingSubscriptionUSDToCNYRate 是 USD/CNY 换算汇率（1 USD = X CNY）。
+	// 0/未配置 = 关闭换算。订阅 CNY 通道按 price × rate 收款；
+	// Infini/USDT 余额充值按 套餐金额 / rate 收款。到账公式不变。
 	SettingSubscriptionUSDToCNYRate      = "SUBSCRIPTION_USD_TO_CNY_RATE"
 	SettingRechargeFeeRate               = "RECHARGE_FEE_RATE"
 	SettingProductNamePrefix             = "PRODUCT_NAME_PREFIX"

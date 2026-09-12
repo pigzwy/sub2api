@@ -217,7 +217,7 @@ func TestCalculateCreateOrderPayAmountUsesCurrencyPrecision(t *testing.T) {
 func TestCalculateCreateOrderPayAmountForSubscriptionConvertsCNYPriceWhenRateConfigured(t *testing.T) {
 	t.Parallel()
 
-	amountStr, amount, err := calculateCreateOrderPayAmountForOrderType(9.99, 0, "CNY", payment.OrderTypeSubscription, 7.15)
+	amountStr, amount, err := calculateCreateOrderPayAmountForOrderType(9.99, 0, "CNY", payment.OrderTypeSubscription, payment.TypeAlipay, 7.15)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -229,7 +229,7 @@ func TestCalculateCreateOrderPayAmountForSubscriptionConvertsCNYPriceWhenRateCon
 func TestCalculateCreateOrderPayAmountForSubscriptionAppliesFeeAfterCNYConversion(t *testing.T) {
 	t.Parallel()
 
-	amountStr, amount, err := calculateCreateOrderPayAmountForOrderType(9.99, 2.5, "CNY", payment.OrderTypeSubscription, 7.15)
+	amountStr, amount, err := calculateCreateOrderPayAmountForOrderType(9.99, 2.5, "CNY", payment.OrderTypeSubscription, payment.TypeAlipay, 7.15)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestCalculateCreateOrderPayAmountForSubscriptionAppliesFeeAfterCNYConversio
 func TestCalculateCreateOrderPayAmountForSubscriptionKeepsNonCNYPrice(t *testing.T) {
 	t.Parallel()
 
-	amountStr, amount, err := calculateCreateOrderPayAmountForOrderType(9.99, 0, "USD", payment.OrderTypeSubscription, 7.15)
+	amountStr, amount, err := calculateCreateOrderPayAmountForOrderType(9.99, 0, "USD", payment.OrderTypeSubscription, payment.TypeStripe, 7.15)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -255,7 +255,7 @@ func TestCalculateCreateOrderPayAmountForSubscriptionKeepsNonCNYPrice(t *testing
 func TestCalculateCreateOrderPayAmountForSubscriptionKeepsDirectPriceWhenRateDisabled(t *testing.T) {
 	t.Parallel()
 
-	amountStr, amount, err := calculateCreateOrderPayAmountForOrderType(9.99, 0, "CNY", payment.OrderTypeSubscription, 0)
+	amountStr, amount, err := calculateCreateOrderPayAmountForOrderType(9.99, 0, "CNY", payment.OrderTypeSubscription, payment.TypeAlipay, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -264,16 +264,72 @@ func TestCalculateCreateOrderPayAmountForSubscriptionKeepsDirectPriceWhenRateDis
 	}
 }
 
-// 汇率只作用于订阅订单，余额充值订单不受影响。
+// 支付宝 / Stripe 余额充值不走订阅汇率，套餐数字就是实付。
 func TestCalculateCreateOrderPayAmountForBalanceIgnoresSubscriptionRate(t *testing.T) {
 	t.Parallel()
 
-	amountStr, amount, err := calculateCreateOrderPayAmountForOrderType(50, 0, "CNY", payment.OrderTypeBalance, 7.15)
+	amountStr, amount, err := calculateCreateOrderPayAmountForOrderType(50, 0, "CNY", payment.OrderTypeBalance, payment.TypeAlipay, 7.15)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if amountStr != "50.00" || amount != 50 {
 		t.Fatalf("balance CNY pay amount = (%q, %v), want (50.00, 50)", amountStr, amount)
+	}
+
+	amountStr, amount, err = calculateCreateOrderPayAmountForOrderType(100, 0, "USD", payment.OrderTypeBalance, payment.TypeStripe, 7.15)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if amountStr != "100.00" || amount != 100 {
+		t.Fatalf("balance Stripe USD pay amount = (%q, %v), want (100.00, 100)", amountStr, amount)
+	}
+}
+
+func TestCalculateCreateOrderPayAmountForInfiniConvertsCNYPackageWhenRateConfigured(t *testing.T) {
+	t.Parallel()
+
+	amountStr, amount, err := calculateCreateOrderPayAmountForOrderType(50, 0, "USD", payment.OrderTypeBalance, payment.TypeInfini, 6.67)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if amountStr != "7.50" || amount != 7.5 {
+		t.Fatalf("Infini USD pay amount = (%q, %v), want (7.50, 7.5)", amountStr, amount)
+	}
+}
+
+func TestCalculateCreateOrderPayAmountForInfiniAppliesFeeAfterUSDConversion(t *testing.T) {
+	t.Parallel()
+
+	amountStr, amount, err := calculateCreateOrderPayAmountForOrderType(50, 2.5, "USD", payment.OrderTypeBalance, payment.TypeInfini, 6.67)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if amountStr != "7.69" || amount != 7.69 {
+		t.Fatalf("Infini USD pay amount with fee = (%q, %v), want (7.69, 7.69)", amountStr, amount)
+	}
+}
+
+func TestCalculateCreateOrderPayAmountForInfiniKeepsPackageWhenRateDisabled(t *testing.T) {
+	t.Parallel()
+
+	amountStr, amount, err := calculateCreateOrderPayAmountForOrderType(50, 0, "USD", payment.OrderTypeBalance, payment.TypeInfini, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if amountStr != "50.00" || amount != 50 {
+		t.Fatalf("Infini USD pay amount without rate = (%q, %v), want (50.00, 50)", amountStr, amount)
+	}
+}
+
+func TestCalculateCreateOrderPayAmountForUsdtLaneConvertsWhenRateConfigured(t *testing.T) {
+	t.Parallel()
+
+	amountStr, amount, err := calculateCreateOrderPayAmountForOrderType(50, 0, "USD", payment.OrderTypeBalance, "usdt_trc20", 6.67)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if amountStr != "7.50" || amount != 7.5 {
+		t.Fatalf("USDT pay amount = (%q, %v), want (7.50, 7.5)", amountStr, amount)
 	}
 }
 

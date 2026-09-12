@@ -112,6 +112,32 @@ export function isUsdtPaymentMethod(type: string, currency?: string | null): boo
     || normalizedType.includes('stablecoin')
 }
 
+export function shouldConvertBalancePayAmountToUsd(
+  type: string,
+  currency?: string | null,
+  usdToCnyRate = 0,
+): boolean {
+  if (!(Number.isFinite(usdToCnyRate) && usdToCnyRate > 0)) return false
+  if (!isUsdtPaymentMethod(type, currency)) return false
+  const normalizedCurrency = String(currency || '').trim().toUpperCase()
+  return normalizedCurrency === 'USD' || normalizedCurrency === 'USDT'
+}
+
+// CNY-priced recharge package → Infini/USDT gateway amount.
+// Credit stays on the package; only pay_amount is converted.
+export function balanceGatewayPayAmount(
+  amount: number,
+  type: string,
+  currency?: string | null,
+  usdToCnyRate = 0,
+): number {
+  if (!Number.isFinite(amount) || amount <= 0) return 0
+  if (!shouldConvertBalancePayAmountToUsd(type, currency, usdToCnyRate)) {
+    return amount
+  }
+  return roundMoney(amount / usdToCnyRate)
+}
+
 // paymentMethodLane only separates USDT/crypto from everything else.
 // The "rmb" lane can still mix CNY and USD methods (e.g. Alipay + Stripe).
 export function paymentMethodLane(type: string, currency?: string | null): PaymentMethodLane {
