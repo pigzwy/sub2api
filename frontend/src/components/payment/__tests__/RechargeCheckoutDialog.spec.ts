@@ -14,6 +14,7 @@ function mountDialog(overrides: Record<string, unknown> = {}) {
       open: true,
       payAmountLabel: '¥50.00',
       creditAmountLabel: '$50.00',
+      extraBonusLabel: '',
       feeAmountLabel: '¥0.00',
       feeRate: 0,
       multiplier: 1,
@@ -114,7 +115,27 @@ describe('RechargeCheckoutDialog', () => {
     submitting.unmount()
   })
 
-  it('renders the accepted-brand row at the bottom of the dialog', () => {
+  it('shows Extra beside the base credit and hides it when there is no bonus', () => {
+    const withBonus = mountDialog({
+      payAmountLabel: '¥100.00',
+      creditAmountLabel: '$100.00',
+      extraBonusLabel: '$2.99',
+    })
+
+    const extra = document.body.querySelector('[data-testid="extra-bonus"]')
+    expect(extra).not.toBeNull()
+    expect(extra?.textContent).toContain('payment.extraBonus')
+    expect(extra?.textContent).toContain('$2.99')
+    expect(document.body.textContent).toContain('payment.creditedBalance $100.00')
+    expect(document.body.textContent).not.toContain('$102.99')
+    withBonus.unmount()
+
+    const withoutBonus = mountDialog({ extraBonusLabel: '' })
+    expect(document.body.querySelector('[data-testid="extra-bonus"]')).toBeNull()
+    withoutBonus.unmount()
+  })
+
+  it('centers the accepted-brand row at the bottom of the dialog', () => {
     const wrapper = mountDialog({
       error: 'quote failed',
     })
@@ -122,6 +143,7 @@ describe('RechargeCheckoutDialog', () => {
     const dialog = document.body.querySelector('[data-testid="recharge-checkout-dialog"]')
     const brands = dialog?.querySelector('[data-testid="supported-methods"]')
     expect(brands).not.toBeNull()
+    expect(brands?.className).toContain('justify-center')
     expect(brands?.textContent).toContain('payment.supportedMethods')
     expect(brands?.getAttribute('data-lane')).toBe('rmb')
     expect(brands?.querySelectorAll('img')).toHaveLength(1)

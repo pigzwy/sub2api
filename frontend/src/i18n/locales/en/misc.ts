@@ -400,6 +400,7 @@ export default {
     getCredit: 'Get {amount} credit',
     getCreditLead: 'Get',
     getCreditTrail: 'credit',
+    extraBonus: 'Extra',
     bonusTag: '+{amount} bonus',
     limitedBonus: 'Limited bonus',
     bonusBannerTitle: 'Recharge more, get more bonus credit',

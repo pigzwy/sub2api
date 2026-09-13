@@ -78,6 +78,7 @@
               :open="showPayDialog"
               :pay-amount-label="rechargePayAmountLabel"
               :credit-amount-label="rechargeCreditAmountLabel"
+              :extra-bonus-label="rechargeExtraBonusLabel"
               :fee-amount-label="rechargeFeeAmountLabel"
               :fee-rate="rechargeQuote?.fee_rate ?? 0"
               :multiplier="balanceRechargeMultiplier"
@@ -283,6 +284,7 @@ import {
   balanceGatewayPayAmount,
   filterRechargePackages,
   maxRechargeBonus,
+  packageBonusAmount,
   packageCreditAmount,
   paymentMethodLane,
   resolveRechargePackages,
@@ -697,9 +699,22 @@ const rechargePayAmountLabel = computed(() => {
   if (!rechargeQuote.value) return ''
   return formatPaymentAmount(Number(rechargeQuote.value.pay_amount), rechargeQuote.value.currency, localeCode.value)
 })
+const rechargeExtraBonus = computed(() => {
+  const selected = configuredPackages.value.find((pkg) => pkg.amount === validAmount.value)
+  if (!selected) return 0
+  return packageBonusAmount(selected, configuredPackages.value, balanceRechargeMultiplier.value)
+})
 const rechargeCreditAmountLabel = computed(() => {
-  if (rechargeQuote.value) return `$${Number(rechargeQuote.value.credit_amount).toFixed(2)}`
-  return `$${creditedAmount.value.toFixed(2)}`
+  const extra = rechargeExtraBonus.value
+  const total = rechargeQuote.value
+    ? Number(rechargeQuote.value.credit_amount)
+    : creditedAmount.value
+  const base = Math.max(0, Math.round((total - extra) * 100) / 100)
+  return `$${base.toFixed(2)}`
+})
+const rechargeExtraBonusLabel = computed(() => {
+  const extra = rechargeExtraBonus.value
+  return extra > 0 ? `$${extra.toFixed(2)}` : ''
 })
 const rechargeFeeAmountLabel = computed(() => {
   if (!rechargeQuote.value) return formatPaymentAmount(0, selectedCurrency.value, localeCode.value)

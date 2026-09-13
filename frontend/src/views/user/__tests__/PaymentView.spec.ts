@@ -520,13 +520,15 @@ describe('PaymentView recharge rate preview', () => {
     await flushPromises()
 
     expect(wrapper.getComponent(RechargeCheckoutDialog).props('creditAmountLabel')).toBe('$14.00')
+    expect(wrapper.getComponent(RechargeCheckoutDialog).props('extraBonusLabel')).toBe('')
 
     wrapper.getComponent(RechargeCheckoutDialog).vm.$emit('close')
     await flushPromises()
     wrapper.getComponent(RechargePackageGrid).vm.$emit('select', 200)
     await flushPromises()
 
-    expect(wrapper.getComponent(RechargeCheckoutDialog).props('creditAmountLabel')).toBe('$33.00')
+    expect(wrapper.getComponent(RechargeCheckoutDialog).props('creditAmountLabel')).toBe('$28.00')
+    expect(wrapper.getComponent(RechargeCheckoutDialog).props('extraBonusLabel')).toBe('$5.00')
   })
 
   it('keeps checkout amount currency aligned with the selected pay lane', async () => {

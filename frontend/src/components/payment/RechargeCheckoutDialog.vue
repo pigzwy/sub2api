@@ -26,8 +26,15 @@
               <p v-if="quoteLoading" class="mt-2 text-sm text-gray-500 dark:text-gray-400">{{ t('payment.quoteLoading') }}</p>
               <template v-else>
                 <p class="mt-2 text-4xl font-bold tracking-tight text-gray-900 dark:text-white">{{ payAmountLabel }}</p>
-                <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                  {{ t('payment.creditedBalance') }} {{ creditAmountLabel }}
+                <p class="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                  <span>{{ t('payment.creditedBalance') }} {{ creditAmountLabel }}</span>
+                  <span
+                    v-if="extraBonusLabel"
+                    data-testid="extra-bonus"
+                    class="inline-flex items-center rounded-full border border-amber-200/80 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-200"
+                  >
+                    {{ t('payment.extraBonus') }} {{ extraBonusLabel }}
+                  </span>
                 </p>
                 <p v-if="feeRate > 0" class="mt-2 text-xs text-gray-400 dark:text-gray-500">
                   {{ t('payment.fee') }} ({{ feeRate }}%): {{ feeAmountLabel }}
@@ -100,7 +107,7 @@
           <div
             data-testid="supported-methods"
             :data-lane="lane"
-            class="flex flex-wrap items-center gap-2 px-6 pb-6 pt-4 text-xs font-medium text-gray-500 dark:text-gray-300"
+            class="flex flex-wrap items-center justify-center gap-2 px-6 pb-6 pt-4 text-xs font-medium text-gray-500 dark:text-gray-300"
           >
             <span>{{ t('payment.supportedMethods') }}</span>
             <span
@@ -152,6 +159,7 @@ const props = defineProps<{
   open: boolean
   payAmountLabel: string
   creditAmountLabel: string
+  extraBonusLabel?: string
   feeAmountLabel: string
   feeRate: number
   multiplier: number
