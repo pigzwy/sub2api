@@ -49,13 +49,9 @@ var paymentCurrencyAmountUnits = map[string]paymentCurrencyAmountUnit{
 }
 
 // InfiniSettlementCurrency is the fiat currency sent to Infini's hosted checkout.
-// Infini rejects CNY and other unsupported codes (error 40016). Empty, CNY, or
-// invalid values are coerced to USD so CNY-priced recharge packages still convert.
-func InfiniSettlementCurrency(raw string) string {
-	currency, err := CanonicalAmountCurrency(raw)
-	if err == nil && (currency == "USD" || currency == "USDT") {
-		return currency
-	}
+// Infini never accepts CNY (error 40016). The product always settles in USD, so
+// leftover instance values (CNY, USDT, empty, or any other code) are ignored.
+func InfiniSettlementCurrency(_ string) string {
 	return "USD"
 }
 

@@ -220,6 +220,12 @@ func TestPcAggregateMethodCurrency(t *testing.T) {
 	currency, ok = svc.pcAggregateMethodCurrency([]*dbent.PaymentProviderInstance{easypay})
 	require.True(t, ok)
 	require.Equal(t, payment.DefaultPaymentCurrency, currency)
+
+	infini := makeInstance(4, payment.TypeInfini, payment.TypeInfini, "")
+	infini.Config = `{"currency":"CNY"}`
+	currency, ok = svc.pcAggregateMethodCurrency([]*dbent.PaymentProviderInstance{infini})
+	require.True(t, ok)
+	require.Equal(t, "USD", currency)
 }
 
 func TestGetAvailableMethodLimitsOmitsMixedCurrencyMethod(t *testing.T) {
@@ -253,6 +259,25 @@ func TestGetAvailableMethodLimitsOmitsMixedCurrencyMethod(t *testing.T) {
 	require.Error(t, err)
 	appErr := infraerrors.FromError(err)
 	require.Equal(t, "PAYMENT_METHOD_CURRENCY_CONFLICT", appErr.Reason)
+}
+
+func TestValidateMethodCurrencyConsistencyForcesInfiniUSD(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+
+	_, err := client.PaymentProviderInstance.Create().
+		SetProviderKey(payment.TypeInfini).
+		SetName("Infini leftover CNY").
+		SetConfig(`{"currency":"CNY"}`).
+		SetSupportedTypes(payment.TypeInfini).
+		SetEnabled(true).
+		Save(ctx)
+	require.NoError(t, err)
+
+	svc := &PaymentConfigService{entClient: client}
+	currency, err := svc.ValidateMethodCurrencyConsistency(ctx, payment.TypeInfini)
+	require.NoError(t, err)
+	require.Equal(t, "USD", currency)
 }
 
 func TestGetAvailableMethodLimitsIncludesEasyPayCustomMethodDisplayName(t *testing.T) {

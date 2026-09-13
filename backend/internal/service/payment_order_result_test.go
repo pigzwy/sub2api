@@ -401,11 +401,63 @@ func TestPaymentProviderConfigCurrencyForcesInfiniUSD(t *testing.T) {
 	if got := paymentProviderConfigCurrency(payment.TypeInfini, map[string]string{"currency": "CNY"}); got != "USD" {
 		t.Fatalf("Infini CNY config currency = %q, want USD", got)
 	}
+	if got := paymentProviderConfigCurrency(payment.TypeInfini, map[string]string{"currency": "USDT"}); got != "USD" {
+		t.Fatalf("Infini USDT config currency = %q, want USD", got)
+	}
 	if got := paymentProviderConfigCurrency(payment.TypeInfini, nil); got != "USD" {
 		t.Fatalf("Infini empty config currency = %q, want USD", got)
 	}
 	if got := paymentProviderConfigCurrency(payment.TypeAlipay, map[string]string{"currency": "USD"}); got != payment.DefaultPaymentCurrency {
 		t.Fatalf("Alipay currency = %q, want CNY", got)
+	}
+	if got := paymentProviderConfigCurrency(payment.TypeStripe, map[string]string{"currency": "HKD"}); got != "HKD" {
+		t.Fatalf("Stripe currency = %q, want HKD", got)
+	}
+	if got := paymentProviderConfigCurrency(payment.TypeAirwallex, map[string]string{"currency": "USD"}); got != "USD" {
+		t.Fatalf("Airwallex currency = %q, want USD", got)
+	}
+}
+
+func TestResolveOrderSettlementCurrencyMatchesQuoteAndCreate(t *testing.T) {
+	t.Parallel()
+
+	infiniCNY := &payment.InstanceSelection{
+		ProviderKey: payment.TypeInfini,
+		Config:      map[string]string{"currency": "CNY"},
+	}
+	if got := resolveOrderSettlementCurrency(payment.TypeInfini, "CNY", nil); got != "USD" {
+		t.Fatalf("Infini quote currency with CNY method = %q, want USD", got)
+	}
+	if got := resolveOrderSettlementCurrency(payment.TypeInfini, payment.DefaultPaymentCurrency, nil); got != "USD" {
+		t.Fatalf("Infini quote currency with empty/default method = %q, want USD", got)
+	}
+	if got := resolveOrderSettlementCurrency(payment.TypeInfini, "CNY", infiniCNY); got != "USD" {
+		t.Fatalf("Infini create currency with CNY instance = %q, want USD", got)
+	}
+
+	if got := resolveOrderSettlementCurrency(payment.TypeAlipay, "CNY", nil); got != "CNY" {
+		t.Fatalf("Alipay quote currency = %q, want CNY", got)
+	}
+	if got := resolveOrderSettlementCurrency(payment.TypeAlipay, "CNY", &payment.InstanceSelection{
+		ProviderKey: payment.TypeAlipay,
+		Config:      map[string]string{"currency": "USD"},
+	}); got != payment.DefaultPaymentCurrency {
+		t.Fatalf("Alipay create currency = %q, want CNY", got)
+	}
+	if got := resolveOrderSettlementCurrency(payment.TypeStripe, "USD", nil); got != "USD" {
+		t.Fatalf("Stripe quote currency = %q, want USD", got)
+	}
+	if got := resolveOrderSettlementCurrency(payment.TypeStripe, "USD", &payment.InstanceSelection{
+		ProviderKey: payment.TypeStripe,
+		Config:      map[string]string{"currency": "HKD"},
+	}); got != "HKD" {
+		t.Fatalf("Stripe create currency = %q, want HKD", got)
+	}
+	if got := resolveOrderSettlementCurrency(payment.TypeAirwallex, "USD", &payment.InstanceSelection{
+		ProviderKey: payment.TypeAirwallex,
+		Config:      map[string]string{"currency": "USD"},
+	}); got != "USD" {
+		t.Fatalf("Airwallex create currency = %q, want USD", got)
 	}
 }
 

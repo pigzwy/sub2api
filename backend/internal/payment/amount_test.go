@@ -221,21 +221,10 @@ func TestThreeDecimalPaymentCurrencies(t *testing.T) {
 	}
 }
 
-func TestInfiniSettlementCurrencyCoercesUnsupportedCodesToUSD(t *testing.T) {
-	cases := map[string]string{
-		"":     "USD",
-		"cny":  "USD",
-		"CNY":  "USD",
-		"HKD":  "USD",
-		"EUR":  "USD",
-		"usd":  "USD",
-		"USD":  "USD",
-		"usdt": "USDT",
-		"USDT": "USDT",
-	}
-	for raw, want := range cases {
-		if got := InfiniSettlementCurrency(raw); got != want {
-			t.Fatalf("InfiniSettlementCurrency(%q) = %q, want %q", raw, got, want)
+func TestInfiniSettlementCurrencyAlwaysUSD(t *testing.T) {
+	for _, raw := range []string{"", "cny", "CNY", "HKD", "EUR", "usd", "USD", "usdt", "USDT"} {
+		if got := InfiniSettlementCurrency(raw); got != "USD" {
+			t.Fatalf("InfiniSettlementCurrency(%q) = %q, want USD", raw, got)
 		}
 	}
 }

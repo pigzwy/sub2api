@@ -831,7 +831,7 @@ export default {
         field_accountId: 'Airwallex 账户 ID',
         field_airwallexApiBaseHint: '必须和 API Key 所属环境一致：沙箱/测试密钥使用 https://api-demo.airwallex.com/api/v1，生产密钥使用 https://api.airwallex.com/api/v1。环境混用会返回 credentials_invalid / Access Denied。',
         field_paymentCurrencyHint: '默认 CNY。Stripe、Airwallex 可按账户支持从下拉项选择 HKD、USD 等币种；微信、支付宝、易支付仍按 CNY。',
-        field_infiniCurrencyHint: 'Infini 只接受 USD。套餐仍按人民币定价，下单时用「USDT 余额换算汇率」换成美元实付；实例里误填 CNY 也会被强制成 USD，不会把人民币金额传给 Infini。',
+        field_infiniCurrencyHint: 'Infini 只接受 USD，不会用 USDT 作为下单法币。套餐仍按人民币定价，下单时用「USDT 余额换算汇率」换成美元实付；实例里误填 CNY/USDT/空值也会被强制成 USD，报价和下单币种一致。',
         field_infiniApiBaseHint: '必须和 Infini 密钥环境一致：沙箱密钥用 https://openapi-sandbox.infini.money，生产密钥用 https://openapi.infini.money。',
         field_payMethods: '支付方式',
         field_infiniPayMethodsHint: '可选的 Infini pay_methods。默认 1 只开链上加密/USDT。写成 1,2,3,5,6 可同时开卡、Binance Pay、Apple Pay、Google Pay。',
