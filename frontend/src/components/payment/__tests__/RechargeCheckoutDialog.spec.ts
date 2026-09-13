@@ -42,6 +42,29 @@ describe('RechargeCheckoutDialog', () => {
     wrapper.unmount()
   })
 
+  it('uses a transparent method surface so brand marks stay visible', () => {
+    const wrapper = mountDialog({
+      selected: 'stripe',
+      rmbMethods: [
+        { type: 'alipay', display_name: 'Alipay', fee_rate: 0, available: true },
+        { type: 'stripe', display_name: 'Stripe', fee_rate: 0, available: true },
+      ],
+      usdtMethods: [],
+    })
+
+    const alipay = document.body.querySelector<HTMLButtonElement>('[data-testid="checkout-method-alipay"]')
+    const stripe = document.body.querySelector<HTMLButtonElement>('[data-testid="checkout-method-stripe"]')
+    expect(alipay?.getAttribute('data-surface')).toBe('transparent')
+    expect(stripe?.getAttribute('data-surface')).toBe('transparent')
+    expect(alipay?.className).toContain('bg-transparent')
+    expect(stripe?.className).toContain('bg-transparent')
+    expect(alipay?.className).not.toMatch(/btn-alipay|btn-stripe|btn-primary/)
+    expect(stripe?.className).not.toMatch(/btn-alipay|btn-stripe|btn-primary/)
+    expect(alipay?.querySelector('img')?.getAttribute('alt')).toBe('Alipay')
+    expect(stripe?.querySelector('img')?.getAttribute('alt')).toBe('Stripe')
+    wrapper.unmount()
+  })
+
   it('hides the lane switch when only RMB methods are configured', () => {
     const wrapper = mountDialog({
       selected: 'stripe',
