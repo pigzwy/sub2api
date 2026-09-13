@@ -1,10 +1,17 @@
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import RechargeCheckoutDialog from '@/components/payment/RechargeCheckoutDialog.vue'
+import enMisc from '@/i18n/locales/en/misc'
+import zhMisc from '@/i18n/locales/zh/misc'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
-    t: (key: string, fallback?: string) => fallback ?? key,
+    t: (key: string, params?: string | Record<string, unknown>) => {
+      if (params && typeof params === 'object' && 'amount' in params) {
+        return `${key}:${String(params.amount)}`
+      }
+      return typeof params === 'string' ? params : key
+    },
   }),
 }))
 
@@ -14,6 +21,7 @@ function mountDialog(overrides: Record<string, unknown> = {}) {
       open: true,
       payAmountLabel: '¥50.00',
       creditAmountLabel: '$50.00',
+      extraBonusLabel: '',
       feeAmountLabel: '¥0.00',
       feeRate: 0,
       multiplier: 1,
@@ -39,6 +47,29 @@ describe('RechargeCheckoutDialog', () => {
     expect(wrapper.emitted('confirm')?.[0]).toEqual(['alipay'])
     await document.body.querySelector<HTMLButtonElement>('[data-testid="pay-lane-usdt"]')?.click()
     expect(wrapper.emitted('update:lane')?.[0]).toEqual(['usdt'])
+    wrapper.unmount()
+  })
+
+  it('uses a transparent method surface so brand marks stay visible', () => {
+    const wrapper = mountDialog({
+      selected: 'stripe',
+      rmbMethods: [
+        { type: 'alipay', display_name: 'Alipay', fee_rate: 0, available: true },
+        { type: 'stripe', display_name: 'Stripe', fee_rate: 0, available: true },
+      ],
+      usdtMethods: [],
+    })
+
+    const alipay = document.body.querySelector<HTMLButtonElement>('[data-testid="checkout-method-alipay"]')
+    const stripe = document.body.querySelector<HTMLButtonElement>('[data-testid="checkout-method-stripe"]')
+    expect(alipay?.getAttribute('data-surface')).toBe('transparent')
+    expect(stripe?.getAttribute('data-surface')).toBe('transparent')
+    expect(alipay?.className).toContain('bg-transparent')
+    expect(stripe?.className).toContain('bg-transparent')
+    expect(alipay?.className).not.toMatch(/btn-alipay|btn-stripe|btn-primary/)
+    expect(stripe?.className).not.toMatch(/btn-alipay|btn-stripe|btn-primary/)
+    expect(alipay?.querySelector('img')?.getAttribute('alt')).toBe('Alipay')
+    expect(stripe?.querySelector('img')?.getAttribute('alt')).toBe('Stripe')
     wrapper.unmount()
   })
 
@@ -91,7 +122,33 @@ describe('RechargeCheckoutDialog', () => {
     submitting.unmount()
   })
 
-  it('renders the accepted-brand row at the bottom of the dialog', () => {
+  it('shows Extra beside the base credit and hides it when there is no bonus', () => {
+    const withBonus = mountDialog({
+      payAmountLabel: '¥100.00',
+      creditAmountLabel: '$100.00',
+      extraBonusLabel: '$2.99',
+    })
+
+    const extra = document.body.querySelector('[data-testid="extra-bonus"]')
+    expect(extra).not.toBeNull()
+    expect(extra?.textContent).toContain('payment.extraBonus:$2.99')
+    expect(document.body.textContent).toContain('payment.creditedBalance $100.00')
+    expect(document.body.textContent).not.toContain('$102.99')
+    withBonus.unmount()
+
+    const withoutBonus = mountDialog({ extraBonusLabel: '' })
+    expect(document.body.querySelector('[data-testid="extra-bonus"]')).toBeNull()
+    withoutBonus.unmount()
+  })
+
+  it('localizes the Extra badge as +$2.99+送 in Chinese and Extra $2.99 in English', () => {
+    expect(zhMisc.payment.extraBonus).toBe('+{amount}+送')
+    expect(enMisc.payment.extraBonus).toBe('Extra {amount}')
+    expect(zhMisc.payment.extraBonus.replace('{amount}', '$2.99')).toBe('+$2.99+送')
+    expect(enMisc.payment.extraBonus.replace('{amount}', '$2.99')).toBe('Extra $2.99')
+  })
+
+  it('centers the accepted-brand row at the bottom of the dialog', () => {
     const wrapper = mountDialog({
       error: 'quote failed',
     })
@@ -99,6 +156,7 @@ describe('RechargeCheckoutDialog', () => {
     const dialog = document.body.querySelector('[data-testid="recharge-checkout-dialog"]')
     const brands = dialog?.querySelector('[data-testid="supported-methods"]')
     expect(brands).not.toBeNull()
+    expect(brands?.className).toContain('justify-center')
     expect(brands?.textContent).toContain('payment.supportedMethods')
     expect(brands?.getAttribute('data-lane')).toBe('rmb')
     expect(brands?.querySelectorAll('img')).toHaveLength(1)
