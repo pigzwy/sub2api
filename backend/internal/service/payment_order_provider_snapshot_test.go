@@ -200,6 +200,15 @@ func TestBuildPaymentOrderProviderSnapshot_IncludesProviderCurrency(t *testing.T
 		},
 	}, CreateOrderRequest{})
 	require.Equal(t, "USD", infiniSnapshot["currency"])
+
+	infiniCNYSnapshot := buildPaymentOrderProviderSnapshot(&payment.InstanceSelection{
+		InstanceID:  "80",
+		ProviderKey: payment.TypeInfini,
+		Config: map[string]string{
+			"currency": "CNY",
+		},
+	}, CreateOrderRequest{})
+	require.Equal(t, "USD", infiniCNYSnapshot["currency"])
 }
 
 func TestFinancialSnapshotUsesDedicatedUSDTRateNotSubscriptionRate(t *testing.T) {
@@ -214,6 +223,16 @@ func TestFinancialSnapshotUsesDedicatedUSDTRateNotSubscriptionRate(t *testing.T)
 	require.Equal(t, "6.6700", snap.FxRate)
 	require.True(t, snap.FxConverted)
 	require.Equal(t, "USD", snap.Currency)
+
+	cnyLabeled := newPaymentOrderFinancialSnapshot(
+		CreateOrderRequest{PaymentType: payment.TypeInfini, OrderType: payment.OrderTypeBalance},
+		&PaymentConfig{SubscriptionUSDToCNYRate: 7.15, USDTUSDToCNYRate: 6.67},
+		&payment.InstanceSelection{ProviderKey: payment.TypeInfini, Config: map[string]string{"currency": "CNY"}},
+		50, 50, 0, 7.5,
+	)
+	require.Equal(t, "6.6700", cnyLabeled.FxRate)
+	require.True(t, cnyLabeled.FxConverted)
+	require.Equal(t, "USD", cnyLabeled.Currency)
 }
 
 func valueOrEmpty(v *string) string {

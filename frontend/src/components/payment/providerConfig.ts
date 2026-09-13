@@ -68,6 +68,10 @@ export const PAYMENT_MODE_POPUP = 'popup'
  * precreate→pagepay flow. */
 export const PAYMENT_MODE_REDIRECT = 'redirect'
 
+export const INFINI_CURRENCY_OPTIONS: TypeOption[] = [
+  { value: 'USD', label: 'USD' },
+]
+
 export const PAYMENT_CURRENCY_OPTIONS: TypeOption[] = [
   { value: 'CNY', label: 'CNY' },
   { value: 'HKD', label: 'HKD' },
@@ -159,7 +163,7 @@ export const PROVIDER_CONFIG_FIELDS: Record<string, ConfigFieldDef[]> = {
     { key: 'secretKey', label: '', sensitive: true },
     { key: 'webhookSecret', label: '', sensitive: true },
     { key: 'apiBase', label: '', sensitive: false, defaultValue: 'https://openapi.infini.money', hintKey: 'admin.settings.payment.field_infiniApiBaseHint' },
-    { key: 'currency', label: '', sensitive: false, defaultValue: 'USD', hintKey: 'admin.settings.payment.field_paymentCurrencyHint', options: PAYMENT_CURRENCY_OPTIONS },
+    { key: 'currency', label: '', sensitive: false, defaultValue: 'USD', hintKey: 'admin.settings.payment.field_infiniCurrencyHint', options: INFINI_CURRENCY_OPTIONS },
     { key: 'payMethods', label: '', sensitive: false, optional: true, defaultValue: '1', hintKey: 'admin.settings.payment.field_infiniPayMethodsHint' },
   ],
   airwallex: [

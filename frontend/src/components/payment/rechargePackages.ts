@@ -124,9 +124,9 @@ export function shouldConvertBalancePayAmountToUsd(
   usdToCnyRate = 0,
 ): boolean {
   if (!(Number.isFinite(usdToCnyRate) && usdToCnyRate > 0)) return false
-  if (!isUsdtPaymentMethod(type, currency)) return false
-  const normalizedCurrency = String(currency || '').trim().toUpperCase()
-  return normalizedCurrency === 'USD' || normalizedCurrency === 'USDT'
+  // Infini is often labeled CNY in admin because packages are RMB-priced.
+  // Convert by payment type, not the instance currency label.
+  return isUsdtPaymentMethod(type, currency)
 }
 
 // CNY-priced recharge package → Infini/USDT gateway amount.

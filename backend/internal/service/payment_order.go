@@ -68,34 +68,22 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 		orderAmount = calculateCreditedBalance(req.Amount, cfg.BalanceRechargeMultiplier, cfg.BalanceRechargePackages)
 	}
 	feeRate := cfg.RechargeFeeRate
-	methodCurrency := payment.DefaultPaymentCurrency
-	if s.configService != nil {
-		methodCurrency, err = s.configService.ValidateMethodCurrencyConsistency(ctx, req.PaymentType)
-		if err != nil {
-			return nil, err
-		}
-	}
-	payAmountStr, payAmount, err := calculateCreateOrderPayAmountForOrderType(limitAmount, feeRate, methodCurrency, req.OrderType, req.PaymentType, resolvePayFXRate(cfg, req.OrderType, req.PaymentType, methodCurrency))
+	quote, err := s.quoteOrderAmounts(ctx, req, cfg, limitAmount, orderAmount, nil)
 	if err != nil {
 		return nil, err
 	}
-	sel, err := s.selectCreateOrderInstance(ctx, req, cfg, payAmount)
+	sel, err := s.selectCreateOrderInstance(ctx, req, cfg, quote.PayAmountValue)
 	if err != nil {
 		return nil, err
 	}
 	if err := s.validateSelectedCreateOrderInstance(ctx, req, sel); err != nil {
 		return nil, err
 	}
-	selectedCurrency := payment.DefaultPaymentCurrency
-	if sel != nil {
-		selectedCurrency = paymentProviderConfigCurrency(sel.ProviderKey, sel.Config)
+	quote, err = s.quoteOrderAmounts(ctx, req, cfg, limitAmount, orderAmount, sel)
+	if err != nil {
+		return nil, err
 	}
-	if selectedCurrency != methodCurrency {
-		payAmountStr, payAmount, err = calculateCreateOrderPayAmountForOrderType(limitAmount, feeRate, selectedCurrency, req.OrderType, req.PaymentType, resolvePayFXRate(cfg, req.OrderType, req.PaymentType, selectedCurrency))
-		if err != nil {
-			return nil, err
-		}
-	}
+	payAmountStr, payAmount := quote.PayAmount, quote.PayAmountValue
 	if err := validateSelectedCreateOrderAmountCurrency(payAmountStr, sel); err != nil {
 		return nil, err
 	}
@@ -556,10 +544,7 @@ func (s *PaymentService) buildPaymentSubject(plan *dbent.SubscriptionPlan, limit
 		}
 		return applyPaymentProductNameAffix(productName, cfg)
 	}
-	currency := payment.DefaultPaymentCurrency
-	if sel != nil {
-		currency = paymentProviderConfigCurrency(sel.ProviderKey, sel.Config)
-	}
+	currency := resolveOrderSettlementCurrency("", payment.DefaultPaymentCurrency, sel)
 	amountStr := payment.FormatAmountForCurrency(limitAmount, currency)
 	if hasPaymentProductNameAffix(cfg) {
 		return applyPaymentProductNameAffix(amountStr, cfg)
@@ -714,16 +699,10 @@ func gatewayBaseAmountDecimal(limitAmount, usdToCnyRate float64, currency, order
 	}
 }
 
-func shouldConvertBalancePayAmountToUSD(paymentType, currency string) bool {
-	if !isUsdtBalancePaymentType(paymentType) {
-		return false
-	}
-	switch strings.ToUpper(strings.TrimSpace(currency)) {
-	case "USD", "USDT":
-		return true
-	default:
-		return false
-	}
+func shouldConvertBalancePayAmountToUSD(paymentType, _ string) bool {
+	// Infini instances are often labeled CNY because packages are RMB-priced.
+	// Conversion is by payment type, not the instance currency label.
+	return isUsdtBalancePaymentType(paymentType)
 }
 
 func isUsdtBalancePaymentType(paymentType string) bool {
@@ -750,7 +729,7 @@ func validateSelectedCreateOrderAmountCurrency(payAmount string, sel *payment.In
 	if sel == nil {
 		return nil
 	}
-	currency := paymentProviderConfigCurrency(sel.ProviderKey, sel.Config)
+	currency := resolveOrderSettlementCurrency("", "", sel)
 	if _, err := payment.AmountToMinorUnit(payAmount, currency); err != nil {
 		return infraerrors.BadRequest("INVALID_AMOUNT", err.Error()).
 			WithMetadata(map[string]string{"currency": currency})

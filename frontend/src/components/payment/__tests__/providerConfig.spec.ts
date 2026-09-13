@@ -52,6 +52,8 @@ describe('PROVIDER_CONFIG_FIELDS.infini', () => {
   it('defaults hosted checkout to USD crypto and Infini API hosts', () => {
     const currency = findField('infini', 'currency')
     expect(currency?.defaultValue).toBe('USD')
+    expect(currency?.options).toEqual([{ value: 'USD', label: 'USD' }])
+    expect(currency?.hintKey).toBe('admin.settings.payment.field_infiniCurrencyHint')
     expect(findField('infini', 'apiBase')?.defaultValue).toBe('https://openapi.infini.money')
     expect(findField('infini', 'apiBase')?.hintKey).toBe('admin.settings.payment.field_infiniApiBaseHint')
     expect(findField('infini', 'payMethods')?.defaultValue).toBe('1')

@@ -673,6 +673,64 @@ describe('PaymentView recharge rate preview', () => {
     }))
   })
 
+  it('still shows converted Infini USD when checkout-info labels the method as CNY', async () => {
+    window.localStorage.clear()
+    const method: MethodLimit = {
+      daily_limit: 0,
+      daily_used: 0,
+      daily_remaining: 0,
+      single_min: 0,
+      single_max: 0,
+      fee_rate: 0,
+      available: true,
+    }
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
+      usdt_usd_to_cny_rate: 6.67,
+      methods: {
+        alipay: { ...method, currency: 'CNY' },
+        infini: { ...method, currency: 'CNY' },
+      },
+    }))
+    quoteOrder.mockImplementation(async (data) => {
+      if (data.payment_type === 'infini') {
+        return quoteOrderFixture(data, {
+          pay_amount: '7.50',
+          pay_amount_value: 7.5,
+          credit_amount: '50.00',
+          fx_rate: 6.67,
+          fx_converted: true,
+          currency: 'USD',
+        })
+      }
+      return quoteOrderFixture(data, { currency: 'CNY', credit_amount: '50.00' })
+    })
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    wrapper.getComponent(RechargePackageGrid).vm.$emit('select', 50)
+    await flushPromises()
+    const dialog = wrapper.getComponent(RechargeCheckoutDialog)
+    dialog.vm.$emit('update:lane', 'usdt')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="selected-payment-method"]').text()).toBe('infini')
+    expect(dialog.props('currency')).toBe('USD')
+    expect(dialog.props('payAmountLabel')).toBe(formatPaymentAmount(7.5, 'USD'))
+    expect(dialog.props('creditAmountLabel')).toBe('$50.00')
+    expect(dialog.props('error')).toBe('')
+    wrapper.unmount()
+  })
+
   it('compares Infini amount limits against the converted USD pay amount', async () => {
     window.localStorage.clear()
     const method: MethodLimit = {

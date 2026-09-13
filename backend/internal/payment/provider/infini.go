@@ -62,14 +62,7 @@ func NewInfini(instanceID string, config map[string]string) (*Infini, error) {
 		return nil, err
 	}
 	cfg["apiBase"] = apiBase
-	if strings.TrimSpace(cfg["currency"]) == "" {
-		cfg["currency"] = "USD"
-	}
-	currency, err := payment.NormalizePaymentCurrency(cfg["currency"])
-	if err != nil {
-		return nil, fmt.Errorf("infini config currency: %w", err)
-	}
-	cfg["currency"] = currency
+	cfg["currency"] = payment.InfiniSettlementCurrency(cfg["currency"])
 	if _, err := parseInfiniPayMethods(cfg["payMethods"]); err != nil {
 		return nil, err
 	}
@@ -150,11 +143,7 @@ func (i *Infini) currency() string {
 	if i == nil {
 		return "USD"
 	}
-	currency, err := payment.NormalizePaymentCurrency(i.config["currency"])
-	if err != nil {
-		return "USD"
-	}
-	return currency
+	return payment.InfiniSettlementCurrency(i.config["currency"])
 }
 
 func (i *Infini) CreatePayment(ctx context.Context, req payment.CreatePaymentRequest) (*payment.CreatePaymentResponse, error) {

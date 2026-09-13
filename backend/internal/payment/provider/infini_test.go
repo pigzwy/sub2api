@@ -29,6 +29,18 @@ func testInfiniConfig(apiBase string) map[string]string {
 	}
 }
 
+func TestNewInfiniCoercesCNYConfigToUSD(t *testing.T) {
+	t.Parallel()
+
+	cfg := testInfiniConfig(infiniSandboxAPIBase)
+	cfg["currency"] = "CNY"
+	prov, err := NewInfini("1", cfg)
+	require.NoError(t, err)
+	require.Equal(t, "USD", prov.config["currency"])
+	require.Equal(t, "USD", prov.currency())
+	require.Equal(t, "USD", prov.MerchantIdentityMetadata()["currency"])
+}
+
 func TestNewInfiniNormalizesSandboxBaseAndCurrency(t *testing.T) {
 	t.Parallel()
 
@@ -102,6 +114,7 @@ func TestInfiniCreatePaymentSignsHostedCheckoutRequest(t *testing.T) {
 	require.Equal(t, "7.50", captured.body.Amount)
 	require.Equal(t, "sub2_order_9", captured.body.ClientReference)
 	require.Equal(t, []int{1}, captured.body.PayMethods)
+	require.Equal(t, "USD", captured.body.Currency)
 	require.Equal(t, infiniDeterministicRequestID("order", "sub2_order_9", "7.50", "USD"), captured.body.RequestID)
 
 	expected, err := infiniSignRequest(cfg["keyId"], cfg["secretKey"], http.MethodPost, "/v1/acquiring/order", captured.raw, func() time.Time { return fixed })
@@ -109,6 +122,37 @@ func TestInfiniCreatePaymentSignsHostedCheckoutRequest(t *testing.T) {
 	require.Equal(t, expected["Date"], captured.date)
 	require.Equal(t, expected["Authorization"], captured.auth)
 	require.Equal(t, expected["Digest"], captured.digest)
+}
+
+func TestInfiniCreatePaymentSendsUSDWhenInstanceCurrencyIsCNY(t *testing.T) {
+	t.Parallel()
+
+	var captured infiniCreateOrderRequest
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&captured))
+		_ = json.NewEncoder(w).Encode(infiniCreateOrderResponse{
+			OrderID:     "ord-cny",
+			CheckoutURL: "https://checkout.infini.money/pay/cny",
+		})
+	}))
+	defer server.Close()
+
+	cfg := testInfiniConfig(infiniSandboxAPIBase)
+	cfg["currency"] = "CNY"
+	prov, err := NewInfini("1", cfg)
+	require.NoError(t, err)
+	prov.httpClient = server.Client()
+	prov.httpClient.Transport = rewriteInfiniHost(server)
+
+	resp, err := prov.CreatePayment(context.Background(), payment.CreatePaymentRequest{
+		OrderID: "sub2_order_9",
+		Amount:  "7.50",
+		Subject: "Balance recharge",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "USD", resp.Currency)
+	require.Equal(t, "7.50", captured.Amount)
+	require.Equal(t, "USD", captured.Currency)
 }
 
 func TestInfiniCreatePaymentAcceptsWrappedAndCamelCaseResponses(t *testing.T) {

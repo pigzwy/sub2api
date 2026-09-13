@@ -48,6 +48,13 @@ var paymentCurrencyAmountUnits = map[string]paymentCurrencyAmountUnit{
 	"TND": threeDecimalAmountUnit,
 }
 
+// InfiniSettlementCurrency is the fiat currency sent to Infini's hosted checkout.
+// Infini never accepts CNY (error 40016). The product always settles in USD, so
+// leftover instance values (CNY, USDT, empty, or any other code) are ignored.
+func InfiniSettlementCurrency(_ string) string {
+	return "USD"
+}
+
 func NormalizePaymentCurrency(raw string) (string, error) {
 	currency := strings.ToUpper(strings.TrimSpace(raw))
 	if currency == "" {
