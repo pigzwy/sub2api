@@ -424,7 +424,7 @@ export default {
     getCredit: '获得 {amount} 额度',
     getCreditLead: '获得',
     getCreditTrail: '额度',
-    extraBonus: 'Extra',
+    extraBonus: '+{amount}+送',
     bonusTag: '+送{amount}',
     limitedBonus: '限时加赠',
     bonusBannerTitle: '多充多送，充值越高赠送越多',

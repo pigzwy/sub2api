@@ -1,10 +1,17 @@
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import RechargeCheckoutDialog from '@/components/payment/RechargeCheckoutDialog.vue'
+import enMisc from '@/i18n/locales/en/misc'
+import zhMisc from '@/i18n/locales/zh/misc'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
-    t: (key: string, fallback?: string) => fallback ?? key,
+    t: (key: string, params?: string | Record<string, unknown>) => {
+      if (params && typeof params === 'object' && 'amount' in params) {
+        return `${key}:${String(params.amount)}`
+      }
+      return typeof params === 'string' ? params : key
+    },
   }),
 }))
 
@@ -124,8 +131,7 @@ describe('RechargeCheckoutDialog', () => {
 
     const extra = document.body.querySelector('[data-testid="extra-bonus"]')
     expect(extra).not.toBeNull()
-    expect(extra?.textContent).toContain('payment.extraBonus')
-    expect(extra?.textContent).toContain('$2.99')
+    expect(extra?.textContent).toContain('payment.extraBonus:$2.99')
     expect(document.body.textContent).toContain('payment.creditedBalance $100.00')
     expect(document.body.textContent).not.toContain('$102.99')
     withBonus.unmount()
@@ -133,6 +139,13 @@ describe('RechargeCheckoutDialog', () => {
     const withoutBonus = mountDialog({ extraBonusLabel: '' })
     expect(document.body.querySelector('[data-testid="extra-bonus"]')).toBeNull()
     withoutBonus.unmount()
+  })
+
+  it('localizes the Extra badge as +$2.99+送 in Chinese and Extra $2.99 in English', () => {
+    expect(zhMisc.payment.extraBonus).toBe('+{amount}+送')
+    expect(enMisc.payment.extraBonus).toBe('Extra {amount}')
+    expect(zhMisc.payment.extraBonus.replace('{amount}', '$2.99')).toBe('+$2.99+送')
+    expect(enMisc.payment.extraBonus.replace('{amount}', '$2.99')).toBe('Extra $2.99')
   })
 
   it('centers the accepted-brand row at the bottom of the dialog', () => {

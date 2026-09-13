@@ -33,7 +33,7 @@
                     data-testid="extra-bonus"
                     class="inline-flex items-center rounded-full border border-amber-200/80 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-200"
                   >
-                    {{ t('payment.extraBonus') }} {{ extraBonusLabel }}
+                    {{ t('payment.extraBonus', { amount: extraBonusLabel }) }}
                   </span>
                 </p>
                 <p v-if="feeRate > 0" class="mt-2 text-xs text-gray-400 dark:text-gray-500">
