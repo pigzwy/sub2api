@@ -401,7 +401,7 @@ export default {
     getCreditLead: 'Get',
     getCreditTrail: 'credit',
     extraBonus: 'Extra {amount}',
-    bonusTag: '+{amount} bonus',
+    bonusTag: 'Extra {amount}',
     limitedBonus: 'Limited bonus',
     bonusBannerTitle: 'Recharge more, get more bonus credit',
     bonusBannerDesc: 'Credited USD = pay amount × recharge rate + the package bonus in USD. Higher tiers can include a larger gift.',

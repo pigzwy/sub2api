@@ -425,7 +425,7 @@ export default {
     getCreditLead: '获得',
     getCreditTrail: '额度',
     extraBonus: '+{amount}+送',
-    bonusTag: '+送{amount}',
+    bonusTag: '+{amount}+送',
     limitedBonus: '限时加赠',
     bonusBannerTitle: '多充多送，充值越高赠送越多',
     bonusBannerDesc: '到账 USD = 实付金额 × 充值倍率 + 该档位赠送的 USD，更高档位可以送得更多。',
