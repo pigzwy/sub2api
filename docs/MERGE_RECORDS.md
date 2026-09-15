@@ -49,9 +49,13 @@ grok、responses、batch-image 等一批修复。
   **保留**二开的 `tabPayAsYouGo` / `tabMonthlyPlan` tab 文案（经作者确认属独有二开，
   上游 `tabTopUp` / `tabSubscribe` 不采用，`PaymentView.spec.ts` 里三处上游断言已随之改回）；
   **未采用**上游在充值 tab 内新增的「充值账户」卡片，因为二开已把同样信息
-  放在页面顶部的 `recharge-balance-card`，重复展示与 fork 既有结账改版冲突。为满足上游
-  「订阅 tab 与无可用 tab 时不出现充值账户」的用例，顶部卡片补了
-  `activeTab === 'recharge' && tabs.length > 0` 门控。
+  放在页面顶部的 `recharge-balance-card`，重复展示与 fork 既有结账改版冲突。
+  顶部卡片的显示条件 `paymentPhase === 'select' && !selectedPlan` 按作者要求保持二开原样
+  （曾短暂加过 `activeTab === 'recharge' && tabs.length > 0` 门控，已撤除）；
+  受此影响的两处上游断言 `not.toContain('payment.rechargeAccount')` 改判充值 tab 正文是否渲染
+  （该 tab 必渲染 `payment.notAvailable` 或 `selected-payment-method` 之一），语义等价。
+  最终 `PaymentView.vue` 相对二开只多出上游 `9d475f9ed`（站点类型三态开关）与
+  `8c56eabcd`（续费弹窗滚动）两个提交的代码，无本次合并自创的改动。
   二开结账改版（Extra 徽章 `extra-bonus`、`CHECKOUT_METHOD_BUTTON_CLASS` 方法按钮、
   档位网格）本轮上游未改动同文件，逐字保留。
   侧栏购买入口改用上游 `purchaseNavLabel`，默认站点类型下仍取 `nav.buySubscription`，

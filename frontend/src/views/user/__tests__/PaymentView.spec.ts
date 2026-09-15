@@ -1457,7 +1457,10 @@ describe('PaymentView subscription feature flag', () => {
     expect(tabLabels(wrapper)).toEqual([])
     expect(wrapper.findAllComponents(SubscriptionPlanCard)).toHaveLength(0)
     expect(wrapper.text()).not.toContain('payment.confirmSubscription')
-    expect(wrapper.text()).not.toContain('payment.rechargeAccount')
+    // 二开：充值账户余额卡常驻页面顶部（recharge-balance-card），不再只出现在充值 tab，
+    // 因此改判充值 tab 正文是否渲染——该 tab 必渲染 notAvailable 或 selected-payment-method 之一。
+    expect(wrapper.text()).not.toContain('payment.notAvailable')
+    expect(wrapper.find('[data-testid="selected-payment-method"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('payment.billingUnavailable')
     wrapper.unmount()
   })
@@ -1484,7 +1487,10 @@ describe('PaymentView subscription feature flag', () => {
     await flushPromises()
 
     expect(wrapper.text()).not.toContain('payment.billingUnavailable')
-    expect(wrapper.text()).not.toContain('payment.rechargeAccount')
+    // 二开：充值账户余额卡常驻页面顶部（recharge-balance-card），不再只出现在充值 tab，
+    // 因此改判充值 tab 正文是否渲染——该 tab 必渲染 notAvailable 或 selected-payment-method 之一。
+    expect(wrapper.text()).not.toContain('payment.notAvailable')
+    expect(wrapper.find('[data-testid="selected-payment-method"]').exists()).toBe(false)
     expect(wrapper.findAllComponents(SubscriptionPlanCard).length).toBeGreaterThan(0)
     wrapper.unmount()
   })

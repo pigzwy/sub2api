@@ -6,7 +6,7 @@
       </div>
       <template v-else>
         <div
-          v-if="paymentPhase === 'select' && !selectedPlan && activeTab === 'recharge' && tabs.length > 0"
+          v-if="paymentPhase === 'select' && !selectedPlan"
           data-testid="recharge-balance-card"
           class="flex h-12 w-fit max-w-full items-center gap-3 rounded-2xl border border-gray-100 bg-white px-5 shadow-card dark:border-dark-700/70 dark:bg-dark-800/60"
         >
