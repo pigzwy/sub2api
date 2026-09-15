@@ -42,7 +42,7 @@ var (
 	openAIGPTImage25FallbackPricing = &LiteLLMModelPricing{
 		InputCostPerToken:       5e-06,
 		CacheReadInputTokenCost: 1.25e-06,
-		InputCostPerImageToken:  8e-06,
+		InputCostPerImageToken:  8e-06, CacheReadInputImageTokenCost: 2e-06,
 		OutputCostPerImageToken: 3e-05,
 		LiteLLMProvider:         "openai",
 		Mode:                    "image_generation",
@@ -152,9 +152,10 @@ type LiteLLMModelPricing struct {
 	LiteLLMProvider                     string  `json:"litellm_provider"`
 	Mode                                string  `json:"mode"`
 	SupportsPromptCaching               bool    `json:"supports_prompt_caching"`
-	OutputCostPerImage                  float64 `json:"output_cost_per_image"`                 // 图片生成模型每张图片价格
-	OutputCostPerImageToken             float64 `json:"output_cost_per_image_token"`           // 图片输出 token 价格
-	InputCostPerImageToken              float64 `json:"input_cost_per_image_token"`            // 图片输入 token 价格（如 gpt-image-2 图片编辑）
+	OutputCostPerImage                  float64 `json:"output_cost_per_image"`       // 图片生成模型每张图片价格
+	OutputCostPerImageToken             float64 `json:"output_cost_per_image_token"` // 图片输出 token 价格
+	InputCostPerImageToken              float64 `json:"input_cost_per_image_token"`  // 图片输入 token 价格（如 gpt-image-2 图片编辑）
+	CacheReadInputImageTokenCost        float64 `json:"cache_read_input_image_token_cost"`
 	InputCostPerAudioToken              float64 `json:"input_cost_per_audio_token"`            // 音频输入 token 价格（realtime 语音）
 	OutputCostPerAudioToken             float64 `json:"output_cost_per_audio_token"`           // 音频输出 token 价格
 	CacheReadInputAudioTokenCost        float64 `json:"cache_read_input_audio_token_cost"`     // 音频缓存读取 token 价格
@@ -193,6 +194,7 @@ type LiteLLMRawEntry struct {
 	OutputCostPerImage                  *float64 `json:"output_cost_per_image"`
 	OutputCostPerImageToken             *float64 `json:"output_cost_per_image_token"`
 	InputCostPerImageToken              *float64 `json:"input_cost_per_image_token"`
+	CacheReadInputImageTokenCost        *float64 `json:"cache_read_input_image_token_cost"`
 	InputCostPerAudioToken              *float64 `json:"input_cost_per_audio_token"`
 	OutputCostPerAudioToken             *float64 `json:"output_cost_per_audio_token"`
 	CacheReadInputAudioTokenCost        *float64 `json:"cache_read_input_audio_token_cost"`
@@ -664,6 +666,9 @@ func (s *PricingService) parsePricingData(body []byte) (map[string]*LiteLLMModel
 		}
 		if entry.InputCostPerImageToken != nil {
 			pricing.InputCostPerImageToken = *entry.InputCostPerImageToken
+		}
+		if entry.CacheReadInputImageTokenCost != nil {
+			pricing.CacheReadInputImageTokenCost = *entry.CacheReadInputImageTokenCost
 		}
 		if entry.InputCostPerAudioToken != nil {
 			pricing.InputCostPerAudioToken = *entry.InputCostPerAudioToken

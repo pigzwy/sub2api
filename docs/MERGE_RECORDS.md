@@ -18,6 +18,70 @@
 上游正式实现 > 上游后续安全修复 > 本地旧二开 > 历史兼容代码
 ```
 
+## 2026-09-15：合并上游 v0.2.5
+
+上游从 `98d86915b`（v0.2.4）推进到 `881f32026`（v0.2.5），197 个提交、447 个变更文件
+（+23,038 / -1,538）。采用上游 OpenCode 平台（Zen / GO 账号类型）、站点类型三态开关、
+按 provider 过滤 API key 分组、订阅管理批量操作、Ollama Cloud 限额异步重置、
+OAuth 生图走原生 Codex Images、WS 连接池常驻读循环、注册二次确认密码、
+Gemini 3.7/3.8 Flash、自定义页面隐藏「新窗口打开」按钮，以及 antigravity、deepseek、
+grok、responses、batch-image 等一批修复。
+
+12 处文本冲突，按「冲突默认以上游为准，仅保留仍然独有的二开」处理：
+
+- `cmd/server/wire_gen.go`：上游把 `ollamaCloudUsageService` 与 `leaderLockCache` 上移，
+  采用上游装配顺序并把 `requestAuditHandler` 补回 `ProvideAdminHandlers`。自动合并遗留的
+  第二处 `leaderLockCache :=` 重复声明已删除（编译期暴露，非 wire 重新生成）。
+- `handler/dto/settings.go`：`CustomMenuItem` 同时保留上游 `HideOpenButton` 与二开 `OpenMode`。
+- `repository/scheduler_cache.go`：候选准入 key 列表采用上游单行写法并新增
+  `account_scheduling_threshold`，保留 Realtime 调度快照的 `openai_capabilities`。
+- `service/billing_service.go`：改调上游 `applyModelSpecificPricingPolicyEx`（含 `pricingAt`），
+  保留音频三档价与缺 read 档回退到 creation 档的逻辑；缓存读取改为先切图片缓存 token
+  （上游分价）、再切音频缓存 token（二开），余下按文本缓存价，总额仍记入 `CacheReadCost`。
+- `service/openai_gateway_usage.go`：采用上游 `ImageInputTokens` 扣减缓存读取的写法，保留音频三列。
+- `service/pricing_service.go`：LiteLLM 条目结构体同时保留上游 `cache_read_input_image_token_cost`
+  与二开音频四价，解析分支一并合并。
+- `layout/AppHeader.vue`、`layout/AppSidebar.vue`：采用上游站点计费模式文案与
+  `purchaseNavLabel`，保留二开 `flagModelPlaza` 侧栏项。
+- `i18n/{en,zh}/admin/settings.ts`：上游 `hideOpenButton` 与二开 `openMode*` 并存。
+- `views/admin/SettingsView.vue`：自定义菜单类型同时带 `hide_open_button` 与 `open_mode`。
+- `views/user/PaymentView.vue`：采用上游 `v-else-if` 分支链、`tabTopUp` / `tabSubscribe` 文案
+  及订阅开关门控；**未采用**上游在充值 tab 内新增的「充值账户」卡片，因为二开已把同样信息
+  放在页面顶部的 `recharge-balance-card`，重复展示与 fork 既有结账改版冲突。为满足上游
+  「订阅 tab 与无可用 tab 时不出现充值账户」的用例，顶部卡片补了
+  `activeTab === 'recharge' && tabs.length > 0` 门控。二开原 `tabPayAsYouGo` / `tabMonthlyPlan`
+  文案未登记为独有功能，按规则让位给上游；i18n 键仍在，改回只需一行。
+
+两处上游测试桩需要适配二开生产代码（生产代码未改）：
+`auth/__tests__/LoginView.spec.ts` 的 app store 桩补 `fetchPublicSettings`（二开功能 5 从共享
+设置缓存读取公开设置）；`user/__tests__/CustomPageView.spec.ts` 的 `vue-router` mock 补
+`useRouter`（二开功能 7 的打开方式用到 `router.back/replace`）。
+
+新增迁移 `238_opencode_go_platform.sql` 与 `238_purge_unlimited_user_platform_quotas.sql`
+均逐字来自上游，同号并存是本仓库既有形式，与二开迁移无文件名冲突，不删除用户、余额或订单记录。
+Go 与三个 Dockerfile 同为 1.27.0。`update_service.go` 的 `githubRepo` 本轮上游未改动，
+仍为 `Wei-Shaw/sub2api`（该分支历史上从未改成 `pigzwy`，`FORK_UPSTREAM_MERGE.md` 相关条目已过时）。
+
+两处后端测试的构造函数调用需要补参数：上游给 `NewGatewayHandler` 增加了 `settingService`、
+给 `NewOpenAIGatewayHandler` 增加了 `settingService` 与 `opsService`。
+`server/routes/gateway_models_pinned_test.go` 里 fork 原有的那对调用被自动合并按上游版本覆盖，
+已恢复为 16 / 11 参数（与合并前 fork 版本逐字一致），上游本轮新增的第二个用例同样补齐；
+上游新增文件 `handler/grok_media_slots_test.go` 不知道二开多出来的 `requestAuditLogService`，
+补 nil 占位。三处均只改测试，生产代码未动。
+
+本机核验：`go build ./...` 通过；`gofmt` 全仓干净；
+`go test -tags unit ./internal/handler/ ./internal/server/routes/` 通过；
+`./internal/repository/`、`./internal/handler/{admin,dto,quotaview}`、`./internal/service/openai_ws_v2` 通过；
+前端 `vitest run` 2,255 项中 2,253 通过。
+
+剩余 3 项失败均为上游自身问题，已用 `upstream/main` 独立 worktree 验证同样失败，与本次合并无关：
+`service` 包的 `TestOllamaProbeCallback_StaleLongDoesNotOverrideNewShort`（上游新增 Ollama Cloud
+异步限额重置的 CAS 用例，确定性失败，非偶发）；`admin/__tests__/ChannelMonitorView.grok.spec.ts`
+仍断言 8 个 provider，而上游新增 OpenCode 后已是 10 个；
+`admin/__tests__/GroupsView.codexManifest.spec.ts` 缺少 Pinia 初始化。
+三个文件与上游逐字一致，未在 fork 侧改动，留待上游修复以免扩大长期差异。
+本次不部署、不重启生产容器。
+
 ## 2026-09-09：模型广场目录与上游 v0.2.4
 
 先将 `cursor/model-plaza-sidebar-3558`（PR #2，原审查版本 `ce7651132`，

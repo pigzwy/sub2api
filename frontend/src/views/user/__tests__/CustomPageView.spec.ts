@@ -11,7 +11,11 @@ const { appStore } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/components/layout/AppLayout.vue', () => ({ default: { template: '<div><slot /></div>' } }))
-vi.mock('vue-router', () => ({ useRoute: () => ({ params: { id: 'docs' } }) }))
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ params: { id: 'docs' } }),
+  // 二开：自定义菜单打开方式会用 router 回退/跳转。
+  useRouter: () => ({ back: vi.fn(), replace: vi.fn(), push: vi.fn() })
+}))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key, locale: { value: 'en' } }) }))
 vi.mock('@/stores', () => ({ useAppStore: () => appStore }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ isAdmin: false, user: { id: 7 }, token: 'test-token' }) }))
@@ -77,6 +81,13 @@ describe('custom page open button', () => {
   afterEach(() => {
     wrappers.splice(0).forEach(wrapper => wrapper.unmount())
     vi.unstubAllGlobals()
+  })
+
+  it.each([undefined, false, true])('honors the per-menu hide button setting %s while keeping the iframe', (hidden) => {
+    Object.assign(appStore.cachedPublicSettings.custom_menu_items[0], { hide_open_button: hidden })
+    const wrapper = mountPage()
+    expect(wrapper.find('.custom-open-fab').exists()).toBe(hidden !== true)
+    expect(wrapper.get('iframe').attributes('src')).toContain('https://example.com/docs')
   })
 
   it('preserves the embedded URL, secure link attributes, and normal clicks with small pointer movements', async () => {
