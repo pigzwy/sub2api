@@ -982,7 +982,7 @@ describe('PaymentView recharge rate preview', () => {
     expect(banner.text()).toContain('payment.bonusBannerTitle')
     expect(banner.text()).not.toContain('payment.bonusBannerDesc')
     expect(banner.element.parentElement?.className).toContain('items-center')
-    expect(banner.element.parentElement?.textContent).toContain('payment.tabTopUp')
+    expect(banner.element.parentElement?.textContent).toContain('payment.tabPayAsYouGo')
     expect(wrapper.text()).toContain('payment.currentBalance')
     expect(wrapper.text()).toContain('0.00')
     const balanceCard = wrapper.get('[data-testid="recharge-balance-card"]')
@@ -1431,13 +1431,13 @@ describe('PaymentView subscription feature flag', () => {
     return wrapper
       .findAll('button')
       .map((button) => button.text())
-      .filter((text) => text === 'payment.tabTopUp' || text === 'payment.tabSubscribe')
+      .filter((text) => text === 'payment.tabPayAsYouGo' || text === 'payment.tabMonthlyPlan')
   }
 
   it('keeps the top-up / subscribe switcher when subscription_enabled is absent (opt-out default)', async () => {
     const wrapper = await mountSubscriptionPlanList(2)
 
-    expect(tabLabels(wrapper)).toEqual(['payment.tabTopUp', 'payment.tabSubscribe'])
+    expect(tabLabels(wrapper)).toEqual(['payment.tabPayAsYouGo', 'payment.tabMonthlyPlan'])
     expect(wrapper.findAllComponents(SubscriptionPlanCard)).toHaveLength(2)
   })
 

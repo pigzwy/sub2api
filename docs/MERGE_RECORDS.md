@@ -45,12 +45,17 @@ grok、responses、batch-image 等一批修复。
   `purchaseNavLabel`，保留二开 `flagModelPlaza` 侧栏项。
 - `i18n/{en,zh}/admin/settings.ts`：上游 `hideOpenButton` 与二开 `openMode*` 并存。
 - `views/admin/SettingsView.vue`：自定义菜单类型同时带 `hide_open_button` 与 `open_mode`。
-- `views/user/PaymentView.vue`：采用上游 `v-else-if` 分支链、`tabTopUp` / `tabSubscribe` 文案
-  及订阅开关门控；**未采用**上游在充值 tab 内新增的「充值账户」卡片，因为二开已把同样信息
+- `views/user/PaymentView.vue`：采用上游 `v-else-if` 分支链与订阅开关门控；
+  **保留**二开的 `tabPayAsYouGo` / `tabMonthlyPlan` tab 文案（经作者确认属独有二开，
+  上游 `tabTopUp` / `tabSubscribe` 不采用，`PaymentView.spec.ts` 里三处上游断言已随之改回）；
+  **未采用**上游在充值 tab 内新增的「充值账户」卡片，因为二开已把同样信息
   放在页面顶部的 `recharge-balance-card`，重复展示与 fork 既有结账改版冲突。为满足上游
   「订阅 tab 与无可用 tab 时不出现充值账户」的用例，顶部卡片补了
-  `activeTab === 'recharge' && tabs.length > 0` 门控。二开原 `tabPayAsYouGo` / `tabMonthlyPlan`
-  文案未登记为独有功能，按规则让位给上游；i18n 键仍在，改回只需一行。
+  `activeTab === 'recharge' && tabs.length > 0` 门控。
+  二开结账改版（Extra 徽章 `extra-bonus`、`CHECKOUT_METHOD_BUTTON_CLASS` 方法按钮、
+  档位网格）本轮上游未改动同文件，逐字保留。
+  侧栏购买入口改用上游 `purchaseNavLabel`，默认站点类型下仍取 `nav.buySubscription`，
+  与二开原文案一致，仅在站点类型切成「仅充值」「仅订阅」时变为「充值」「订阅」。
 
 两处上游测试桩需要适配二开生产代码（生产代码未改）：
 `auth/__tests__/LoginView.spec.ts` 的 app store 桩补 `fetchPublicSettings`（二开功能 5 从共享

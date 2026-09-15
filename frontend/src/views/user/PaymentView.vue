@@ -548,8 +548,8 @@ const subscriptionEnabled = computed(() => resolveFeatureFlag(appStore.cachedPub
 
 const tabs = computed(() => {
   const result: { key: 'recharge' | 'subscription'; label: string }[] = []
-  if (!checkout.value.balance_disabled) result.push({ key: 'recharge', label: t('payment.tabTopUp') })
-  if (subscriptionEnabled.value) result.push({ key: 'subscription', label: t('payment.tabSubscribe') })
+  if (!checkout.value.balance_disabled) result.push({ key: 'recharge', label: t('payment.tabPayAsYouGo') })
+  if (subscriptionEnabled.value) result.push({ key: 'subscription', label: t('payment.tabMonthlyPlan') })
   return result
 })
 
