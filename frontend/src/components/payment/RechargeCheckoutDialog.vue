@@ -105,6 +105,7 @@
           </div>
 
           <div
+            v-if="supportedBrands.length > 0"
             data-testid="supported-methods"
             :data-lane="lane"
             class="flex flex-wrap items-center justify-center gap-2 px-6 pb-6 pt-4 text-xs font-medium text-gray-500 dark:text-gray-300"
@@ -199,8 +200,8 @@ const supportedBrands = computed(() => {
     return types.has('infini') ? [{ src: infiniIcon, alt: 'Infini', class: 'h-5 w-5 object-contain' }] : []
   }
   return rmbBrands.filter((brand) => {
-    if (brand.alt === 'Alipay') return types.has('alipay') || types.has('alipay_direct')
-    if (brand.alt === 'WeChat Pay') return types.has('wxpay') || types.has('wxpay_direct')
+    if (brand.alt === 'Alipay') return [...types].some(isBuiltInAlipayMethod)
+    if (brand.alt === 'WeChat Pay') return [...types].some(isBuiltInWxpayMethod)
     if (['Visa', 'Mastercard', 'Apple Pay'].includes(brand.alt)) return types.has('stripe')
     if (brand.alt === 'USD') return types.has('stripe') || types.has('airwallex')
     return false
