@@ -18,6 +18,42 @@
 上游正式实现 > 上游后续安全修复 > 本地旧二开 > 历史兼容代码
 ```
 
+## 2026-09-19：合并上游 v0.2.7
+
+上游从 `881f32026`（v0.2.5）推进到 `1a9d49e16`（v0.2.7），71 个提交、131 个变更文件
+（+7,283 / -446）。主要是插件宿主服务与只读状态桥接通道（`backend/pkg/pluginapi` 新增 1,528 行）、
+Seedance Ark 原生视频任务 API、兑换码历史分页，以及 antigravity 裸模型名按 thinkingConfig
+解析、DeepSeek 思考模式回退、CN coding-plan 配额耗尽 403 暂停、支付配置并发请求等修复。
+本轮无新增迁移。
+
+6 处文本冲突，全部在前端，核心是上游新增 `seedance` 端点能力撞上二开的 `realtime` 能力：
+
+- `types/index.ts`：`OpenAIEndpointCapability` 联合类型同时保留 `realtime` 与 `seedance`。
+- `components/account/{BulkEdit,Create,Edit}AccountModal.vue`：能力下拉同时列出二开
+  「实时语音」与上游 Seedance (Ark)；`allowed` 数组扩为四项；**默认判定保留二开的
+  `isDefaultOpenAIEndpointCapabilitySelection`**，不采用上游的内联
+  `length === 2 && !includes('seedance')`——后者在加入 `realtime` 后会把
+  `['chat_completions','realtime']` 误判为默认选择，导致该能力存不进 `openai_capabilities`。
+- `components/layout/AppHeader.vue`：采用上游新增的模型广场顶栏入口。自动合并把上游同批
+  新增的 `const modelPlazaEnabled = computed(...)` 漏掉了（模板进冲突、脚本行未落地），
+  已手工补回 `docUrl` 之后，否则模板引用未定义变量。
+- `views/auth/__tests__/RegisterView.spec.ts`：采用上游重构后的 `appStoreMock`，并在该
+  hoisted 对象上补二开需要的 `fetchPublicSettings`（二开功能 5，注册页同样走共享设置缓存）。
+
+上次为二开补的 `handler/grok_media_slots_test.go` 参数占位本轮被上游改动 22 行，
+合并后仍为 11 参数、与 `NewOpenAIGatewayHandler` 签名一致，未被覆盖。
+
+上游本轮修好了上次遗留的两个前端红测试（`ChannelMonitorView.grok.spec.ts` 的 provider
+数量、`GroupsView.codexManifest.spec.ts` 的 Pinia 初始化），fork 侧当时未改动这两个文件，
+现在自动消解，印证了「上游自身问题不在 fork 修」的处理方式。
+
+本机核验：`go build ./...` 通过；`gofmt` 全仓干净；`vue-tsc` 零错误；
+前端 `vitest run` 308 个文件 2,322 项全部通过；
+后端 unit 测试 `service` 外七个包全通过。唯一失败仍是上游自带的
+`TestOllamaProbeCallback_StaleLongDoesNotOverrideNewShort`（本轮上游未改动该文件，
+2026-09-15 已用 upstream worktree 验证在纯上游同样失败），继续保持 fork 侧零改动。
+Go 与三个 Dockerfile 同为 1.27.0。本次不部署、不重启生产容器。
+
 ## 2026-09-15：合并上游 v0.2.5
 
 上游从 `98d86915b`（v0.2.4）推进到 `881f32026`（v0.2.5），197 个提交、447 个变更文件
