@@ -18,6 +18,40 @@
 上游正式实现 > 上游后续安全修复 > 本地旧二开 > 历史兼容代码
 ```
 
+## 2026-09-30：合并上游 v0.2.11
+
+先将本地 `request-audit` 快进至远端 `8c4cd8755`（已含 v0.2.8），再合并
+`42bc7f6cf`（v0.2.11）。Git fetch 与 GitHub API 的上游 main SHA 一致。
+上游相对共同祖先 `a3eb7ef30` 新增 126 个提交，268 个文件变更
+（+12,002 / -970）。采用上游并发余额在途预占、复合分组 WebSocket 别名与账号
+模型归属约束、风控用户白名单、Claude 额度重置查询/兑换、Sonnet 5.5 和 GPT-6.1 Sol，
+以及客户端断开 499、渠道图片价格回退、视频独立倍率与协议转换修复。
+
+5 个文本冲突按功能归属合并：
+
+- `cmd/server/wire_gen.go`：采用上游提前初始化 idempotency coordinator 的顺序，
+  注入 Claude reset service 和 composite resolver；保留请求审计、签到、Studio
+  模型售价接口及视频/音频存储装配，删除原位置的重复 coordinator 声明。
+- `handler/wire.go`：保留 fork 的审计和设置参数，同时注入上游 composite resolver。
+- `handler/grok_audio.go`：采用上游余额预占，同时保留复合分组 Realtime 准入及
+  语音路径抑制文本利润门的逻辑。
+- `service/domain_constants.go` 与 `SettingsView.vue`：上游风控白名单与 fork
+  请求审计、本地直答、签到字段并存，默认值和保存链路均保留。
+
+自动合并复核保留 Realtime 调度快照的 `openai_capabilities`、音频 token 三档计价、
+Gemini Images/异步任务、独立视频/音频 S3、Infini 支付和充值界面。
+模型广场的上游原表采用视频独立倍率修复；用户已确认的二开简化目录展示口径不变。
+本轮未发现上游对上述独有功能的完整替代，不恢复已淘汰的旧响应模型计费或备份实现。
+
+本次 v0.2.8 → v0.2.11 无新增 SQL 迁移，Go 与三个 Dockerfile 均为 1.27.0。
+上游余额预占默认开启，余额不足以覆盖预估费用的并发请求可能提前被拒绝；这是上游
+准入行为变化，不是新增实际扣费。OpenAI Realtime 的独有逐回合 token 路径本轮保持
+原有行为，未另行扩展上游的预占估算策略。
+
+本机仅做 gofmt、冲突标记与差异/调用签名静态核验；不执行 Go 或前端构建/测试。
+完整 unit、integration、frontend 和 golangci-lint 由推送后的 GitHub Actions 判定。
+不部署、不重启生产容器、不执行数据库迁移。
+
 ## 2026-09-19：合并上游 v0.2.7
 
 上游从 `881f32026`（v0.2.5）推进到 `1a9d49e16`（v0.2.7），71 个提交、131 个变更文件

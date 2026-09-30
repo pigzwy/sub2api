@@ -674,6 +674,7 @@ export interface SystemSettings {
   request_intercept_group_scope: number[];
 
   // Cyber session block
+  cyber_policy_user_allowlist: string;
   cyber_session_block_enabled: boolean;
   cyber_session_block_ttl_seconds: number;
 
@@ -1012,6 +1013,7 @@ export interface UpdateSettingsRequest {
   request_intercept_group_scope?: number[];
 
   // Cyber session block
+  cyber_policy_user_allowlist?: string;
   cyber_session_block_enabled?: boolean;
   cyber_session_block_ttl_seconds?: number;
 
