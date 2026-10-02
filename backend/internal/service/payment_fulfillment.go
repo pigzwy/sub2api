@@ -821,10 +821,7 @@ func affiliateRebateBaseAmount(o *dbent.PaymentOrder) float64 {
 		return 0
 	}
 	switch o.OrderType {
-	case payment.OrderTypeBalance:
-		// 返利只按实充部分计算，赠送额度不参与
-		return paymentOrderAmountWithoutBonus(o)
-	case payment.OrderTypeSubscription:
+	case payment.OrderTypeBalance, payment.OrderTypeSubscription:
 		return o.Amount
 	default:
 		return 0

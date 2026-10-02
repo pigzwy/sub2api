@@ -73,11 +73,15 @@ func resolvePayFXRate(cfg *PaymentConfig, orderType, paymentType, currency strin
 	}
 }
 
-// calculateCreditedBalance computes the base credit; promotions use upstream quoteRechargeBonus.
-func calculateCreditedBalance(paymentAmount, multiplier float64) float64 {
-	return decimal.NewFromFloat(paymentAmount).
-		Mul(decimal.NewFromFloat(normalizeBalanceRechargeMultiplier(multiplier))).
-		Round(2).InexactFloat64()
+// calculateCreditedBalance converts the paid amount with the recharge rate, then
+// adds that package's USD bonus when the amount matches a configured card.
+func calculateCreditedBalance(paymentAmount, multiplier float64, packages []RechargePackage) float64 {
+	credit := decimal.NewFromFloat(paymentAmount).
+		Mul(decimal.NewFromFloat(normalizeBalanceRechargeMultiplier(multiplier)))
+	if pkg, ok := FindRechargePackageByAmount(packages, paymentAmount); ok {
+		credit = credit.Add(decimal.NewFromFloat(pkg.Bonus))
+	}
+	return credit.Round(2).InexactFloat64()
 }
 
 func calculateGatewayRefundAmount(orderAmount, payAmount, refundAmount float64, currency string) float64 {

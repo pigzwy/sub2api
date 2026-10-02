@@ -48,6 +48,7 @@
               <th class="w-28 px-3 py-2.5 font-medium">{{ t('admin.settings.payment.packageName') }}</th>
               <th class="w-28 px-3 py-2.5 font-medium">{{ t('admin.settings.payment.packageNameEn') }}</th>
               <th class="w-24 px-3 py-2.5 font-medium">{{ t('admin.settings.payment.packageAmount') }}</th>
+              <th class="w-24 px-3 py-2.5 font-medium">{{ t('admin.settings.payment.packageBonus') }}</th>
               <th class="w-28 px-3 py-2.5 font-medium">{{ t('admin.settings.payment.packageBadge') }}</th>
               <th class="px-3 py-2.5 font-medium">{{ t('admin.settings.payment.packageDesc') }}</th>
               <th class="px-3 py-2.5 font-medium">{{ t('admin.settings.payment.packageDescEn') }}</th>
@@ -81,6 +82,15 @@
                   v-model.number="pkg.amount"
                   type="number"
                   min="0.01"
+                  step="0.01"
+                  class="input !h-9 !px-2.5 !py-1.5 tabular-nums"
+                />
+              </td>
+              <td class="px-3 py-2">
+                <input
+                  v-model.number="pkg.bonus"
+                  type="number"
+                  min="0"
                   step="0.01"
                   class="input !h-9 !px-2.5 !py-1.5 tabular-nums"
                 />

@@ -27,10 +27,10 @@ describe('rechargePackages', () => {
     expect(maxRechargeBonus(filterRechargePackages(DEFAULT_RECHARGE_PACKAGES, 0, 0), 1.05)).toBe(0)
   })
 
-  it('uses server-derived promotion amounts without recalculating a gift', () => {
+  it('adds per-package USD bonus on top of the recharge rate', () => {
     const packages = resolveRechargePackages([
       { id: 'starter', amount: 50, bonus: 0, name: '体验', description: '' },
-      { id: 'standard', amount: 100, bonus: 2.99, credit: 107.99, name: '标准', description: '' },
+      { id: 'standard', amount: 100, bonus: 2.99, name: '标准', description: '' },
     ])
     expect(packageCreditAmount(packages[0], packages, 1.05)).toBe(52.5)
     expect(packageBonusAmount(packages[0], packages, 1.05)).toBe(0)
@@ -38,13 +38,13 @@ describe('rechargePackages', () => {
     expect(maxRechargeBonus(packages, 1.05)).toBe(2.99)
   })
 
-  it('ignores a legacy editable gift when no server credit is provided', () => {
+  it('keeps the CNY conversion rate when another package has a gift', () => {
     const packages = resolveRechargePackages([
       { id: 'cny100', amount: 100, bonus: 0, name: '基础', description: '' },
       { id: 'cny200', amount: 200, bonus: 5, name: '加赠', description: '' },
     ])
     expect(packageCreditAmount(packages[0], packages, 0.14)).toBe(14)
-    expect(packageCreditAmount(packages[1], packages, 0.14)).toBe(28)
+    expect(packageCreditAmount(packages[1], packages, 0.14)).toBe(33)
   })
 
   it('falls back to built-in packages when checkout returns none', () => {

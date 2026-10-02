@@ -10,11 +10,6 @@ import (
 )
 
 type QuoteOrderResponse struct {
-	BonusAmount    string `json:"bonus_amount"`
-	BonusMode      string `json:"bonus_mode"`
-	creditValue    float64
-	bonusValue     float64
-	payBaseValue   float64
 	OrderType      string  `json:"order_type"`
 	PaymentType    string  `json:"payment_type"`
 	PackageAmount  string  `json:"package_amount"`
@@ -58,6 +53,8 @@ func (s *PaymentService) QuoteOrder(ctx context.Context, req CreateOrderRequest)
 	if plan != nil {
 		orderAmount = plan.Price
 		limitAmount = plan.Price
+	} else if req.OrderType == payment.OrderTypeBalance {
+		orderAmount = calculateCreditedBalance(req.Amount, cfg.BalanceRechargeMultiplier, cfg.BalanceRechargePackages)
 	}
 
 	return s.quoteOrderAmounts(ctx, req, cfg, limitAmount, orderAmount, nil)
@@ -80,15 +77,6 @@ func (s *PaymentService) quoteOrderAmounts(
 	}
 	currency := resolveOrderSettlementCurrency(req.PaymentType, methodCurrency, sel)
 
-	packageAmount := limitAmount
-	bonusAmount := 0.0
-	bonusMode := ""
-	if req.OrderType == payment.OrderTypeBalance {
-		promotion := quoteRechargeBonus(cfg, packageAmount, currency)
-		limitAmount, orderAmount, bonusAmount = promotion.PayBase, promotion.Credited, promotion.Bonus
-		bonusMode, _ = NormalizeRechargeBonusMode(cfg.RechargeBonusMode)
-	}
-
 	fxRate := resolvePayFXRate(cfg, req.OrderType, req.PaymentType, currency)
 	payAmountStr, payAmount, err := calculateCreateOrderPayAmountForOrderType(
 		limitAmount, cfg.RechargeFeeRate, currency, req.OrderType, req.PaymentType, fxRate,
@@ -109,14 +97,9 @@ func (s *PaymentService) quoteOrderAmounts(
 	}
 
 	return &QuoteOrderResponse{
-		BonusAmount:    decimal.NewFromFloat(bonusAmount).StringFixed(2),
-		BonusMode:      bonusMode,
-		creditValue:    orderAmount,
-		bonusValue:     bonusAmount,
-		payBaseValue:   limitAmount,
 		OrderType:      req.OrderType,
 		PaymentType:    req.PaymentType,
-		PackageAmount:  decimal.NewFromFloat(packageAmount).StringFixed(2),
+		PackageAmount:  decimal.NewFromFloat(limitAmount).StringFixed(2),
 		CreditAmount:   decimal.NewFromFloat(orderAmount).StringFixed(2),
 		PayAmount:      payAmountStr,
 		PayAmountValue: payAmount,

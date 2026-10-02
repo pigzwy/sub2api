@@ -8847,13 +8847,6 @@
               v-model="form.payment_balance_recharge_packages"
             />
           </div>
-          <!-- 充值优惠阶梯（独立卡片，与服务商管理同级） -->
-          <RechargeBonusTierEditor
-            v-if="form.payment_enabled"
-            v-model="form.payment_recharge_bonus_tiers"
-            v-model:mode="form.payment_recharge_bonus_mode"
-            v-model:notice="form.payment_recharge_bonus_notice"
-          />
 
           <!-- Provider Management -->
           <PaymentProviderList
@@ -9435,14 +9428,6 @@ import ProxySelector from "@/components/common/ProxySelector.vue";
 import ImageUpload from "@/components/common/ImageUpload.vue";
 import BackupSettings from "@/views/admin/BackupView.vue";
 import EmailTemplateEditor from "@/views/admin/settings/EmailTemplateEditor.vue";
-import RechargeBonusTierEditor from "@/components/admin/settings/RechargeBonusTierEditor.vue";
-import {
-  normalizeRechargeBonusMode,
-  normalizeRechargeBonusTiers,
-  sanitizeRechargeBonusTiersForSubmit,
-  type RechargeBonusMode,
-  type RechargeBonusTierDraft,
-} from "@/utils/rechargeBonus";
 import OpenAIFastPolicyUserSelector from "@/views/admin/settings/OpenAIFastPolicyUserSelector.vue";
 import { useClipboard } from "@/composables/useClipboard";
 import {
@@ -10160,10 +10145,6 @@ type SettingsForm = Omit<
   openai_advanced_scheduler_weight_upstream_cost: string;
   openai_advanced_scheduler_weight_previous_response: string;
   openai_advanced_scheduler_weight_session_sticky: string;
-  // 充值赠送阶梯编辑态：允许留空的行，提交时清洗为 RechargeBonusTier[]
-  payment_recharge_bonus_tiers: RechargeBonusTierDraft[];
-  payment_recharge_bonus_mode: RechargeBonusMode;
-  payment_recharge_bonus_notice: string;
   // 系统全局平台限额 map；form 内始终归一化为全 4 平台对象（模板非空绑定依赖此不变量）
   default_platform_quotas: DefaultPlatformQuotasMap;
   account_scheduling_thresholds: ReturnType<typeof normalizeAccountSchedulingThresholdsMap>;
@@ -10241,9 +10222,6 @@ const form = reactive<SettingsForm>({
   payment_subscription_usd_to_cny_rate: 0,
   payment_usdt_usd_to_cny_rate: 0,
   payment_recharge_fee_rate: 0,
-  payment_recharge_bonus_tiers: [],
-  payment_recharge_bonus_mode: "bonus",
-  payment_recharge_bonus_notice: "",
   payment_enabled_types: [],
   payment_help_image_url: "",
   payment_help_text: "",
@@ -11721,13 +11699,6 @@ async function loadSettings() {
           }))
         : defaultLoginAgreementDocuments();
     Object.assign(authSourceDefaults, buildAuthSourceDefaultsState(settings));
-    form.payment_recharge_bonus_tiers = normalizeRechargeBonusTiers(
-      settings.payment_recharge_bonus_tiers,
-    );
-    form.payment_recharge_bonus_mode = normalizeRechargeBonusMode(
-      settings.payment_recharge_bonus_mode,
-    );
-    form.payment_recharge_bonus_notice = settings.payment_recharge_bonus_notice || "";
     form.default_platform_quotas = normalizePlatformQuotasMap(settings.default_platform_quotas);
     form.request_audit_retention_hours = Number(settings.request_audit_retention_hours) || 0;
     form.request_audit_user_scope = normalizeNumberArray(settings.request_audit_user_scope);
@@ -12361,11 +12332,6 @@ async function saveSettings() {
       payment_usdt_usd_to_cny_rate:
         Number(form.payment_usdt_usd_to_cny_rate) || 0,
       payment_recharge_fee_rate: Number(form.payment_recharge_fee_rate) || 0,
-      payment_recharge_bonus_tiers: sanitizeRechargeBonusTiersForSubmit(
-        form.payment_recharge_bonus_tiers,
-      ),
-      payment_recharge_bonus_mode: form.payment_recharge_bonus_mode,
-      payment_recharge_bonus_notice: form.payment_recharge_bonus_notice,
       payment_enabled_types: form.payment_enabled_types,
       payment_load_balance_strategy: form.payment_load_balance_strategy,
       payment_product_name_prefix: form.payment_product_name_prefix,

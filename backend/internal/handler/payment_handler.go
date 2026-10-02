@@ -147,13 +147,10 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 		Plans:                         planList,
 		BalanceDisabled:               cfg.BalanceDisabled,
 		BalanceRechargeMultiplier:     cfg.BalanceRechargeMultiplier,
-		BalanceRechargePackages:       service.BuildCheckoutRechargePackages(cfg.BalanceRechargePackages, cfg),
+		BalanceRechargePackages:       service.BuildCheckoutRechargePackages(cfg.BalanceRechargePackages, cfg.BalanceRechargeMultiplier),
 		SubscriptionUSDToCNYRate:      cfg.SubscriptionUSDToCNYRate,
 		USDTUSDToCNYRate:              cfg.USDTUSDToCNYRate,
 		RechargeFeeRate:               cfg.RechargeFeeRate,
-		RechargeBonusTiers:            cfg.RechargeBonusTiers,
-		RechargeBonusMode:             cfg.RechargeBonusMode,
-		RechargeBonusNotice:           cfg.RechargeBonusNotice,
 		HelpText:                      cfg.HelpText,
 		HelpImageURL:                  cfg.HelpImageURL,
 		StripePublishableKey:          cfg.StripePublishableKey,
@@ -163,19 +160,16 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 }
 
 type checkoutInfoResponse struct {
-	BalanceRechargePackages       []service.CheckoutRechargePackage `json:"balance_recharge_packages"`
-	USDTUSDToCNYRate              float64                           `json:"usdt_usd_to_cny_rate"`
 	Methods                       map[string]service.MethodLimits   `json:"methods"`
 	GlobalMin                     float64                           `json:"global_min"`
 	GlobalMax                     float64                           `json:"global_max"`
 	Plans                         []checkoutPlan                    `json:"plans"`
 	BalanceDisabled               bool                              `json:"balance_disabled"`
 	BalanceRechargeMultiplier     float64                           `json:"balance_recharge_multiplier"`
+	BalanceRechargePackages       []service.CheckoutRechargePackage `json:"balance_recharge_packages"`
 	SubscriptionUSDToCNYRate      float64                           `json:"subscription_usd_to_cny_rate"`
+	USDTUSDToCNYRate              float64                           `json:"usdt_usd_to_cny_rate"`
 	RechargeFeeRate               float64                           `json:"recharge_fee_rate"`
-	RechargeBonusTiers            []service.RechargeBonusTier       `json:"recharge_bonus_tiers"`
-	RechargeBonusMode             string                            `json:"recharge_bonus_mode"`
-	RechargeBonusNotice           string                            `json:"recharge_bonus_notice"`
 	HelpText                      string                            `json:"help_text"`
 	HelpImageURL                  string                            `json:"help_image_url"`
 	StripePublishableKey          string                            `json:"stripe_publishable_key"`
@@ -518,7 +512,6 @@ type PublicOrderResult struct {
 	Amount              float64    `json:"amount"`
 	PayAmount           float64    `json:"pay_amount"`
 	FeeRate             float64    `json:"fee_rate"`
-	BonusAmount         float64    `json:"bonus_amount"`
 	Currency            string     `json:"currency"`
 	PaymentType         string     `json:"payment_type"`
 	OrderType           string     `json:"order_type"`
@@ -554,7 +547,6 @@ func buildPublicOrderResult(order *dbent.PaymentOrder) PublicOrderResult {
 		Amount:              order.Amount,
 		PayAmount:           order.PayAmount,
 		FeeRate:             order.FeeRate,
-		BonusAmount:         order.BonusAmount,
 		Currency:            service.PaymentOrderCurrency(order),
 		PaymentType:         order.PaymentType,
 		OrderType:           order.OrderType,
@@ -663,7 +655,6 @@ type PaymentOrderResult struct {
 	Amount              float64    `json:"amount"`
 	PayAmount           float64    `json:"pay_amount"`
 	FeeRate             float64    `json:"fee_rate"`
-	BonusAmount         float64    `json:"bonus_amount"`
 	Currency            string     `json:"currency"`
 	PaymentType         string     `json:"payment_type"`
 	OutTradeNo          string     `json:"out_trade_no"`
@@ -702,7 +693,6 @@ func sanitizePaymentOrderForResponse(order *dbent.PaymentOrder) *PaymentOrderRes
 		Amount:              order.Amount,
 		PayAmount:           order.PayAmount,
 		FeeRate:             order.FeeRate,
-		BonusAmount:         order.BonusAmount,
 		Currency:            service.PaymentOrderCurrency(order),
 		PaymentType:         order.PaymentType,
 		OutTradeNo:          order.OutTradeNo,

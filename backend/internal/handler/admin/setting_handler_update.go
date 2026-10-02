@@ -301,8 +301,6 @@ type UpdateSettingsRequest struct {
 	AccountQuotaNotifyEmails        *[]dto.NotifyEmailEntry `json:"account_quota_notify_emails"`
 
 	// Payment configuration (integrated into settings, full replace)
-	PaymentBalanceRechargePackages   []service.RechargePackage `json:"payment_balance_recharge_packages"`
-	PaymentUSDTUSDToCNYRate          *float64                  `json:"payment_usdt_usd_to_cny_rate"`
 	PaymentEnabled                   *bool                     `json:"payment_enabled"`
 	PaymentMinAmount                 *float64                  `json:"payment_min_amount"`
 	PaymentMaxAmount                 *float64                  `json:"payment_max_amount"`
@@ -312,17 +310,15 @@ type UpdateSettingsRequest struct {
 	PaymentEnabledTypes              []string                  `json:"payment_enabled_types"`
 	PaymentBalanceDisabled           *bool                     `json:"payment_balance_disabled"`
 	PaymentBalanceRechargeMultiplier *float64                  `json:"payment_balance_recharge_multiplier"`
+	PaymentBalanceRechargePackages   []service.RechargePackage `json:"payment_balance_recharge_packages"`
 	PaymentSubscriptionUSDToCNYRate  *float64                  `json:"payment_subscription_usd_to_cny_rate"`
+	PaymentUSDTUSDToCNYRate          *float64                  `json:"payment_usdt_usd_to_cny_rate"`
 	PaymentRechargeFeeRate           *float64                  `json:"payment_recharge_fee_rate"`
-	// nil 表示不更新；空数组表示清空阶梯
-	PaymentRechargeBonusTiers  *[]dto.RechargeBonusTier `json:"payment_recharge_bonus_tiers"`
-	PaymentRechargeBonusMode   *string                  `json:"payment_recharge_bonus_mode"`
-	PaymentRechargeBonusNotice *string                  `json:"payment_recharge_bonus_notice"`
-	PaymentLoadBalanceStrat    *string                  `json:"payment_load_balance_strategy"`
-	PaymentProductNamePrefix   *string                  `json:"payment_product_name_prefix"`
-	PaymentProductNameSuffix   *string                  `json:"payment_product_name_suffix"`
-	PaymentHelpImageURL        *string                  `json:"payment_help_image_url"`
-	PaymentHelpText            *string                  `json:"payment_help_text"`
+	PaymentLoadBalanceStrat          *string                   `json:"payment_load_balance_strategy"`
+	PaymentProductNamePrefix         *string                   `json:"payment_product_name_prefix"`
+	PaymentProductNameSuffix         *string                   `json:"payment_product_name_suffix"`
+	PaymentHelpImageURL              *string                   `json:"payment_help_image_url"`
+	PaymentHelpText                  *string                   `json:"payment_help_text"`
 
 	// Cancel rate limit
 	PaymentCancelRateLimitEnabled *bool   `json:"payment_cancel_rate_limit_enabled"`
@@ -2276,9 +2272,6 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			SubscriptionUSDToCNYRate:      req.PaymentSubscriptionUSDToCNYRate,
 			USDTUSDToCNYRate:              req.PaymentUSDTUSDToCNYRate,
 			RechargeFeeRate:               req.PaymentRechargeFeeRate,
-			RechargeBonusTiers:            rechargeBonusTiersFromDTO(req.PaymentRechargeBonusTiers),
-			RechargeBonusMode:             req.PaymentRechargeBonusMode,
-			RechargeBonusNotice:           req.PaymentRechargeBonusNotice,
 			LoadBalanceStrategy:           req.PaymentLoadBalanceStrat,
 			ProductNamePrefix:             req.PaymentProductNamePrefix,
 			ProductNameSuffix:             req.PaymentProductNameSuffix,
@@ -2564,9 +2557,6 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		PaymentSubscriptionUSDToCNYRate:                        updatedPaymentCfg.SubscriptionUSDToCNYRate,
 		PaymentUSDTUSDToCNYRate:                                updatedPaymentCfg.USDTUSDToCNYRate,
 		PaymentRechargeFeeRate:                                 updatedPaymentCfg.RechargeFeeRate,
-		PaymentRechargeBonusTiers:                              rechargeBonusTiersToDTO(updatedPaymentCfg.RechargeBonusTiers),
-		PaymentRechargeBonusMode:                               rechargeBonusModeToDTO(updatedPaymentCfg.RechargeBonusMode),
-		PaymentRechargeBonusNotice:                             updatedPaymentCfg.RechargeBonusNotice,
 		PaymentLoadBalanceStrat:                                updatedPaymentCfg.LoadBalanceStrategy,
 		PaymentProductNamePrefix:                               updatedPaymentCfg.ProductNamePrefix,
 		PaymentProductNameSuffix:                               updatedPaymentCfg.ProductNameSuffix,
@@ -2660,7 +2650,6 @@ func hasPaymentFields(req UpdateSettingsRequest) bool {
 		req.PaymentSubscriptionUSDToCNYRate != nil ||
 		req.PaymentUSDTUSDToCNYRate != nil ||
 		req.PaymentRechargeFeeRate != nil ||
-		req.PaymentRechargeBonusTiers != nil || req.PaymentRechargeBonusMode != nil || req.PaymentRechargeBonusNotice != nil ||
 		req.PaymentLoadBalanceStrat != nil || req.PaymentProductNamePrefix != nil ||
 		req.PaymentProductNameSuffix != nil || req.PaymentHelpImageURL != nil ||
 		req.PaymentHelpText != nil || req.PaymentCancelRateLimitEnabled != nil ||

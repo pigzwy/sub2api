@@ -71,7 +71,6 @@
               <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
             </div>
             <template v-else>
-            <div v-if="renderedBonusNotice" class="announcement-markdown rounded-xl bg-amber-50 p-4 dark:bg-amber-500/10" data-testid="recharge-bonus-notice" v-html="renderedBonusNotice"></div>
             <span data-testid="selected-payment-method" class="sr-only">{{ selectedMethod }}</span>
             <RechargePackageGrid
               :packages="visiblePackages"
@@ -282,14 +281,16 @@ import { extractApiErrorMessage, extractI18nErrorMessage } from '@/utils/apiErro
 import { isMobileDevice } from '@/utils/device'
 import { hasPeakRate, formatPeakRateWindow, serverTimezoneLabel, type PeakRateFields } from '@/utils/peak-rate'
 import type { SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType, PaymentQuote } from '@/types/payment'
-import { normalizeRechargeBonusMode, normalizeRechargeBonusTiers, quoteRechargeBonus } from '@/utils/rechargeBonus'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector.vue'
 import RechargePackageGrid from '@/components/payment/RechargePackageGrid.vue'
 import RechargeCheckoutDialog from '@/components/payment/RechargeCheckoutDialog.vue'
 import {
   balanceGatewayPayAmount,
+  filterRechargePackages,
   maxRechargeBonus,
+  packageBonusAmount,
+  packageCreditAmount,
   paymentMethodLane,
   resolveRechargePackages,
   resolveUsdtUsdToCnyRate,
@@ -541,13 +542,6 @@ const renderedHelpText = computed(() => DOMPurify.sanitize(
   marked.parse(checkout.value.help_text || '', { async: false, gfm: true, breaks: false }),
 ))
 
-// 充值赠送活动文案：后台 Markdown 配置，空字符串时金额卡顶部不渲染
-const renderedBonusNotice = computed(() => {
-  const raw = (checkout.value.recharge_bonus_notice || '').trim()
-  if (!raw) return ''
-  return DOMPurify.sanitize(marked.parse(raw, { async: false, gfm: true, breaks: true }))
-})
-
 // 订阅功能开关（public settings 的 subscription_enabled，opt-out）。关闭后购买页只保留充值：
 // 不再渲染「订阅」tab，只剩单个 tab 时顶部切换器也随之隐藏。
 const subscriptionEnabled = computed(() => resolveFeatureFlag(appStore.cachedPublicSettings, FeatureFlags.subscription))
@@ -584,8 +578,13 @@ const usdtUsdToCnyRate = computed(() =>
   resolveUsdtUsdToCnyRate(checkout.value.usdt_usd_to_cny_rate, subscriptionUsdToCnyRate.value),
 )
 const configuredPackages = computed(() => resolveRechargePackages(checkout.value.balance_recharge_packages))
-const rechargeBonusTiers = computed(() => normalizeRechargeBonusTiers(checkout.value.recharge_bonus_tiers))
-const rechargeBonusMode = computed(() => normalizeRechargeBonusMode(checkout.value.recharge_bonus_mode))
+const creditedAmount = computed(() => {
+  const selected = configuredPackages.value.find((pkg) => pkg.amount === validAmount.value)
+  if (selected) {
+    return packageCreditAmount(selected, configuredPackages.value, balanceRechargeMultiplier.value)
+  }
+  return Math.round((validAmount.value * balanceRechargeMultiplier.value) * 100) / 100
+})
 
 // Adaptive grid: center single card, 2-col for 2 plans, 3-col for 3+
 const planGridClass = computed(() => {
@@ -598,14 +597,7 @@ const planGridClass = computed(() => {
 function methodLimitAmount(amt: number, methodType: string): number {
   const ml = visibleMethods.value[methodType]
   if (!ml || activeTab.value !== 'recharge') return amt
-  const promotion = quoteRechargeBonus(rechargeBonusTiers.value, amt, {
-    multiplier: balanceRechargeMultiplier.value,
-    mode: rechargeBonusMode.value,
-    currencyDigits: currencyFractionDigits(normalizePaymentCurrency(ml.currency)),
-  })
-  const base = balanceGatewayPayAmount(promotion.payBase, methodType, ml.currency, usdtUsdToCnyRate.value)
-  const currency = normalizePaymentCurrency(ml.currency)
-  return roundPaymentAmount(base + ceilPaymentAmount(base * feeRate.value / 100, currency), currency)
+  return balanceGatewayPayAmount(amt, methodType, ml.currency, usdtUsdToCnyRate.value)
 }
 
 // Check if an amount fits a method's [min, max]. 0 = no limit.
@@ -618,6 +610,20 @@ function amountFitsMethod(amt: number, methodType: string): boolean {
   if (ml.single_max > 0 && limitAmt > ml.single_max) return false
   return true
 }
+
+// Visible methods decide the amount range shown to users.
+const globalMinAmount = computed(() => {
+  const limits = Object.values(visibleMethods.value)
+  if (limits.length === 0) return 0
+  if (limits.some(limit => limit.single_min <= 0)) return 0
+  return Math.min(...limits.map(limit => limit.single_min))
+})
+const globalMaxAmount = computed(() => {
+  const limits = Object.values(visibleMethods.value)
+  if (limits.length === 0) return 0
+  if (limits.some(limit => limit.single_max <= 0)) return 0
+  return Math.max(...limits.map(limit => limit.single_max))
+})
 
 // Selected method's limits (for validation and error messages)
 const selectedLimit = computed(() => visibleMethods.value[selectedMethod.value])
@@ -672,15 +678,6 @@ function formatSelectedSubscriptionPaymentAmount(value: number): string {
   return formatSelectedPaymentAmount(subscriptionPaymentAmountForCurrency(value, selectedCurrency.value))
 }
 
-// 充值优惠：阈值按输入金额命中；赠金模式按到账基数（输入 × 倍率）加赠送，折扣模式按百分比减实付。
-// 与后端 quoteRechargeBonus 一致；渠道限额、手续费、实付都按折后基数（payBaseAmount）计算，提交仍发送输入金额。
-const bonusQuote = computed(() => quoteRechargeBonus(rechargeBonusTiers.value, validAmount.value, {
-  multiplier: balanceRechargeMultiplier.value,
-  mode: rechargeBonusMode.value,
-  currencyDigits: currencyFractionDigits(selectedCurrency.value),
-}))
-const creditedAmount = computed(() => bonusQuote.value.credited)
-
 const methodOptions = computed<PaymentMethodOption[]>(() =>
   enabledMethods.value.map((type) => {
     const ml = visibleMethods.value[type]
@@ -701,7 +698,7 @@ const usdtMethods = computed(() =>
   methodOptions.value.filter((method) => paymentMethodLane(method.type, method.currency) === 'usdt')
 )
 const visiblePackages = computed(() =>
-  configuredPackages.value.filter((pkg) => enabledMethods.value.some((type) => amountFitsMethod(pkg.amount, type))),
+  filterRechargePackages(configuredPackages.value, globalMinAmount.value, globalMaxAmount.value),
 )
 const bonusMax = computed(() => maxRechargeBonus(visiblePackages.value, balanceRechargeMultiplier.value))
 const packageDisplayCurrency = computed(() => {
@@ -721,8 +718,9 @@ const rechargePayAmountLabel = computed(() => {
   return formatPaymentAmount(Number(rechargeQuote.value.pay_amount), rechargeQuote.value.currency, localeCode.value)
 })
 const rechargeExtraBonus = computed(() => {
-  if (rechargeQuote.value?.bonus_mode === 'discount') return 0
-  return Number(rechargeQuote.value?.bonus_amount || 0)
+  const selected = configuredPackages.value.find((pkg) => pkg.amount === validAmount.value)
+  if (!selected) return 0
+  return packageBonusAmount(selected, configuredPackages.value, balanceRechargeMultiplier.value)
 })
 const rechargeCreditAmountLabel = computed(() => {
   const extra = rechargeExtraBonus.value

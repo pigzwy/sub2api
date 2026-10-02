@@ -53,7 +53,7 @@ describe('RechargePackageGrid', () => {
     const wrapper = mount(RechargePackageGrid, {
       props: {
         packages: [
-          { id: 'standard', amount: 100, bonus: 2.99, credit: 102.99, name: 'Standard', description: '' },
+          { id: 'standard', amount: 100, bonus: 2.99, name: 'Standard', description: '' },
         ],
         multiplier: 1,
         currency: 'CNY',
