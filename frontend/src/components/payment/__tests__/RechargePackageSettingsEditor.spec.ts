@@ -21,7 +21,7 @@ describe('RechargePackageSettingsEditor', () => {
     const bonus = wrapper.findAll('input[type="number"]')[1]!
     expect((bonus.element as HTMLInputElement).disabled).toBe(true)
     expect((bonus.element as HTMLInputElement).value).toBe('5')
-    expect(wrapper.text()).toContain('固定赠送暂不生效')
+    expect(wrapper.text()).toContain(i18n.global.t('admin.settings.payment.fixedBonusInactive'))
     await wrapper.setProps({ bonusDisabled: false })
     expect((bonus.element as HTMLInputElement).disabled).toBe(false)
     expect(packages[0]!.bonus).toBe(5)
