@@ -22,7 +22,7 @@
             {{ t('admin.settings.payment.rechargePackagesCount', { count: model.length }) }}
           </span>
         </div>
-        <p class="mt-1 pl-6 text-xs text-gray-400">{{ t('admin.settings.payment.rechargePackagesHint') }}</p>
+        <p class="mt-1 pl-6 text-xs text-gray-400">{{ t(bonusDisabled ? 'admin.settings.payment.fixedBonusInactive' : 'admin.settings.payment.rechargePackagesHint') }}</p>
       </button>
       <div v-if="expanded" class="flex shrink-0 flex-wrap gap-2">
         <button type="button" class="btn btn-secondary btn-sm" @click="resetDefaults">
@@ -89,6 +89,8 @@
               <td class="px-3 py-2">
                 <input
                   v-model.number="pkg.bonus"
+                  :disabled="bonusDisabled"
+                  :title="bonusDisabled ? t('admin.settings.payment.fixedBonusInactive') : undefined"
                   type="number"
                   min="0"
                   step="0.01"
@@ -151,6 +153,7 @@ const STORAGE_KEY = 'sub2api_recharge_packages_expanded'
 
 const props = defineProps<{
   modelValue: RechargePackage[]
+  bonusDisabled?: boolean
 }>()
 
 const emit = defineEmits<{

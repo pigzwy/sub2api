@@ -27,6 +27,8 @@ const (
 	SettingBalancePayDisabled      = "BALANCE_PAYMENT_DISABLED"
 	SettingBalanceRechargeMult     = "BALANCE_RECHARGE_MULTIPLIER"
 	SettingBalanceRechargePackages = "BALANCE_RECHARGE_PACKAGES"
+	SettingRechargeBonusMode       = "RECHARGE_BONUS_MODE"
+	SettingRechargeBonusTiers      = "RECHARGE_BONUS_TIERS"
 	// SettingSubscriptionUSDToCNYRate 是订阅 CNY 换算汇率（1 USD = X CNY）。
 	// 0/未配置 = 关闭订阅换算。不改变支付宝到账倍率。
 	SettingSubscriptionUSDToCNYRate = "SUBSCRIPTION_USD_TO_CNY_RATE"
@@ -55,16 +57,19 @@ const (
 
 // PaymentConfig holds the payment system configuration.
 type PaymentConfig struct {
-	Enabled                   bool              `json:"enabled"`
-	MinAmount                 float64           `json:"min_amount"`
-	MaxAmount                 float64           `json:"max_amount"`
-	DailyLimit                float64           `json:"daily_limit"`
-	OrderTimeoutMin           int               `json:"order_timeout_minutes"`
-	MaxPendingOrders          int               `json:"max_pending_orders"`
-	EnabledTypes              []string          `json:"enabled_payment_types"`
-	BalanceDisabled           bool              `json:"balance_disabled"`
-	BalanceRechargeMultiplier float64           `json:"balance_recharge_multiplier"`
-	BalanceRechargePackages   []RechargePackage `json:"balance_recharge_packages,omitempty"`
+	Enabled                   bool                `json:"enabled"`
+	MinAmount                 float64             `json:"min_amount"`
+	MaxAmount                 float64             `json:"max_amount"`
+	DailyLimit                float64             `json:"daily_limit"`
+	OrderTimeoutMin           int                 `json:"order_timeout_minutes"`
+	MaxPendingOrders          int                 `json:"max_pending_orders"`
+	EnabledTypes              []string            `json:"enabled_payment_types"`
+	BalanceDisabled           bool                `json:"balance_disabled"`
+	BalanceRechargeMultiplier float64             `json:"balance_recharge_multiplier"`
+	BalanceRechargePackages   []RechargePackage   `json:"balance_recharge_packages,omitempty"`
+	RechargeBonusMode         string              `json:"recharge_bonus_mode"`
+	RechargeBonusTiers        []RechargeBonusTier `json:"recharge_bonus_tiers"`
+	rechargeBonusConfigErr    error
 	// SubscriptionUSDToCNYRate 为 0 时订阅换算关闭（兼容存量行为）。
 	SubscriptionUSDToCNYRate float64 `json:"subscription_usd_to_cny_rate"`
 	// USDTUSDToCNYRate 仅用于 Infini/USDT 余额实付。0 时回退订阅汇率。
@@ -92,24 +97,26 @@ type PaymentConfig struct {
 
 // UpdatePaymentConfigRequest contains fields to update payment configuration.
 type UpdatePaymentConfigRequest struct {
-	Enabled                   *bool              `json:"enabled"`
-	MinAmount                 *float64           `json:"min_amount"`
-	MaxAmount                 *float64           `json:"max_amount"`
-	DailyLimit                *float64           `json:"daily_limit"`
-	OrderTimeoutMin           *int               `json:"order_timeout_minutes"`
-	MaxPendingOrders          *int               `json:"max_pending_orders"`
-	EnabledTypes              []string           `json:"enabled_payment_types"`
-	BalanceDisabled           *bool              `json:"balance_disabled"`
-	BalanceRechargeMultiplier *float64           `json:"balance_recharge_multiplier"`
-	BalanceRechargePackages   *[]RechargePackage `json:"balance_recharge_packages"`
-	SubscriptionUSDToCNYRate  *float64           `json:"subscription_usd_to_cny_rate"`
-	USDTUSDToCNYRate          *float64           `json:"usdt_usd_to_cny_rate"`
-	RechargeFeeRate           *float64           `json:"recharge_fee_rate"`
-	LoadBalanceStrategy       *string            `json:"load_balance_strategy"`
-	ProductNamePrefix         *string            `json:"product_name_prefix"`
-	ProductNameSuffix         *string            `json:"product_name_suffix"`
-	HelpImageURL              *string            `json:"help_image_url"`
-	HelpText                  *string            `json:"help_text"`
+	RechargeBonusMode         *string              `json:"recharge_bonus_mode"`
+	RechargeBonusTiers        *[]RechargeBonusTier `json:"recharge_bonus_tiers"`
+	Enabled                   *bool                `json:"enabled"`
+	MinAmount                 *float64             `json:"min_amount"`
+	MaxAmount                 *float64             `json:"max_amount"`
+	DailyLimit                *float64             `json:"daily_limit"`
+	OrderTimeoutMin           *int                 `json:"order_timeout_minutes"`
+	MaxPendingOrders          *int                 `json:"max_pending_orders"`
+	EnabledTypes              []string             `json:"enabled_payment_types"`
+	BalanceDisabled           *bool                `json:"balance_disabled"`
+	BalanceRechargeMultiplier *float64             `json:"balance_recharge_multiplier"`
+	BalanceRechargePackages   *[]RechargePackage   `json:"balance_recharge_packages"`
+	SubscriptionUSDToCNYRate  *float64             `json:"subscription_usd_to_cny_rate"`
+	USDTUSDToCNYRate          *float64             `json:"usdt_usd_to_cny_rate"`
+	RechargeFeeRate           *float64             `json:"recharge_fee_rate"`
+	LoadBalanceStrategy       *string              `json:"load_balance_strategy"`
+	ProductNamePrefix         *string              `json:"product_name_prefix"`
+	ProductNameSuffix         *string              `json:"product_name_suffix"`
+	HelpImageURL              *string              `json:"help_image_url"`
+	HelpText                  *string              `json:"help_text"`
 
 	// Cancel rate limit settings
 	CancelRateLimitEnabled *bool   `json:"cancel_rate_limit_enabled"`
@@ -229,6 +236,7 @@ func (s *PaymentConfigService) GetPaymentConfig(ctx context.Context) (*PaymentCo
 	keys := []string{
 		SettingPaymentEnabled, SettingMinRechargeAmount, SettingMaxRechargeAmount,
 		SettingDailyRechargeLimit, SettingOrderTimeoutMinutes, SettingMaxPendingOrders,
+		SettingRechargeBonusMode, SettingRechargeBonusTiers,
 		SettingEnabledPaymentTypes, SettingBalancePayDisabled, SettingBalanceRechargeMult, SettingBalanceRechargePackages, SettingSubscriptionUSDToCNYRate, SettingUSDTUSDToCNYRate, SettingRechargeFeeRate, SettingLoadBalanceStrategy,
 		SettingProductNamePrefix, SettingProductNameSuffix,
 		SettingHelpImageURL, SettingHelpText,
@@ -277,6 +285,8 @@ func (s *PaymentConfigService) parsePaymentConfig(vals map[string]string) *Payme
 		AlipayForceQRCode:             vals[SettingAlipayForceQRCode] == "true",
 		AlipayMobilePrecreateDeepLink: vals[SettingAlipayMobilePrecreateDeepLink] == "true",
 	}
+	cfg.RechargeBonusMode = rechargeBonusMode(vals[SettingRechargeBonusMode])
+	cfg.RechargeBonusTiers, cfg.rechargeBonusConfigErr = parseRechargeBonusTiers(vals[SettingRechargeBonusTiers])
 	cfg.AlipayMobilePrecreateDeepLink = pcEnvBoolOverride(
 		SettingAlipayMobilePrecreateDeepLink,
 		cfg.AlipayMobilePrecreateDeepLink,
@@ -372,6 +382,23 @@ func (s *PaymentConfigService) UpdatePaymentConfig(ctx context.Context, req Upda
 		}
 	}
 	m := make(map[string]string)
+	if req.RechargeBonusMode != nil {
+		if *req.RechargeBonusMode != RechargeBonusFixed && *req.RechargeBonusMode != RechargeBonusPercentage {
+			return infraerrors.BadRequest("INVALID_RECHARGE_BONUS_MODE", "recharge bonus mode must be fixed or percentage")
+		}
+		m[SettingRechargeBonusMode] = *req.RechargeBonusMode
+	}
+	if req.RechargeBonusTiers != nil {
+		tiers, err := NormalizeRechargeBonusTiers(*req.RechargeBonusTiers)
+		if err != nil {
+			return err
+		}
+		raw, err := json.Marshal(tiers)
+		if err != nil {
+			return err
+		}
+		m[SettingRechargeBonusTiers] = string(raw)
+	}
 	if req.Enabled != nil {
 		m[SettingPaymentEnabled] = formatBoolOrEmpty(req.Enabled)
 	}

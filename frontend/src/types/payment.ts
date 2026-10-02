@@ -23,6 +23,13 @@ export type PaymentType = 'alipay' | 'wxpay' | 'alipay_direct' | 'wxpay_direct' 
 
 export type OrderType = 'balance' | 'subscription'
 
+export type RechargeBonusMode = 'fixed' | 'percentage'
+
+export interface RechargeBonusTier {
+  min_amount: number
+  bonus_percent: number
+}
+
 export type RechargePackageBadge = 'popular' | 'bestValue'
 
 export interface RechargePackage {
@@ -40,6 +47,8 @@ export interface RechargePackage {
 // ==================== Configuration ====================
 
 export interface PaymentConfig {
+  recharge_bonus_mode?: RechargeBonusMode
+  recharge_bonus_tiers?: RechargeBonusTier[]
   payment_enabled: boolean
   min_amount: number
   max_amount: number
@@ -78,6 +87,9 @@ export interface MethodLimitsResponse {
 
 /** Response from /payment/checkout-info API — single call for the payment page */
 export interface PaymentQuote {
+  bonus_amount?: string
+  bonus_mode?: RechargeBonusMode | ''
+  bonus_percent?: number
   order_type: OrderType
   payment_type: string
   package_amount: string

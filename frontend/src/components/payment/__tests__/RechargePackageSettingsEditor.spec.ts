@@ -12,6 +12,22 @@ const i18n = createI18n({
 })
 
 describe('RechargePackageSettingsEditor', () => {
+  it('preserves a fixed gift while percentage mode disables its input', async () => {
+    const packages = [{ id: 'test', amount: 200, bonus: 5, name: 'Test', description: '' }]
+    const wrapper = mount(RechargePackageSettingsEditor, {
+      props: { modelValue: packages, bonusDisabled: true },
+      global: { plugins: [i18n] },
+    })
+    const bonus = wrapper.findAll('input[type="number"]')[1]!
+    expect((bonus.element as HTMLInputElement).disabled).toBe(true)
+    expect((bonus.element as HTMLInputElement).value).toBe('5')
+    expect(wrapper.text()).toContain(i18n.global.t('admin.settings.payment.fixedBonusInactive'))
+    await wrapper.setProps({ bonusDisabled: false })
+    expect((bonus.element as HTMLInputElement).disabled).toBe(false)
+    expect(packages[0]!.bonus).toBe(5)
+    wrapper.unmount()
+  })
+
   it('adds a package and can reset to defaults', async () => {
     window.localStorage.clear()
     const wrapper = mount(RechargePackageSettingsEditor, {
