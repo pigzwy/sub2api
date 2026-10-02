@@ -68,6 +68,7 @@ func TestCreateOrderInTx_WritesProviderSnapshot(t *testing.T) {
 	order, err := svc.createOrderInTx(
 		ctx,
 		CreateOrderRequest{
+			Amount:      88,
 			UserID:      user.ID,
 			PaymentType: payment.TypeAlipay,
 			OrderType:   payment.OrderTypeBalance,
