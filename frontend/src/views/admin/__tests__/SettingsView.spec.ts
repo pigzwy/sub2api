@@ -723,6 +723,41 @@ describe("admin SettingsView payment visible method controls", () => {
     adminSettingsFetch.mockResolvedValue(undefined);
   });
 
+  it("switches bonus modes without erasing tiers or fixed package gifts", async () => {
+    const packages = [{ id: "cny200", amount: 200, bonus: 5, name: "加赠", description: "" }];
+    const tiers = [{ min_amount: 200, bonus_percent: 20 }];
+    getSettings.mockResolvedValue({
+      ...baseSettingsResponse,
+      payment_enabled: true,
+      payment_balance_recharge_packages: packages,
+      payment_recharge_bonus_mode: "percentage",
+      payment_recharge_bonus_tiers: tiers,
+    });
+    const wrapper = mountView();
+    await flushPromises();
+    await openPaymentTab(wrapper);
+    expect((wrapper.get('[data-testid="recharge-bonus-mode"]').element as HTMLSelectElement).value).toBe("percentage");
+    expect((wrapper.get('[data-testid="bonus-percent"]').element as HTMLInputElement).value).toBe("20");
+    await wrapper.get('[data-testid="recharge-bonus-mode"]').setValue("fixed");
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+    expect(updateSettings).toHaveBeenLastCalledWith(expect.objectContaining({
+      payment_recharge_bonus_mode: "fixed",
+      payment_recharge_bonus_tiers: tiers,
+      payment_balance_recharge_packages: [expect.objectContaining({ amount: 200, bonus: 5 })],
+    }));
+    await wrapper.get('[data-testid="recharge-bonus-mode"]').setValue("percentage");
+    expect((wrapper.get('[data-testid="bonus-percent"]').element as HTMLInputElement).value).toBe("20");
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+    expect(updateSettings).toHaveBeenLastCalledWith(expect.objectContaining({
+      payment_recharge_bonus_mode: "percentage",
+      payment_recharge_bonus_tiers: tiers,
+      payment_balance_recharge_packages: [expect.objectContaining({ amount: 200, bonus: 5 })],
+    }));
+    wrapper.unmount();
+  });
+
   it("loads and saves the open button visibility for each custom menu", async () => {
     const menuItems = [
       { id: "docs", label: "Docs", url: "https://example.com/docs", icon_svg: "", visibility: "user", sort_order: 0 },

@@ -30,6 +30,9 @@ type paymentOrderProviderSnapshot struct {
 }
 
 type paymentOrderFinancialSnapshot struct {
+	BonusMode     string
+	BonusAmount   string
+	BonusPercent  string
 	PackageAmount string
 	CreditAmount  string
 	PayAmount     string
@@ -104,7 +107,15 @@ func newPaymentOrderFinancialSnapshot(
 ) paymentOrderFinancialSnapshot {
 	currency := resolveOrderSettlementCurrency(req.PaymentType, payment.DefaultPaymentCurrency, sel)
 	fxRate := resolvePayFXRate(cfg, req.OrderType, req.PaymentType, currency)
+	bonus := balanceRechargeCredit{}
+	if cfg != nil && req.OrderType == payment.OrderTypeBalance {
+		// The same immutable config was validated before the order transaction.
+		bonus, _ = calculateBalanceRechargeCredit(limitAmount, cfg)
+	}
 	return paymentOrderFinancialSnapshot{
+		BonusMode:     bonus.Mode,
+		BonusAmount:   decimalAmountString(bonus.Bonus, 2),
+		BonusPercent:  decimalAmountString(bonus.Percent, 2),
 		PackageAmount: decimalAmountString(limitAmount, 2),
 		CreditAmount:  decimalAmountString(orderAmount, 2),
 		PayAmount:     formatPaymentAmountExact(payAmount, currency),
@@ -122,6 +133,11 @@ func attachPaymentOrderFinancialSnapshot(snapshot map[string]any, fin paymentOrd
 		snapshot = map[string]any{}
 	}
 	snapshot["schema_version"] = 3
+	if fin.BonusMode != "" {
+		snapshot["bonus_mode"] = fin.BonusMode
+		snapshot["bonus_amount"] = fin.BonusAmount
+		snapshot["bonus_percent"] = fin.BonusPercent
+	}
 	snapshot["package_amount"] = fin.PackageAmount
 	snapshot["credit_amount"] = fin.CreditAmount
 	snapshot["pay_amount"] = fin.PayAmount

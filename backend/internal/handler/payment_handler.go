@@ -140,6 +140,11 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 		})
 	}
 
+	packages, err := service.BuildCheckoutRechargePackagesForConfig(cfg)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
 	response.Success(c, checkoutInfoResponse{
 		Methods:                       limitsResp.Methods,
 		GlobalMin:                     limitsResp.GlobalMin,
@@ -147,7 +152,7 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 		Plans:                         planList,
 		BalanceDisabled:               cfg.BalanceDisabled,
 		BalanceRechargeMultiplier:     cfg.BalanceRechargeMultiplier,
-		BalanceRechargePackages:       service.BuildCheckoutRechargePackages(cfg.BalanceRechargePackages, cfg.BalanceRechargeMultiplier),
+		BalanceRechargePackages:       packages,
 		SubscriptionUSDToCNYRate:      cfg.SubscriptionUSDToCNYRate,
 		USDTUSDToCNYRate:              cfg.USDTUSDToCNYRate,
 		RechargeFeeRate:               cfg.RechargeFeeRate,

@@ -718,6 +718,7 @@ const rechargePayAmountLabel = computed(() => {
   return formatPaymentAmount(Number(rechargeQuote.value.pay_amount), rechargeQuote.value.currency, localeCode.value)
 })
 const rechargeExtraBonus = computed(() => {
+  if (rechargeQuote.value?.bonus_amount != null) return Number(rechargeQuote.value.bonus_amount)
   const selected = configuredPackages.value.find((pkg) => pkg.amount === validAmount.value)
   if (!selected) return 0
   return packageBonusAmount(selected, configuredPackages.value, balanceRechargeMultiplier.value)

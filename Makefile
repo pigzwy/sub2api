@@ -23,6 +23,7 @@ FRONTEND_CRITICAL_VITEST := \
 	src/components/payment/__tests__/RechargeCheckoutDialog.spec.ts \
 	src/components/payment/__tests__/RechargeCreditLine.spec.ts \
 	src/components/payment/__tests__/RechargePackageSettingsEditor.spec.ts \
+	src/components/payment/__tests__/RechargeBonusSettings.spec.ts \
 	src/components/payment/__tests__/RechargePackageGrid.spec.ts \
 	src/components/payment/__tests__/currency.spec.ts \
 	src/views/user/__tests__/ChannelStatusView.mode.spec.ts \

@@ -546,6 +546,30 @@ describe('PaymentView recharge rate preview', () => {
     expect(wrapper.getComponent(RechargeCheckoutDialog).props('extraBonusLabel')).toBe('$5.00')
   })
 
+  it.each([
+    { bonus: '5.60', credit: '33.60', label: '$5.60' },
+    { bonus: '0.00', credit: '28.00', label: '' },
+  ])('uses the latest server gift $bonus instead of a cached fixed package gift', async ({ bonus, credit, label }) => {
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
+      balance_recharge_multiplier: 0.14,
+      balance_recharge_packages: [{ id: 'cny200', amount: 200, bonus: 5, credit: 33, name: '加赠', description: '' }],
+    }))
+    quoteOrder.mockImplementation(async (data) => quoteOrderFixture(data, {
+      credit_amount: credit, bonus_amount: bonus, bonus_mode: 'percentage',
+    }))
+    const wrapper = shallowMount(PaymentView, {
+      global: { stubs: { AppLayout: { template: '<div><slot /></div>' }, Teleport: true, Transition: false } },
+    })
+    await flushPromises()
+    wrapper.getComponent(RechargePackageGrid).vm.$emit('select', 200)
+    await flushPromises()
+    expect(wrapper.getComponent(RechargeCheckoutDialog).props('creditAmountLabel')).toBe('$28.00')
+    expect(wrapper.getComponent(RechargeCheckoutDialog).props('extraBonusLabel')).toBe(label)
+    wrapper.unmount()
+  })
+
   it('keeps checkout amount currency aligned with the selected pay lane', async () => {
     window.localStorage.clear()
     const method: MethodLimit = {

@@ -65,7 +65,11 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 		orderAmount = plan.Price
 		limitAmount = plan.Price
 	} else if req.OrderType == payment.OrderTypeBalance {
-		orderAmount = calculateCreditedBalance(req.Amount, cfg.BalanceRechargeMultiplier, cfg.BalanceRechargePackages)
+		credit, err := calculateBalanceRechargeCredit(req.Amount, cfg)
+		if err != nil {
+			return nil, err
+		}
+		orderAmount = credit.Credit
 	}
 	feeRate := cfg.RechargeFeeRate
 	quote, err := s.quoteOrderAmounts(ctx, req, cfg, limitAmount, orderAmount, nil)
