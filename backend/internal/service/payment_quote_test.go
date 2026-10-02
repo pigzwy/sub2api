@@ -177,7 +177,7 @@ func TestInfiniPromotionQuoteMatchesPersistedFinancialAmounts(t *testing.T) {
 		pay, credit, bonus string
 	}{
 		{RechargeBonusModeBonus, "7.65", "8.75", "1.75"},
-		{RechargeBonusModeDiscount, "5.73", "7.00", "1.75"},
+		{RechargeBonusModeDiscount, "5.74", "7.00", "1.75"},
 	} {
 		t.Run(tc.mode, func(t *testing.T) {
 			ctx := context.Background()

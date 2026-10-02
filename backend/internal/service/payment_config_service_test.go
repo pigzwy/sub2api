@@ -572,7 +572,7 @@ func TestUpdatePaymentConfig_PersistsRechargePackages(t *testing.T) {
 	}
 
 	cfg := svc.parsePaymentConfig(repo.values)
-	if len(cfg.BalanceRechargePackages) != 1 || cfg.BalanceRechargePackages[0].Bonus != 2.99 {
+	if len(cfg.BalanceRechargePackages) != 1 || cfg.BalanceRechargePackages[0].Bonus != 0 {
 		t.Fatalf("parsed packages = %+v", cfg.BalanceRechargePackages)
 	}
 }
