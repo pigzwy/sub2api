@@ -966,12 +966,8 @@ func TestBonusPackageNotificationCreditsOrderSnapshotAndIgnoresReplay(t *testing
 	client := newPaymentConfigServiceTestClient(t)
 	ensurePaymentAuditOrderActionUniqueIndex(t, ctx, client)
 
-	packages := []RechargePackage{
-		{ID: "cny100", Amount: 100, Bonus: 0, Name: "基础"},
-		{ID: "cny200", Amount: 200, Bonus: 5, Name: "加赠"},
-	}
-	credited := calculateCreditedBalance(100, 0.14, packages)
-	require.Equal(t, 14.0, credited)
+	// Legacy fork orders already include their fixed gift in Amount.
+	credited := 19.0
 
 	user, err := client.User.Create().
 		SetEmail("bonus-credit-" + strconv.FormatInt(time.Now().UnixNano(), 10) + "@example.com").
@@ -1022,12 +1018,6 @@ func TestBonusPackageNotificationCreditsOrderSnapshotAndIgnoresReplay(t *testing
 	}
 	require.NoError(t, svc.HandlePaymentNotification(ctx, notification, payment.TypeAlipay))
 	require.InDelta(t, credited, balance, 1e-8)
-
-	changedPackages := []RechargePackage{
-		{ID: "cny100", Amount: 100, Bonus: 80, Name: "基础"},
-	}
-	require.Equal(t, credited, calculateCreditedBalance(100, 0.14, packages))
-	require.NotEqual(t, credited, calculateCreditedBalance(100, 0.14, changedPackages))
 
 	require.NoError(t, svc.HandlePaymentNotification(ctx, notification, payment.TypeAlipay))
 	require.InDelta(t, credited, balance, 1e-8)

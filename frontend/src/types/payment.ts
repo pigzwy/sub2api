@@ -28,6 +28,7 @@ export type RechargePackageBadge = 'popular' | 'bestValue'
 export interface RechargePackage {
   id: string
   amount: number
+  /** Server-derived promotion preview; not an editable card bonus. */
   bonus?: number
   credit?: number
   badge?: RechargePackageBadge | ''
@@ -38,6 +39,12 @@ export interface RechargePackage {
 }
 
 // ==================== Configuration ====================
+
+/** 充值赠送档位：支付金额 ≥ min_amount 时在到账基数上赠送 bonus_percent% */
+export interface RechargeBonusTier {
+  min_amount: number
+  bonus_percent: number
+}
 
 export interface PaymentConfig {
   payment_enabled: boolean
@@ -78,6 +85,8 @@ export interface MethodLimitsResponse {
 
 /** Response from /payment/checkout-info API — single call for the payment page */
 export interface PaymentQuote {
+  bonus_amount?: string
+  bonus_mode?: string
   order_type: OrderType
   payment_type: string
   package_amount: string
@@ -104,6 +113,12 @@ export interface CheckoutInfoResponse {
   /** Infini/USDT balance pay conversion (1 USD = X CNY). 0 falls back to subscription_usd_to_cny_rate. */
   usdt_usd_to_cny_rate?: number
   recharge_fee_rate: number
+  /** 充值赠送阶梯（按 min_amount 升序）；缺失/空数组 = 不赠送 */
+  recharge_bonus_tiers?: RechargeBonusTier[]
+  /** 阶梯模式：bonus 赠金 / discount 折扣；缺失按 bonus */
+  recharge_bonus_mode?: string
+  /** 充值页金额区顶部的 Markdown 活动文案；空 = 不展示 */
+  recharge_bonus_notice?: string
   help_text: string
   help_image_url: string
   stripe_publishable_key: string
@@ -122,6 +137,8 @@ export interface PaymentOrder {
   pay_amount: number
   currency?: string
   fee_rate: number
+  /** 充值赠送额度（USD），已计入 amount */
+  bonus_amount?: number
   payment_type: string
   out_trade_no: string
   status: OrderStatus
@@ -243,6 +260,7 @@ export interface CreateOrderResult {
   payment_env?: string
   pay_amount: number
   fee_rate: number
+  bonus_amount?: number
   expires_at: string
   result_type?: CreateOrderResultType
   payment_type?: string

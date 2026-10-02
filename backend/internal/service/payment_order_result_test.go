@@ -478,12 +478,12 @@ func TestClassifyCreatePaymentErrorKeepsInfiniGatewayFailureDistinct(t *testing.
 func TestCalculateCreditedBalanceStillUsesRechargeMultiplier(t *testing.T) {
 	t.Parallel()
 
-	got := calculateCreditedBalance(10, 0.14, nil)
+	got := calculateCreditedBalance(10, 0.14)
 	if got != 1.4 {
 		t.Fatalf("credited balance = %v, want 1.4", got)
 	}
 
-	got = calculateCreditedBalance(5, 10, nil)
+	got = calculateCreditedBalance(5, 10)
 	if got != 50 {
 		t.Fatalf("credited balance = %v, want 50", got)
 	}

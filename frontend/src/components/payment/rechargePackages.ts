@@ -42,7 +42,7 @@ export function packageCreditAmount(
   if (Number.isFinite(pkg.credit)) {
     return roundMoney(Number(pkg.credit))
   }
-  return roundMoney(creditedRechargeAmount(pkg.amount, multiplier) + (Number(pkg.bonus) || 0))
+  return creditedRechargeAmount(pkg.amount, multiplier)
 }
 
 export function packageBonusAmount(
@@ -50,7 +50,7 @@ export function packageBonusAmount(
   _packages: RechargePackage[] = [],
   _multiplier = 1,
 ): number {
-  return roundMoney(Number(pkg.bonus) || 0)
+  return Number.isFinite(pkg.credit) ? roundMoney(Number(pkg.bonus) || 0) : 0
 }
 
 export function filterRechargePackages(

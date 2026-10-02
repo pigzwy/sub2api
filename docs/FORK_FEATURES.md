@@ -8,15 +8,15 @@
 
 | 项 | 值 |
 |---|---|
-| 统计日期 | 2026-09-30 |
-| 上游基线 | `42bc7f6cf`（`v0.2.11`，已合并入本分支） |
-| 分支共同祖先 | `42bc7f6cf`（`v0.2.11`，本次合并后） |
+| 统计日期 | 2026-10-02 |
+| 上游基线 | `b8dece900`（`v0.2.13`，已合并入本分支） |
+| 分支共同祖先 | `b8dece900`（`v0.2.13`，本次合并后） |
 | 差异规模 | 以以下重新核对命令为准 |
 
-合并 `v0.2.11` 后 `request-audit` 不再落后本次拉取的上游（`git rev-list --count HEAD..upstream/main` = 0）。
+合并 `v0.2.13` 后 `request-audit` 不再落后本次拉取的上游（`git rev-list --count HEAD..upstream/main` = 0）。
 
 本次生产源码复核以合并后的 `request-audit` 为基线；该提交包含上游
-`v0.2.11` 及本文件列出的独有功能。仓库没有可访问的 GitHub Wiki remote，
+`v0.2.13` 及本文件列出的独有功能。仓库没有可访问的 GitHub Wiki remote，
 因此本文件和 [MERGE_RECORDS.md](./MERGE_RECORDS.md) 是当前可发布的二开记录。
 
 重新核对清单：
@@ -43,7 +43,13 @@ v0.2.3 采用上游 `236_group_model_allowlist_repair.sql` 修复旧列残留或
 
 ## 功能一览
 
-2026-09-30 合并采用上游余额在途预占、复合分组 WS 别名/账号模型归属修复、
+2026-10-02 同步上游 v0.2.13：采用 TypeSafe System One 原生平台、验证码原子尝试计数、
+一次性重置令牌、公开订单验证限流、删除 API key 后的用量结算修复和充值优惠阶梯。
+新增两条上游 241 迁移（支付赠送字段、TypeSafe 平台约束），不改写旧订单金额。
+System One 保持上游原生协议与内容安全审计，本地直答仍仅覆盖既有三种协议。
+
+
+2026-10-02 合并采用上游余额在途预占、复合分组 WS 别名/账号模型归属修复、
 风控用户白名单和 Claude 额度重置功能。请求审计/本地直答、Realtime 音频计费与
 能力快照、Gemini Images、媒体 S3、签到、Studio 售价接口、支付及模型广场独有
 展示继续保留。余额预占默认开启，但独有 OpenAI Realtime 的逐回合 token 路径
@@ -742,61 +748,30 @@ Realtime/TTS/STT 的配置/默认/显式免费语义、token 高峰倍率与按�
 
 ---
 
-## 16. 可配置充值档位与到账公式（2026-09-09）
+## 16. 充值档位展示与上游优惠阶梯（2026-10-02）
 
-上游充值页是快捷金额 + 自定义输入。本分支改成后台可配置的档位卡片，并在余额订单上快照到账额。上游 `docs/PAYMENT.md` / `docs/PAYMENT_CN.md` 不写这些行为，说明只放在本文件。
+v0.2.13 起，赠送/折扣采用上游 `payment_recharge_bonus.go` 与
+`frontend/src/utils/rechargeBonus.ts`，不再维护本地固定档位赠送算法。
+保留上游没有的卡片名称、说明、推荐徽章和独立充值确认框，以及 Infini 报价/汇率。
 
-**到账公式（服务端为准）**
+- 后台卡片编辑器只配置金额和展示信息；优惠统一在「充值优惠阶梯」设置。
+- **升级后原 `BALANCE_RECHARGE_PACKAGES[].bonus` 不再参与新订单。** 旧数据库 JSON
+  不自动改写，读取/保存时忽略该字段；需要继续促销时，应在上游阶梯中配置百分比。
+  固定金额赠送不能无损映射成按阈值命中的百分比，因此不自动转换。
+- 赠金模式：到账 = `round(输入金额 × 余额倍率, 2)` + 上游计算的百分比赠送。
+- 折扣模式：到账保持输入金额 × 倍率，实付基数按折扣减少。Infini 对折后基数
+  除以独立 USDT 汇率，最后按支付币种加手续费；赠送/折扣只应用一次。
+- QuoteOrder 与 CreateOrder 共用报价逻辑。`package_amount` 保留原始输入，
+  `amount/credit_amount` 是含优惠的到账总额，`pay_amount` 是实际网关收款；
+  `bonus_amount` 为到账额中免费的部分，不在履约时再次相加。
+- 老订单继续按已存 Amount/PayAmount 和快照履约，新列 bonus_amount 默认 0；
+  无法从旧行还原赠送拆分，历史返利基数保持原口径，不重算旧账。
+- 卡片的 credit/bonus 从后端上游报价投影；确认框显示后端 quote，折扣不展示成
+  额外赠送。渠道限额按优惠、FX 和手续费后的实付判断。下单只提交原输入金额。
+- 既有回调验签、最小货币单位金额校验、幂等、退款和 Infini 固定 USD 继续保留。
 
-```text
-到账 USD = round(实付金额 × 余额充值倍率 + 该档位赠送 USD, 2)
-```
-
-- 倍率始终参与换算。某个档位填写赠送，不会让其他匹配档位改走「实付 + 赠送、跳过倍率」。
-- 赠送额是明确的 USD，不是「到账 USD」覆盖字段。需要完全自定义到账额时，应另做配置，而不是靠「别的档位有没有赠送」切换算法。
-- 未匹配任何档位的金额只做倍率换算，不加赠送。
-- 用户身份来自登录态；客户端只提交档位金额和支付方式，赠送由服务端按当前配置计算。
-- 创建订单时把到账额写入 `payment_orders.amount`，实付写入 `pay_amount`。之后改档位或倍率不会追溯旧订单。
-- 回调仍核对实付金额；到账走既有兑换码 / 履约幂等。重复回调不得再次加余额。
-
-**入口与配置**
-
-- 管理后台 `系统设置 → 支付设置`：`payment_balance_recharge_multiplier`、`payment_balance_recharge_packages`。
-- 用户页 `/purchase` 充值 Tab：档位卡片 → 确认框先选支付方式（同一栏可以混 CNY/USD）→ 独立确认后下单。
-- `GET /api/v1/payment/checkout-info` 返回带 `credit` / `bonus` 的档位列表，供前端展示；下单仍只传金额。
-
-**关键文件**
-
-```text
-backend/internal/service/payment_amounts.go
-backend/internal/service/recharge_packages.go
-backend/internal/service/payment_order.go
-backend/internal/handler/payment_handler.go
-frontend/src/components/payment/rechargePackages.ts
-frontend/src/views/user/PaymentView.vue
-frontend/src/components/payment/RechargePackageGrid.vue
-frontend/src/components/payment/RechargeCheckoutDialog.vue
-frontend/src/components/payment/RechargePackageSettingsEditor.vue
-```
-
-**资金与 UX 边界**
-
-- `paymentMethodLane` 只区分 USDT/加密通道与其他方式；RMB 栏里仍可能同时有支付宝 CNY 和 Stripe USD。
-- 确认框比档位卡片更宽、留白更大。支付方式按钮用透明底，露出支付宝 / Stripe / Infini 等彩色 logo，不再铺满品牌实色。
-- 到账行只展示倍率后的基础额度；档位卡片和确认框共用同一套赠送徽章，中文 `+$2.99+送`，英文 `Extra $2.99`。底部「支持」品牌行居中。卡片不再把「获得额度」写两遍。
-- 确认框里选择支付方式与确认付款分开。切换方式后先更新币种、应付、手续费和到账预览，再由用户点独立确认按钮下单。
-- 下单使用用户刚确认的同一支付方式；确认框打开或提交期间不会自动改选。
-- 未选中可用方式时不能提交；提交中锁定选择并忽略重复确认。
-- 档位售价按支付币种精度展示，不能把 `10.49` 收成整数 `10`。
-- 未再使用的 `AmountInput.vue` 保持上游原样式，避免无引用的样式分叉。
-- 支付渠道、回调验签、兑现、幂等和退款核心流程不重写。
-
-**测试**
-
-- 后端：`recharge_packages_test.go` 覆盖倍率 + 赠送、以及「另一档有赠送时零赠送档仍走倍率」。
-- 后端：`payment_order_credit_snapshot_test.go` 走配置服务写入倍率 0.14 / 档位 200+赠送 5 → 真实 `PaymentService.CreateOrder`（EasyPay popup + 离线 load balancer，无真实付费）→ 订单 `Amount=33`、`PayAmount=200` → 改配置后再成功回调仍到账 33，重复回调不加余额，实付不符不到账。
-- 后端：`payment_fulfillment_test.go` 的 `TestBonusPackageNotificationCreditsOrderSnapshotAndIgnoresReplay` 只覆盖「已落库订单行 + 回调履约」，不代替上面的 CreateOrder 链路。
-- 前端 CI 白名单（根 `Makefile` 的 `FRONTEND_CRITICAL_VITEST`）登记 `rechargePackages`、`RechargeCheckoutDialog`、`RechargeCreditLine`、`RechargePackageSettingsEditor`、`RechargePackageGrid`、`currency` 与既有 `PaymentView`。PaymentView 覆盖支付宝 CNY 切到 Stripe USD 先改预览再确认，以及不可用方式 / 重复确认。
+测试包括上游 bonus/discount 阶梯、原档位赠送不叠加、Infini 折扣后 FX 与手续费、
+报价/金额快照一致、改配置后旧订单到账不变及重复回调。相关前端测试登记在根 Makefile。
 
 ---
 
@@ -833,8 +808,8 @@ Makefile 的 CI 白名单，覆盖分类切换、保留展示价格、隐藏不�
 - 默认 `pay_methods=1`（链上加密/USDT）。Webhook：`POST /api/v1/payment/webhook/infini`，按 `timestamp.event_id.raw_body` 做 HMAC-SHA256 hex 验签（5 分钟时间窗，原始 body，禁止重序列化）。`event_id` 持久化去重。
 - Infini 官方 `order.late_payment` 的 `status` 仍是 `expired`，以 `amount_confirmed` 为准。足额到账必须履约；不足额/缺金额/币种不符拒绝履约并写审计。`order.expired` 仅在存在 `amount_confirmed` 时作为迟到账候选，禁止用应付 `amount` 冒充已付。
 - 下单写入 schema_version=3 金额快照（套餐/到账/实付/手续费/汇率/币种/通道/实例）。Webhook 按快照 `pay_amount` 做最小货币单位精确比对，配置变更不影响旧单。
-- 余额套餐仍按人民币数字定价。到账公式不变：`round(套餐 × 余额充值倍率 + 赠送, 2)`。支付宝/Stripe 不换算，也不要用全局倍率去“充当” USDT 汇率。
-- Infini/USDT 实付用独立设置 `USDT_USD_TO_CNY_RATE`（后台「USDT 余额换算汇率」）：`round(套餐 / 汇率, 2) + ceil(手续费)`。0 时回退 `SUBSCRIPTION_USD_TO_CNY_RATE`，方便存量只配了订阅汇率的站点。订阅 CNY 仍只看订阅汇率：`round(price × 汇率, 2)`。负数/NaN/Inf/超范围拒绝下单。
+- 余额套餐仍按人民币数字定价。到账由上游优惠阶梯计算，详见第 16 节。支付宝/Stripe 不换算，也不要用全局倍率去“充当” USDT 汇率。
+- Infini/USDT 实付用独立设置 `USDT_USD_TO_CNY_RATE`（后台「USDT 余额换算汇率」）：`round(上游优惠后的实付基数 / 汇率, 2) + ceil(手续费)`。0 时回退 `SUBSCRIPTION_USD_TO_CNY_RATE`，方便存量只配了订阅汇率的站点。订阅 CNY 仍只看订阅汇率：`round(price × 汇率, 2)`。负数/NaN/Inf/超范围拒绝下单。
 - Infini 下单法币只允许 USD。`InfiniSettlementCurrency` 固定返回 USD，不会返回 USDT。实例币种填了 CNY/USDT/空/其它码时，QuoteOrder 和 CreateOrder 走同一套 `resolveOrderSettlementCurrency`，quote/checkout-info/快照/CreatePayment 一律 USD，并仍按套餐 ÷ 汇率换算。Infini 报 `40016 Unsupported order currency` 就是把 CNY 传上去了。
 - Infini 上游下单失败返回 `PAYMENT_PROVIDER_CREATE_FAILED`（检查密钥与环境），不再伪装成「支付方式不可用」。未配置实例返回 `PAYMENT_METHOD_NOT_CONFIGURED`。失败订单写入 `failed_reason`。
 - 前端充值实付金额只展示 `POST /payment/quote` 的后端结果，下单只传套餐 `amount` + `payment_type`。Infini 无商户退款 API。

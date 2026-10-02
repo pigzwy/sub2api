@@ -506,7 +506,7 @@ describe('PaymentView recharge rate preview', () => {
     ])
   })
 
-  it('credits pay amount times rate plus that package bonus only', async () => {
+  it('uses the server promotion bonus without stacking the card bonus', async () => {
     routeState.path = '/purchase'
     routeState.query = {}
     getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
@@ -518,7 +518,7 @@ describe('PaymentView recharge rate preview', () => {
     }))
     quoteOrder.mockImplementation(async (data) => {
       const credit = data.amount === 200 ? '33.00' : data.amount === 100 ? '14.00' : Number(data.amount || 0).toFixed(2)
-      return quoteOrderFixture(data, { credit_amount: credit })
+      return quoteOrderFixture(data, { credit_amount: credit, bonus_amount: data.amount === 200 ? '5.00' : '0.00', bonus_mode: 'bonus' })
     })
 
     const wrapper = shallowMount(PaymentView, {

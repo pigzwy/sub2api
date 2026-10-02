@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/Wei-Shaw/sub2api/internal/payment"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/shopspring/decimal"
 )
@@ -24,7 +25,7 @@ var rechargePackageIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,31}$`)
 type RechargePackage struct {
 	ID            string  `json:"id"`
 	Amount        float64 `json:"amount"`
-	Bonus         float64 `json:"bonus"`
+	Bonus         float64 `json:"bonus"` // Legacy input only; promotions are configured through RechargeBonusTiers.
 	Badge         string  `json:"badge,omitempty"`
 	Name          string  `json:"name"`
 	Description   string  `json:"description"`
@@ -109,10 +110,6 @@ func normalizeRechargePackage(pkg RechargePackage, index int) (RechargePackage, 
 	if !amount.IsPositive() {
 		return RechargePackage{}, infraerrors.BadRequest("INVALID_RECHARGE_PACKAGES", fmt.Sprintf("package #%d amount must be greater than 0", index+1))
 	}
-	bonus := decimal.NewFromFloat(pkg.Bonus).Round(2)
-	if bonus.IsNegative() {
-		return RechargePackage{}, infraerrors.BadRequest("INVALID_RECHARGE_PACKAGES", fmt.Sprintf("package #%d bonus cannot be negative", index+1))
-	}
 	name := strings.TrimSpace(pkg.Name)
 	if name == "" {
 		return RechargePackage{}, infraerrors.BadRequest("INVALID_RECHARGE_PACKAGES", fmt.Sprintf("package #%d name is required", index+1))
@@ -140,9 +137,9 @@ func normalizeRechargePackage(pkg RechargePackage, index int) (RechargePackage, 
 		return RechargePackage{}, infraerrors.BadRequest("INVALID_RECHARGE_PACKAGES", fmt.Sprintf("package #%d id is invalid", index+1))
 	}
 	return RechargePackage{
-		ID:            id,
-		Amount:        amount.InexactFloat64(),
-		Bonus:         bonus.InexactFloat64(),
+		ID:     id,
+		Amount: amount.InexactFloat64(),
+
 		Badge:         normalizeRechargePackageBadge(pkg.Badge),
 		Name:          name,
 		Description:   description,
@@ -179,18 +176,22 @@ func FindRechargePackageByAmount(packages []RechargePackage, amount float64) (Re
 	return RechargePackage{}, false
 }
 
-func BuildCheckoutRechargePackages(packages []RechargePackage, multiplier float64) []CheckoutRechargePackage {
+func BuildCheckoutRechargePackages(packages []RechargePackage, cfg *PaymentConfig) []CheckoutRechargePackage {
 	if len(packages) == 0 {
 		packages = DefaultRechargePackages()
 	}
 	out := make([]CheckoutRechargePackage, 0, len(packages))
 	for _, pkg := range packages {
-		credit := calculateCreditedBalance(pkg.Amount, multiplier, packages)
+		quote := quoteRechargeBonus(cfg, pkg.Amount, payment.DefaultPaymentCurrency)
+		bonus := quote.Bonus
+		if cfg.RechargeBonusMode == RechargeBonusModeDiscount {
+			bonus = 0 // A discount is not additional credited balance.
+		}
 		out = append(out, CheckoutRechargePackage{
 			ID:            pkg.ID,
 			Amount:        pkg.Amount,
-			Bonus:         pkg.Bonus,
-			Credit:        credit,
+			Bonus:         bonus,
+			Credit:        quote.Credited,
 			Badge:         pkg.Badge,
 			Name:          pkg.Name,
 			Description:   pkg.Description,

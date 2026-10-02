@@ -18,6 +18,33 @@
 上游正式实现 > 上游后续安全修复 > 本地旧二开 > 历史兼容代码
 ```
 
+## 2026-10-02：合并上游 v0.2.13
+
+从 `4bb7a7e36`（已含 v0.2.11）合并 `b8dece900`（v0.2.13），共同祖先
+`42bc7f6cf`。Git fetch 与 GitHub API SHA 一致；上游新增 39 个提交，157 个文件
+（+6,027 / -314）。合并前备份：`backup/request-audit-before-v0.2.13-20261002`。
+
+采用上游 TypeSafe System One 原生协议及平台配额、账号优先级快捷调整、API key 按组
+排序、验证码原子计数与一次性哈希重置令牌、公开订单查询限流、Axios 1.20.0、
+Grok CLI 身份头、上游错误脱敏，以及删除 API key 后的用量结算修复。
+
+8 处文本冲突均在支付设置/报价/页面。上游充值优惠阶梯取代二开固定档位赠送算法，
+保留卡片展示、Infini 固定 USD 与独立 FX、后端报价和确认框。折扣先作用于输入金额，
+再做 Infini FX 和手续费；到账与 bonus_amount 使用上游报价，后者已包含在 amount 中。
+报价、创建订单、卡片投影统一规则，快照 package_amount 保留原始输入，防止优惠重复应用。
+
+**运营变化**：原充值档位 JSON 的固定 bonus 不再用于新订单，管理员需在上游阶梯
+配置赠送/折扣；不自动把固定赠送转换为语义不同的百分比阶梯。已创建订单 Amount/PayAmount
+不重算，旧 bonus_amount 默认 0，历史返利基数保持原口径。详见功能清单第 16 节。
+
+新增 `241_add_payment_order_bonus_amount.sql` 与 `241_add_typesafe_platform.sql`
+均采用上游原文；runner 按完整文件名登记，同号无文件名冲突，不删除业务记录。
+Ent 支付生成文件采用上游字段顺序，保留 fork 的 RequestAuditLog 与 Group.AllowRealtime。
+Go 与三个 Dockerfile 仍为 1.27.0；Infini 签名、回调与模型广场排序未改动。
+
+按本机不构建/测试约定，仅执行 gofmt、差异和静态检查；完整 unit、integration、
+frontend 和 golangci-lint 由 GitHub Actions 验证。本次不部署、不重启生产容器。
+
 ## 2026-09-30：合并上游 v0.2.11
 
 先将本地 `request-audit` 快进至远端 `8c4cd8755`（已含 v0.2.8），再合并
