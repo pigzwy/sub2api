@@ -9,9 +9,55 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/requestmodel"
 	coderws "github.com/coder/websocket"
 	"github.com/stretchr/testify/require"
 )
+
+func TestReadOpenAIWSClientMessageRejectsAmbiguousSessionFrames(t *testing.T) {
+	for _, payload := range []string{
+		`{"type":"session.update","session":{"model":"a","Model":"b"}}`,
+		`{"type":"session.update","session":{},"Session":{"model":"b"}}`,
+		`{"type":"response.create","model":"a","\u006dodel":"a"}`,
+	} {
+		for _, messageType := range []coderws.MessageType{coderws.MessageText, coderws.MessageBinary} {
+			t.Run(payload+messageType.String(), func(t *testing.T) {
+				result := make(chan error, 1)
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					conn, err := coderws.Accept(w, r, nil)
+					if err != nil {
+						result <- err
+						return
+					}
+					defer conn.CloseNow()
+					_, body, err := ReadOpenAIWSClientMessage(r.Context(), conn, time.Second, coderws.StatusPolicyViolation, "timeout")
+					if len(body) > 0 {
+						result <- errors.New("ambiguous payload exposed to forwarding caller")
+						return
+					}
+					result <- err
+				}))
+				defer server.Close()
+				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+				defer cancel()
+				client, _, err := coderws.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http"), nil)
+				require.NoError(t, err)
+				defer client.CloseNow()
+				require.NoError(t, client.Write(ctx, messageType, []byte(payload)))
+				_, _, err = client.Read(ctx)
+				require.Equal(t, coderws.StatusPolicyViolation, coderws.CloseStatus(err))
+				select {
+				case err := <-result:
+					var closeErr *OpenAIWSClientCloseError
+					require.ErrorAs(t, err, &closeErr)
+					require.Equal(t, requestmodel.AmbiguousModelMessage, closeErr.Reason())
+				case <-ctx.Done():
+					t.Fatal("reader did not exit")
+				}
+			})
+		}
+	}
+}
 
 func TestReadOpenAIWSClientMessage_ControlCloseFrames(t *testing.T) {
 	tests := []struct {
