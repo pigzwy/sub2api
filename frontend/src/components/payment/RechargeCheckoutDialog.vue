@@ -113,7 +113,7 @@
             <span
               v-for="brand in supportedBrands"
               :key="brand.alt"
-              class="inline-flex h-6 items-center rounded-md bg-white px-1 shadow-sm"
+              class="inline-flex h-7 items-center rounded-md bg-white px-1 shadow-sm"
             >
               <img
                 :src="brand.src"
@@ -200,12 +200,12 @@ const rmbBrands = [
   { src: dollarIcon, alt: 'USD', class: 'h-5 w-5 object-contain' },
 ]
 const usdtBrands = [
-  { src: bnbIcon, alt: 'BNB', class: 'h-5 w-5 object-contain' },
-  { src: arbitrumIcon, alt: 'Arbitrum', class: 'h-5 w-5 object-contain' },
-  { src: ethereumIcon, alt: 'Ethereum', class: 'h-5 w-5 object-contain' },
-  { src: solanaIcon, alt: 'Solana', class: 'h-5 w-5 object-contain' },
-  { src: tronIcon, alt: 'TRON', class: 'h-5 w-5 object-contain' },
-  { src: baseIcon, alt: 'Base', class: 'h-5 w-5 object-contain' },
+  { src: bnbIcon, alt: 'BNB', class: 'h-6 w-6 object-contain' },
+  { src: arbitrumIcon, alt: 'Arbitrum', class: 'h-6 w-6 object-contain' },
+  { src: ethereumIcon, alt: 'Ethereum', class: 'h-6 w-6 object-contain' },
+  { src: solanaIcon, alt: 'Solana', class: 'h-6 w-6 object-contain' },
+  { src: tronIcon, alt: 'TRON', class: 'h-6 w-6 object-contain' },
+  { src: baseIcon, alt: 'Base', class: 'h-6 w-6 object-contain' },
 ]
 const supportedBrands = computed(() => {
   const types = new Set(visibleMethods.value.map((method) => method.type.toLowerCase()))
