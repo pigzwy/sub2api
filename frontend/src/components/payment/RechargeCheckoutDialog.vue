@@ -145,8 +145,12 @@ import visaIcon from '@/assets/icons/visa.svg'
 import mastercardIcon from '@/assets/icons/mastercard.svg'
 import applePayIcon from '@/assets/icons/apple-pay.svg'
 import dollarIcon from '@/assets/icons/dollar.svg'
-import usdtIcon from '@/assets/icons/usdt.svg'
-import usdcIcon from '@/assets/icons/usdc.svg'
+import bnbIcon from '@/assets/icons/bsc.svg'
+import arbitrumIcon from '@/assets/icons/arbitrum.svg'
+import ethereumIcon from '@/assets/icons/ethereum.svg'
+import solanaIcon from '@/assets/icons/solana.svg'
+import tronIcon from '@/assets/icons/tron.svg'
+import baseIcon from '@/assets/icons/base.svg'
 
 const CHECKOUT_METHOD_BUTTON_CLASS = [
   'inline-flex w-full items-center justify-center gap-3 rounded-2xl border border-gray-200',
@@ -196,8 +200,12 @@ const rmbBrands = [
   { src: dollarIcon, alt: 'USD', class: 'h-5 w-5 object-contain' },
 ]
 const usdtBrands = [
-  { src: usdtIcon, alt: 'USDT', class: 'h-5 w-auto object-contain' },
-  { src: usdcIcon, alt: 'USDC', class: 'h-5 w-auto object-contain' },
+  { src: bnbIcon, alt: 'BNB', class: 'h-5 w-5 object-contain' },
+  { src: arbitrumIcon, alt: 'Arbitrum', class: 'h-5 w-5 object-contain' },
+  { src: ethereumIcon, alt: 'Ethereum', class: 'h-5 w-5 object-contain' },
+  { src: solanaIcon, alt: 'Solana', class: 'h-5 w-5 object-contain' },
+  { src: tronIcon, alt: 'TRON', class: 'h-5 w-5 object-contain' },
+  { src: baseIcon, alt: 'Base', class: 'h-5 w-5 object-contain' },
 ]
 const supportedBrands = computed(() => {
   const types = new Set(visibleMethods.value.map((method) => method.type.toLowerCase()))

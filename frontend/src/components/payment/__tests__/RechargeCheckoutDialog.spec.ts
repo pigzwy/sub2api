@@ -191,7 +191,7 @@ describe('RechargeCheckoutDialog', () => {
     wrapper.unmount()
   })
 
-  it('shows stablecoin marks on the USDT lane and does not show the Infini mark', async () => {
+  it('shows network marks on the USDT lane and does not show the Infini mark', async () => {
     const wrapper = mountDialog({
       selected: 'infini',
       lane: 'usdt',
@@ -203,8 +203,12 @@ describe('RechargeCheckoutDialog', () => {
     const brands = document.body.querySelector('[data-testid="supported-methods"]')
     expect(brands?.getAttribute('data-lane')).toBe('usdt')
     expect(Array.from(brands?.querySelectorAll('img') ?? []).map((img) => img.getAttribute('alt'))).toEqual([
-      'USDT',
-      'USDC',
+      'BNB',
+      'Arbitrum',
+      'Ethereum',
+      'Solana',
+      'TRON',
+      'Base',
     ])
     wrapper.unmount()
   })
