@@ -1,6 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="Solana">
+  <defs>
+    <linearGradient id="solana" x1="5" y1="18" x2="19" y2="6" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9945FF"/>
+      <stop offset=".55" stop-color="#14F195"/>
+      <stop offset="1" stop-color="#00FFA3"/>
+    </linearGradient>
+  </defs>
   <circle cx="12" cy="12" r="11" fill="#000000"/>
-  <path fill="#14F195" d="M7.2 8.1h8.4c.3 0 .5.3.3.6L14.7 10H6.9c-.3 0-.5-.3-.3-.6L7.2 8.1z"/>
-  <path fill="#9945FF" d="M7.2 11.1h8.4c.3 0 .5.3.3.6L14.7 13H6.9c-.3 0-.5-.3-.3-.6l.6-1.3z"/>
-  <path fill="#00FFA3" d="M7.2 14.1h8.4c.3 0 .5.3.3.6L14.7 16H6.9c-.3 0-.5-.3-.3-.6l.6-1.3z"/>
+  <path fill="url(#solana)" d="M6.6 8.85h8.9l1.7-1.55H8.3L6.6 8.85z"/>
+  <path fill="url(#solana)" d="M6.6 12.85h8.9L13.8 11.3H4.9l1.7 1.55z"/>
+  <path fill="url(#solana)" d="M6.6 16.7h8.9l1.7-1.55H8.3l-1.7 1.55z"/>
 </svg>

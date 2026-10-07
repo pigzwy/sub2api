@@ -172,7 +172,26 @@ describe('RechargeCheckoutDialog', () => {
     wrapper.unmount()
   })
 
-  it('shows only the configured Infini mark in the USDT lane', async () => {
+  it('shows Alipay and WeChat beside the card marks when Stripe is enabled', () => {
+    const wrapper = mountDialog({
+      selected: 'stripe',
+      rmbMethods: [{ type: 'stripe', display_name: 'Stripe', fee_rate: 0, available: true }],
+      usdtMethods: [],
+    })
+
+    const brands = document.body.querySelector('[data-testid="supported-methods"]')
+    expect(Array.from(brands?.querySelectorAll('img') ?? []).map((img) => img.getAttribute('alt'))).toEqual([
+      'Alipay',
+      'WeChat Pay',
+      'Visa',
+      'Mastercard',
+      'Apple Pay',
+      'USD',
+    ])
+    wrapper.unmount()
+  })
+
+  it('shows network marks on the USDT lane and does not show the Infini mark', async () => {
     const wrapper = mountDialog({
       selected: 'infini',
       lane: 'usdt',
@@ -183,7 +202,14 @@ describe('RechargeCheckoutDialog', () => {
     await wrapper.setProps({ lane: 'usdt' })
     const brands = document.body.querySelector('[data-testid="supported-methods"]')
     expect(brands?.getAttribute('data-lane')).toBe('usdt')
-    expect(Array.from(brands?.querySelectorAll('img') ?? []).map((img) => img.getAttribute('alt'))).toEqual(['Infini'])
+    expect(Array.from(brands?.querySelectorAll('img') ?? []).map((img) => img.getAttribute('alt'))).toEqual([
+      'BNB',
+      'Arbitrum',
+      'Ethereum',
+      'Solana',
+      'TRON',
+      'Base',
+    ])
     wrapper.unmount()
   })
 })

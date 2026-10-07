@@ -107,13 +107,13 @@
           <div
             data-testid="supported-methods"
             :data-lane="lane"
-            class="flex flex-wrap items-center justify-center gap-2 px-6 pb-6 pt-4 text-xs font-medium text-gray-500 dark:text-gray-300"
+            class="flex flex-wrap items-center justify-center gap-3 px-6 pb-6 pt-4 text-xs font-medium text-gray-500 dark:text-gray-300"
           >
             <span>{{ t('payment.supportedMethods') }}</span>
             <span
               v-for="brand in supportedBrands"
               :key="brand.alt"
-              class="inline-flex h-6 items-center rounded-md bg-white px-1 shadow-sm"
+              class="inline-flex items-center"
             >
               <img
                 :src="brand.src"
@@ -141,10 +141,18 @@ import stripeIcon from '@/assets/icons/stripe.svg'
 import airwallexIcon from '@/assets/icons/airwallex.svg'
 import infiniIcon from '@/assets/icons/infini.svg'
 import paymentIcon from '@/assets/icons/payment.svg'
+import alipayMark from '@/assets/icons/alipay-mark.svg'
+import wechatMark from '@/assets/icons/wechat-mark.svg'
 import visaIcon from '@/assets/icons/visa.svg'
 import mastercardIcon from '@/assets/icons/mastercard.svg'
 import applePayIcon from '@/assets/icons/apple-pay.svg'
 import dollarIcon from '@/assets/icons/dollar.svg'
+import bnbIcon from '@/assets/icons/bsc.svg'
+import arbitrumIcon from '@/assets/icons/arbitrum.svg'
+import ethereumIcon from '@/assets/icons/ethereum.svg'
+import solanaIcon from '@/assets/icons/solana.svg'
+import tronIcon from '@/assets/icons/tron.svg'
+import baseIcon from '@/assets/icons/base.svg'
 
 const CHECKOUT_METHOD_BUTTON_CLASS = [
   'inline-flex w-full items-center justify-center gap-3 rounded-2xl border border-gray-200',
@@ -186,23 +194,32 @@ const { t } = useI18n()
 const showLaneToggle = computed(() => props.rmbMethods.length > 0 && props.usdtMethods.length > 0)
 const visibleMethods = computed(() => (props.lane === 'usdt' ? props.usdtMethods : props.rmbMethods))
 const rmbBrands = [
-  { src: alipayIcon, alt: 'Alipay', class: 'h-5 w-5 object-contain' },
-  { src: wxpayIcon, alt: 'WeChat Pay', class: 'h-5 w-5 object-contain' },
+  { src: alipayMark, alt: 'Alipay', class: 'h-6 w-6 object-contain' },
+  { src: wechatMark, alt: 'WeChat Pay', class: 'h-6 w-6 object-contain' },
   { src: visaIcon, alt: 'Visa', class: 'h-3.5 w-auto object-contain' },
-  { src: mastercardIcon, alt: 'Mastercard', class: 'h-5 w-auto object-contain' },
-  { src: applePayIcon, alt: 'Apple Pay', class: 'h-5 w-5 object-contain' },
-  { src: dollarIcon, alt: 'USD', class: 'h-5 w-5 object-contain' },
+  { src: mastercardIcon, alt: 'Mastercard', class: 'h-6 w-auto object-contain' },
+  { src: applePayIcon, alt: 'Apple Pay', class: 'h-6 w-auto object-contain' },
+  { src: dollarIcon, alt: 'USD', class: 'h-6 w-6 object-contain' },
+]
+const usdtBrands = [
+  { src: bnbIcon, alt: 'BNB', class: 'h-6 w-6 object-contain' },
+  { src: arbitrumIcon, alt: 'Arbitrum', class: 'h-6 w-6 object-contain' },
+  { src: ethereumIcon, alt: 'Ethereum', class: 'h-6 w-6 object-contain' },
+  { src: solanaIcon, alt: 'Solana', class: 'h-6 w-6 object-contain' },
+  { src: tronIcon, alt: 'TRON', class: 'h-6 w-6 object-contain' },
+  { src: baseIcon, alt: 'Base', class: 'h-6 w-6 object-contain' },
 ]
 const supportedBrands = computed(() => {
   const types = new Set(visibleMethods.value.map((method) => method.type.toLowerCase()))
+  const hasStripe = types.has('stripe')
   if (props.lane === 'usdt') {
-    return types.has('infini') ? [{ src: infiniIcon, alt: 'Infini', class: 'h-5 w-5 object-contain' }] : []
+    return types.size === 0 ? [] : usdtBrands
   }
   return rmbBrands.filter((brand) => {
-    if (brand.alt === 'Alipay') return types.has('alipay') || types.has('alipay_direct')
-    if (brand.alt === 'WeChat Pay') return types.has('wxpay') || types.has('wxpay_direct')
-    if (['Visa', 'Mastercard', 'Apple Pay'].includes(brand.alt)) return types.has('stripe')
-    if (brand.alt === 'USD') return types.has('stripe') || types.has('airwallex')
+    if (brand.alt === 'Alipay') return hasStripe || types.has('alipay') || types.has('alipay_direct')
+    if (brand.alt === 'WeChat Pay') return hasStripe || types.has('wxpay') || types.has('wxpay_direct')
+    if (['Visa', 'Mastercard', 'Apple Pay'].includes(brand.alt)) return hasStripe
+    if (brand.alt === 'USD') return hasStripe || types.has('airwallex')
     return false
   })
 })
