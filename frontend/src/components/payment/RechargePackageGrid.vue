@@ -34,9 +34,10 @@
         </p>
         <span
           v-if="bonusOf(pkg) > 0"
+          data-testid="package-extra-bonus"
           class="mb-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-400/15 dark:text-amber-200"
         >
-          {{ t('payment.bonusTag', { amount: formatUsd(bonusOf(pkg)) }) }}
+          {{ t('payment.extraBonus', { amount: formatUsd(bonusOf(pkg)) }) }}
         </span>
       </div>
       <p class="mt-2 truncate text-sm text-gray-600 dark:text-gray-200">
@@ -46,10 +47,6 @@
         />
       </p>
       <ul class="mt-4 flex-1 space-y-2 text-sm text-gray-600 dark:text-gray-300">
-        <li class="flex items-start gap-2">
-          <Icon name="check" size="sm" class="mt-0.5 shrink-0 text-emerald-500" />
-          <span>{{ t('payment.getCredit', { amount: formatUsd(creditOf(pkg)) }) }}</span>
-        </li>
         <li class="flex items-start gap-2">
           <Icon name="check" size="sm" class="mt-0.5 shrink-0 text-emerald-500" />
           <span>{{ t('payment.neverExpires') }}</span>

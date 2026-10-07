@@ -11,6 +11,7 @@ import {
   paymentMethodLane,
   rechargeBonusAmount,
   resolveRechargePackages,
+  resolveUsdtUsdToCnyRate,
   shouldConvertBalancePayAmountToUsd,
 } from '@/components/payment/rechargePackages'
 
@@ -67,9 +68,18 @@ describe('rechargePackages', () => {
     expect(shouldConvertBalancePayAmountToUsd('alipay', 'CNY', 6.67)).toBe(false)
     expect(shouldConvertBalancePayAmountToUsd('infini', 'USD', 0)).toBe(false)
     expect(balanceGatewayPayAmount(50, 'infini', 'USD', 6.67)).toBe(7.5)
+    expect(balanceGatewayPayAmount(50, 'infini', 'CNY', 6.67)).toBe(7.5)
     expect(balanceGatewayPayAmount(50, 'usdt_trc20', 'USDT', 6.67)).toBe(7.5)
     expect(balanceGatewayPayAmount(50, 'infini', 'USD', 0)).toBe(50)
     expect(balanceGatewayPayAmount(50, 'stripe', 'USD', 6.67)).toBe(50)
     expect(balanceGatewayPayAmount(50, 'alipay', 'CNY', 6.67)).toBe(50)
+  })
+
+  it('prefers the dedicated USDT rate and only falls back to the subscription rate', () => {
+    expect(resolveUsdtUsdToCnyRate(6.67, 7.15)).toBe(6.67)
+    expect(resolveUsdtUsdToCnyRate(0, 7.15)).toBe(7.15)
+    expect(resolveUsdtUsdToCnyRate(0, 0)).toBe(0)
+    expect(balanceGatewayPayAmount(50, 'infini', 'USD', resolveUsdtUsdToCnyRate(6.67, 7.15))).toBe(7.5)
+    expect(balanceGatewayPayAmount(50, 'infini', 'USD', resolveUsdtUsdToCnyRate(0, 7.15))).toBe(6.99)
   })
 })

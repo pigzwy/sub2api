@@ -61,8 +61,12 @@
         </template>
         <!-- Tab content (select phase) -->
         <template v-else>
+          <!-- Neither top-up nor subscriptions available (balance recharge disabled via API while subscriptions are off) -->
+          <div v-if="tabs.length === 0" class="card py-16 text-center">
+            <p class="text-gray-500 dark:text-gray-400">{{ t('payment.billingUnavailable') }}</p>
+          </div>
           <!-- Top-up Tab -->
-          <template v-if="activeTab === 'recharge'">
+          <template v-else-if="activeTab === 'recharge'">
             <div v-if="enabledMethods.length === 0" class="card py-16 text-center">
               <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
             </div>
@@ -78,6 +82,7 @@
               :open="showPayDialog"
               :pay-amount-label="rechargePayAmountLabel"
               :credit-amount-label="rechargeCreditAmountLabel"
+              :extra-bonus-label="rechargeExtraBonusLabel"
               :fee-amount-label="rechargeFeeAmountLabel"
               :fee-rate="rechargeQuote?.fee_rate ?? 0"
               :multiplier="balanceRechargeMultiplier"
@@ -235,13 +240,13 @@
     <Teleport to="body">
       <Transition name="modal">
         <div v-if="showRenewalModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" @click.self="closeRenewalModal">
-          <div class="relative w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-dark-700 dark:bg-dark-900">
+          <div class="relative flex max-h-full w-full max-w-lg flex-col rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-dark-700 dark:bg-dark-900">
             <!-- Close button -->
             <button class="absolute right-4 top-4 rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700 dark:hover:text-gray-200" @click="closeRenewalModal">
               <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
-            <h3 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{{ t('payment.selectPlan') }}</h3>
-            <div class="space-y-4">
+            <h3 class="mb-4 shrink-0 text-lg font-semibold text-gray-900 dark:text-white">{{ t('payment.selectPlan') }}</h3>
+            <div class="min-h-0 space-y-4 overflow-y-auto">
               <SubscriptionPlanCard v-for="plan in renewalPlans" :key="plan.id" :plan="plan" :active-subscriptions="activeSubscriptions" @select="selectPlanFromModal" />
             </div>
           </div>
@@ -270,6 +275,7 @@ import { useAuthStore } from '@/stores/auth'
 import { usePaymentStore } from '@/stores/payment'
 import { useSubscriptionStore } from '@/stores/subscriptions'
 import { useAppStore } from '@/stores'
+import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
 import { paymentAPI } from '@/api/payment'
 import { extractApiErrorMessage, extractI18nErrorMessage } from '@/utils/apiError'
 import { isMobileDevice } from '@/utils/device'
@@ -280,11 +286,14 @@ import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector.vu
 import RechargePackageGrid from '@/components/payment/RechargePackageGrid.vue'
 import RechargeCheckoutDialog from '@/components/payment/RechargeCheckoutDialog.vue'
 import {
+  balanceGatewayPayAmount,
   filterRechargePackages,
   maxRechargeBonus,
+  packageBonusAmount,
   packageCreditAmount,
   paymentMethodLane,
   resolveRechargePackages,
+  resolveUsdtUsdToCnyRate,
   type PaymentMethodLane,
 } from '@/components/payment/rechargePackages'
 import { METHOD_ORDER, getPaymentPopupFeatures, isBuiltInAlipayMethod, isBuiltInWxpayMethod } from '@/components/payment/providerConfig'
@@ -526,18 +535,31 @@ function onPaymentSettled() {
 // All checkout data from single API call
 const checkout = ref<CheckoutInfoResponse>({
   methods: {}, global_min: 0, global_max: 0,
-  plans: [], balance_disabled: false, balance_recharge_multiplier: 1, balance_recharge_packages: [], subscription_usd_to_cny_rate: 0, recharge_fee_rate: 0, help_text: '', help_image_url: '', stripe_publishable_key: '',
+  plans: [], balance_disabled: false, balance_recharge_multiplier: 1, balance_recharge_packages: [], subscription_usd_to_cny_rate: 0, usdt_usd_to_cny_rate: 0, recharge_fee_rate: 0, help_text: '', help_image_url: '', stripe_publishable_key: '',
 })
 
 const renderedHelpText = computed(() => DOMPurify.sanitize(
   marked.parse(checkout.value.help_text || '', { async: false, gfm: true, breaks: false }),
 ))
 
+// 订阅功能开关（public settings 的 subscription_enabled，opt-out）。关闭后购买页只保留充值：
+// 不再渲染「订阅」tab，只剩单个 tab 时顶部切换器也随之隐藏。
+const subscriptionEnabled = computed(() => resolveFeatureFlag(appStore.cachedPublicSettings, FeatureFlags.subscription))
+
 const tabs = computed(() => {
   const result: { key: 'recharge' | 'subscription'; label: string }[] = []
   if (!checkout.value.balance_disabled) result.push({ key: 'recharge', label: t('payment.tabPayAsYouGo') })
-  result.push({ key: 'subscription', label: t('payment.tabMonthlyPlan') })
+  if (subscriptionEnabled.value) result.push({ key: 'subscription', label: t('payment.tabMonthlyPlan') })
   return result
+})
+
+// tab 列表随 checkout（balance_disabled）与订阅开关变化。当前 tab 不在列表里时收敛到第一个可用 tab，
+// 两个方向都覆盖：关闭订阅 → 回到充值；仅订阅站点重新打开订阅 → 进入订阅。列表为空时模板展示不可用提示。
+watch(tabs, (available) => {
+  if (available.some((tab) => tab.key === activeTab.value)) return
+  const leavingSubscription = activeTab.value === 'subscription'
+  activeTab.value = available[0]?.key ?? 'recharge'
+  if (leavingSubscription) selectedPlan.value = null
 })
 
 const visibleMethods = computed(() => getVisibleMethods(checkout.value.methods))
@@ -547,12 +569,14 @@ const balanceRechargeMultiplier = computed(() => {
   const multiplier = checkout.value.balance_recharge_multiplier
   return Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1
 })
-// USD/CNY 汇率（1 USD = X CNY）。0 = 未配置。
-// 订阅 CNY：price × rate；Infini/USDT 余额：套餐 / rate。到账公式不变。
+// 订阅 CNY：price × 订阅汇率。Infini/USDT 余额实付用专用汇率，未配置才回退订阅汇率。
 const subscriptionUsdToCnyRate = computed(() => {
   const rate = checkout.value.subscription_usd_to_cny_rate
   return Number.isFinite(rate) && rate > 0 ? rate : 0
 })
+const usdtUsdToCnyRate = computed(() =>
+  resolveUsdtUsdToCnyRate(checkout.value.usdt_usd_to_cny_rate, subscriptionUsdToCnyRate.value),
+)
 const configuredPackages = computed(() => resolveRechargePackages(checkout.value.balance_recharge_packages))
 const creditedAmount = computed(() => {
   const selected = configuredPackages.value.find((pkg) => pkg.amount === validAmount.value)
@@ -569,13 +593,21 @@ const planGridClass = computed(() => {
   return 'grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3'
 })
 
+// Recharge Infini/USDT limits are on the converted gateway amount; other lanes keep the package amount.
+function methodLimitAmount(amt: number, methodType: string): number {
+  const ml = visibleMethods.value[methodType]
+  if (!ml || activeTab.value !== 'recharge') return amt
+  return balanceGatewayPayAmount(amt, methodType, ml.currency, usdtUsdToCnyRate.value)
+}
+
 // Check if an amount fits a method's [min, max]. 0 = no limit.
 function amountFitsMethod(amt: number, methodType: string): boolean {
   if (amt <= 0) return true
   const ml = visibleMethods.value[methodType]
   if (!ml) return false
-  if (ml.single_min > 0 && amt < ml.single_min) return false
-  if (ml.single_max > 0 && amt > ml.single_max) return false
+  const limitAmt = methodLimitAmount(amt, methodType)
+  if (ml.single_min > 0 && limitAmt < ml.single_min) return false
+  if (ml.single_max > 0 && limitAmt > ml.single_max) return false
   return true
 }
 
@@ -638,6 +670,10 @@ function formatSelectedPaymentAmount(value: number): string {
   return formatPaymentAmount(value, selectedCurrency.value, localeCode.value)
 }
 
+function formatMethodLimitAmount(value: number, currency?: string | null): string {
+  return formatPaymentAmount(value, normalizePaymentCurrency(currency), localeCode.value)
+}
+
 function formatSelectedSubscriptionPaymentAmount(value: number): string {
   return formatSelectedPaymentAmount(subscriptionPaymentAmountForCurrency(value, selectedCurrency.value))
 }
@@ -681,9 +717,22 @@ const rechargePayAmountLabel = computed(() => {
   if (!rechargeQuote.value) return ''
   return formatPaymentAmount(Number(rechargeQuote.value.pay_amount), rechargeQuote.value.currency, localeCode.value)
 })
+const rechargeExtraBonus = computed(() => {
+  const selected = configuredPackages.value.find((pkg) => pkg.amount === validAmount.value)
+  if (!selected) return 0
+  return packageBonusAmount(selected, configuredPackages.value, balanceRechargeMultiplier.value)
+})
 const rechargeCreditAmountLabel = computed(() => {
-  if (rechargeQuote.value) return `$${Number(rechargeQuote.value.credit_amount).toFixed(2)}`
-  return `$${creditedAmount.value.toFixed(2)}`
+  const extra = rechargeExtraBonus.value
+  const total = rechargeQuote.value
+    ? Number(rechargeQuote.value.credit_amount)
+    : creditedAmount.value
+  const base = Math.max(0, Math.round((total - extra) * 100) / 100)
+  return `$${base.toFixed(2)}`
+})
+const rechargeExtraBonusLabel = computed(() => {
+  const extra = rechargeExtraBonus.value
+  return extra > 0 ? `$${extra.toFixed(2)}` : ''
 })
 const rechargeFeeAmountLabel = computed(() => {
   if (!rechargeQuote.value) return formatPaymentAmount(0, selectedCurrency.value, localeCode.value)
@@ -730,8 +779,13 @@ const amountError = computed(() => {
   // Selected method can't handle this amount (but others can)
   const ml = selectedLimit.value
   if (ml) {
-    if (ml.single_min > 0 && validAmount.value < ml.single_min) return t('payment.amountTooLow', { min: formatSelectedPaymentAmount(ml.single_min) })
-    if (ml.single_max > 0 && validAmount.value > ml.single_max) return t('payment.amountTooHigh', { max: formatSelectedPaymentAmount(ml.single_max) })
+    const limitAmount = methodLimitAmount(validAmount.value, selectedMethod.value)
+    if (ml.single_min > 0 && limitAmount < ml.single_min) {
+      return t('payment.amountTooLow', { min: formatMethodLimitAmount(ml.single_min, ml.currency) })
+    }
+    if (ml.single_max > 0 && limitAmount > ml.single_max) {
+      return t('payment.amountTooHigh', { max: formatMethodLimitAmount(ml.single_max, ml.currency) })
+    }
   }
   return ''
 })
@@ -1322,11 +1376,9 @@ onMounted(async () => {
       }
     }
     await resumeWechatPaymentFromQuery()
-    if (checkout.value.balance_disabled) {
-      activeTab.value = 'subscription'
-    }
-    // Handle renewal navigation: ?tab=subscription&group=123
-    if (route.query.tab === 'subscription') {
+    // balance_disabled → the tabs watcher above moves activeTab to the subscription tab (when enabled).
+    // Handle renewal navigation: ?tab=subscription&group=123 (ignored when subscriptions are disabled)
+    if (route.query.tab === 'subscription' && subscriptionEnabled.value) {
       activeTab.value = 'subscription'
       if (route.query.group) {
         const groupId = Number(route.query.group)
@@ -1341,7 +1393,9 @@ onMounted(async () => {
     }
   } catch (err: unknown) { appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error'))) }
   finally { loading.value = false }
-  // Fetch active subscriptions (uses cache, non-blocking)
-  subscriptionStore.fetchActiveSubscriptions().catch(() => {})
+  // Fetch active subscriptions (uses cache, non-blocking); skipped when the subscription feature is off
+  if (subscriptionEnabled.value) {
+    subscriptionStore.fetchActiveSubscriptions().catch(() => {})
+  }
 })
 </script>

@@ -112,15 +112,21 @@ export function isUsdtPaymentMethod(type: string, currency?: string | null): boo
     || normalizedType.includes('stablecoin')
 }
 
+export function resolveUsdtUsdToCnyRate(usdtRate = 0, subscriptionRate = 0): number {
+  if (Number.isFinite(usdtRate) && usdtRate > 0) return usdtRate
+  if (Number.isFinite(subscriptionRate) && subscriptionRate > 0) return subscriptionRate
+  return 0
+}
+
 export function shouldConvertBalancePayAmountToUsd(
   type: string,
   currency?: string | null,
   usdToCnyRate = 0,
 ): boolean {
   if (!(Number.isFinite(usdToCnyRate) && usdToCnyRate > 0)) return false
-  if (!isUsdtPaymentMethod(type, currency)) return false
-  const normalizedCurrency = String(currency || '').trim().toUpperCase()
-  return normalizedCurrency === 'USD' || normalizedCurrency === 'USDT'
+  // Infini is often labeled CNY in admin because packages are RMB-priced.
+  // Convert by payment type, not the instance currency label.
+  return isUsdtPaymentMethod(type, currency)
 }
 
 // CNY-priced recharge package → Infini/USDT gateway amount.

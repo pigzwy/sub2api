@@ -40,6 +40,9 @@ func (s *PaymentService) QuoteOrder(ctx context.Context, req CreateOrderRequest)
 	if err := validateSubscriptionUSDToCNYRate(cfg.SubscriptionUSDToCNYRate); err != nil {
 		return nil, err
 	}
+	if err := validateSubscriptionUSDToCNYRate(cfg.USDTUSDToCNYRate); err != nil {
+		return nil, err
+	}
 	plan, err := s.validateOrderInput(ctx, req, cfg)
 	if err != nil {
 		return nil, err
@@ -54,23 +57,36 @@ func (s *PaymentService) QuoteOrder(ctx context.Context, req CreateOrderRequest)
 		orderAmount = calculateCreditedBalance(req.Amount, cfg.BalanceRechargeMultiplier, cfg.BalanceRechargePackages)
 	}
 
+	return s.quoteOrderAmounts(ctx, req, cfg, limitAmount, orderAmount, nil)
+}
+
+func (s *PaymentService) quoteOrderAmounts(
+	ctx context.Context,
+	req CreateOrderRequest,
+	cfg *PaymentConfig,
+	limitAmount, orderAmount float64,
+	sel *payment.InstanceSelection,
+) (*QuoteOrderResponse, error) {
 	methodCurrency := payment.DefaultPaymentCurrency
 	if s.configService != nil {
+		var err error
 		methodCurrency, err = s.configService.ValidateMethodCurrencyConsistency(ctx, req.PaymentType)
 		if err != nil {
 			return nil, err
 		}
 	}
+	currency := resolveOrderSettlementCurrency(req.PaymentType, methodCurrency, sel)
 
+	fxRate := resolvePayFXRate(cfg, req.OrderType, req.PaymentType, currency)
 	payAmountStr, payAmount, err := calculateCreateOrderPayAmountForOrderType(
-		limitAmount, cfg.RechargeFeeRate, methodCurrency, req.OrderType, req.PaymentType, cfg.SubscriptionUSDToCNYRate,
+		limitAmount, cfg.RechargeFeeRate, currency, req.OrderType, req.PaymentType, fxRate,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	baseDec, _ := gatewayBaseAmountDecimal(limitAmount, cfg.SubscriptionUSDToCNYRate, methodCurrency, req.OrderType, req.PaymentType)
-	digits := int32(payment.CurrencyMaxFractionDigits(methodCurrency))
+	baseDec, _ := gatewayBaseAmountDecimal(limitAmount, fxRate, currency, req.OrderType, req.PaymentType)
+	digits := int32(payment.CurrencyMaxFractionDigits(currency))
 	payDec, err := decimal.NewFromString(payAmountStr)
 	if err != nil {
 		return nil, fmt.Errorf("quote pay amount: %w", err)
@@ -79,9 +95,6 @@ func (s *PaymentService) QuoteOrder(ctx context.Context, req CreateOrderRequest)
 	if feeDec.IsNegative() {
 		feeDec = decimal.Zero
 	}
-	feeAmount := feeDec.StringFixed(digits)
-	fxRate := normalizeSubscriptionUSDToCNYRate(cfg.SubscriptionUSDToCNYRate)
-	fxConverted := quoteUsesFX(req.OrderType, req.PaymentType, methodCurrency, fxRate)
 
 	return &QuoteOrderResponse{
 		OrderType:      req.OrderType,
@@ -90,11 +103,11 @@ func (s *PaymentService) QuoteOrder(ctx context.Context, req CreateOrderRequest)
 		CreditAmount:   decimal.NewFromFloat(orderAmount).StringFixed(2),
 		PayAmount:      payAmountStr,
 		PayAmountValue: payAmount,
-		FeeAmount:      feeAmount,
+		FeeAmount:      feeDec.StringFixed(digits),
 		FeeRate:        cfg.RechargeFeeRate,
 		FxRate:         fxRate,
-		FxConverted:    fxConverted,
-		Currency:       methodCurrency,
+		FxConverted:    quoteUsesFX(req.OrderType, req.PaymentType, currency, fxRate),
+		Currency:       currency,
 	}, nil
 }
 

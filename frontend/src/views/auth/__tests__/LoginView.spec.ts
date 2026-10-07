@@ -57,7 +57,9 @@ vi.mock('@/stores', () => ({
   useAppStore: () => ({
     showError: vi.fn(),
     showSuccess: vi.fn(),
-    showWarning: vi.fn()
+    showWarning: vi.fn(),
+    // 二开：登录页改从共享设置缓存读取公开设置，避免首屏重复请求。
+    fetchPublicSettings: (...args: unknown[]) => getPublicSettingsMock(...args)
   })
 }))
 

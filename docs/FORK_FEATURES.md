@@ -8,15 +8,15 @@
 
 | 项 | 值 |
 |---|---|
-| 统计日期 | 2026-09-09 |
-| 上游基线 | `98d86915b`（`v0.2.4`，已合并入本分支） |
-| 分支共同祖先 | `98d86915b`（`v0.2.4`，本次合并后） |
-| 差异规模 | 276 个文件（行数以重新核对命令为准） |
+| 统计日期 | 2026-10-07 |
+| 上游基线 | `1400a7b48`（`v0.2.14`，已合并入本分支） |
+| 分支共同祖先 | `1400a7b48`（`v0.2.14`，本次合并后） |
+| 差异规模 | 以以下重新核对命令为准 |
 
-合并 `v0.2.4` 后 `request-audit` 不再落后上游（`git rev-list --count HEAD..upstream/main` = 0）。
+合并 `v0.2.14` 后本分支不再落后该标签。上游 `VERSION` 文件仍为 `0.2.13`。
 
 本次生产源码复核以合并后的 `request-audit` 为基线；该提交包含上游
-`v0.2.4` 及本文件列出的独有功能。仓库没有可访问的 GitHub Wiki remote，
+`v0.2.13` 及本文件列出的独有功能。仓库没有可访问的 GitHub Wiki remote，
 因此本文件和 [MERGE_RECORDS.md](./MERGE_RECORDS.md) 是当前可发布的二开记录。
 
 重新核对清单：
@@ -42,6 +42,22 @@ v0.2.3 采用上游 `236_group_model_allowlist_repair.sql` 修复旧列残留或
 独有 Realtime 账号测试和 GPT Image 测试兼容逻辑继续保留。
 
 ## 功能一览
+
+2026-10-07 同步上游 v0.2.14：全新安装随机管理员邮箱与密码强度校验、EasyPay 回调防伪造、远程 Codex 目录的 API Key 发现，以及 Vue / source-map-js / xlsx 审计修复。充值到账、套餐卡片、固定赠送、倍率和 Infini 汇率保持不变。
+
+2026-10-02 同步上游 v0.2.13，采用 TypeSafe System One、验证码与重置令牌安全修复、
+公开订单验证限流、账号优先级调整、API key 分组排序和用量结算修复。
+**按用户明确要求，保留现有支付金额设置、套餐卡片、固定赠送、倍率及 Infini 独立汇率；
+不采用上游 v0.2.12 的百分比赠送/折扣阶梯。** 原充值配置继续生效，无需迁移充值规则。
+只引入 TypeSafe 平台约束迁移，不引入支付 bonus_amount 字段或对应迁移。
+
+
+2026-09-30 合并采用上游余额在途预占、复合分组 WS 别名/账号模型归属修复、
+风控用户白名单和 Claude 额度重置功能。请求审计/本地直答、Realtime 音频计费与
+能力快照、Gemini Images、媒体 S3、签到、Studio 售价接口、支付及模型广场独有
+展示继续保留。余额预占默认开启，但独有 OpenAI Realtime 的逐回合 token 路径
+未新增预占估算；不得把本次合并描述为所有二开端点均已获得防透支保证。
+冲突处理与验证边界见 [本次合并记录](./MERGE_RECORDS.md)。
 
 | 功能 | 后端 | 前端 | 迁移 | config.yaml | 系统设置项 |
 |---|---|---|---|---|---|
@@ -775,6 +791,9 @@ frontend/src/components/payment/RechargePackageSettingsEditor.vue
 **资金与 UX 边界**
 
 - `paymentMethodLane` 只区分 USDT/加密通道与其他方式；RMB 栏里仍可能同时有支付宝 CNY 和 Stripe USD。
+- 确认框比档位卡片更宽、留白更大。支付方式按钮用透明底，露出支付宝 / Stripe / Infini 等彩色 logo，不再铺满品牌实色。
+- 到账行只展示倍率后的基础额度；档位卡片和确认框共用同一套赠送徽章，中文 `+$2.99+送`，英文 `Extra $2.99`。底部「支持」品牌行居中。卡片不再把「获得额度」写两遍。
+- 人民币栏的「支持」行用紧凑标：蓝底「支」、微信双气泡、Visa 字标、Mastercard、带边框的 Apple Pay、绿底「$」。开了 Stripe 时这六个都出现；只开支付宝或微信时只显示对应的标。USDT 栏放 BNB、Arbitrum、Ethereum、Solana、TRON、Base 网络标，不放 Infini，也不放欧易。
 - 确认框里选择支付方式与确认付款分开。切换方式后先更新币种、应付、手续费和到账预览，再由用户点独立确认按钮下单。
 - 下单使用用户刚确认的同一支付方式；确认框打开或提交期间不会自动改选。
 - 未选中可用方式时不能提交；提交中锁定选择并忽略重复确认。
@@ -820,11 +839,14 @@ Makefile 的 CI 白名单，覆盖分类切换、保留展示价格、隐藏不�
 **接入方式**
 
 - 后台「支付设置」启用 `infini`，再建 Infini 实例：Key ID、Secret Key、Webhook Secret、API Base（生产 `https://openapi.infini.money` / 沙箱 `https://openapi-sandbox.infini.money`）、法币币种（默认 USD）。
-- 下单走 `POST /v1/acquiring/order`，用 HMAC-SHA256 签 `keyId + METHOD path + date`；`client_reference` 是本站 `out_trade_no`，返回 `checkout_url` 后走既有跳转/弹窗，不嵌 Infini SDK。
+- 下单走 `POST /v1/acquiring/order`，用 HMAC-SHA256 签 `keyId + METHOD path + date`；`client_reference` 是本站 `out_trade_no`。响应兼容官方扁平字段和 `{code,data}` 包一层；只有 `order_id` 时会再调 `/v1/acquiring/token/reissue` 取收银台。HTTP 200 的业务错误（`code/message/detail`）按失败处理，不再报成「missing order_id or checkout_url」。
 - 默认 `pay_methods=1`（链上加密/USDT）。Webhook：`POST /api/v1/payment/webhook/infini`，按 `timestamp.event_id.raw_body` 做 HMAC-SHA256 hex 验签（5 分钟时间窗，原始 body，禁止重序列化）。`event_id` 持久化去重。
 - Infini 官方 `order.late_payment` 的 `status` 仍是 `expired`，以 `amount_confirmed` 为准。足额到账必须履约；不足额/缺金额/币种不符拒绝履约并写审计。`order.expired` 仅在存在 `amount_confirmed` 时作为迟到账候选，禁止用应付 `amount` 冒充已付。
 - 下单写入 schema_version=3 金额快照（套餐/到账/实付/手续费/汇率/币种/通道/实例）。Webhook 按快照 `pay_amount` 做最小货币单位精确比对，配置变更不影响旧单。
-- 余额套餐仍按人民币数字定价。汇率含义：`1 USD = X CNY`。Infini/USDT 实付 `round(套餐 / 汇率, 2) + ceil(手续费)`；到账仍是 `round(套餐 × 倍率 + 赠送, 2)`。订阅 CNY 是 `round(price × 汇率, 2)`，方向相反。汇率为 0 关闭换算；负数/NaN/Inf/超范围拒绝下单。支付宝 CNY、Stripe USD 不换算。
+- 余额套餐仍按人民币数字定价。到账公式不变：`round(套餐 × 余额充值倍率 + 赠送, 2)`。支付宝/Stripe 不换算，也不要用全局倍率去“充当” USDT 汇率。
+- Infini/USDT 实付用独立设置 `USDT_USD_TO_CNY_RATE`（后台「USDT 余额换算汇率」）：`round(套餐 / 汇率, 2) + ceil(手续费)`。0 时回退 `SUBSCRIPTION_USD_TO_CNY_RATE`，方便存量只配了订阅汇率的站点。订阅 CNY 仍只看订阅汇率：`round(price × 汇率, 2)`。负数/NaN/Inf/超范围拒绝下单。
+- Infini 下单法币只允许 USD。`InfiniSettlementCurrency` 固定返回 USD，不会返回 USDT。实例币种填了 CNY/USDT/空/其它码时，QuoteOrder 和 CreateOrder 走同一套 `resolveOrderSettlementCurrency`，quote/checkout-info/快照/CreatePayment 一律 USD，并仍按套餐 ÷ 汇率换算。Infini 报 `40016 Unsupported order currency` 就是把 CNY 传上去了。
+- Infini 上游下单失败返回 `PAYMENT_PROVIDER_CREATE_FAILED`（检查密钥与环境），不再伪装成「支付方式不可用」。未配置实例返回 `PAYMENT_METHOD_NOT_CONFIGURED`。失败订单写入 `failed_reason`。
 - 前端充值实付金额只展示 `POST /payment/quote` 的后端结果，下单只传套餐 `amount` + `payment_type`。Infini 无商户退款 API。
 
 **关键文件**

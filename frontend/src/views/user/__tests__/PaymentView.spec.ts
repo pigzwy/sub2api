@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import PaymentView from '../PaymentView.vue'
 import { PAYMENT_RECOVERY_STORAGE_KEY } from '@/components/payment/paymentFlow'
@@ -28,6 +28,11 @@ const getCheckoutInfo = vi.hoisted(() => vi.fn())
 const quoteOrder = vi.hoisted(() => vi.fn())
 const bridgeInvoke = vi.hoisted(() => vi.fn())
 const translate = vi.hoisted(() => vi.fn((key: string) => key))
+// Public settings live in a reactive holder so tests can flip feature flags after mount
+// and exercise the watchers that react to them.
+const appStoreState = vi.hoisted(() => ({
+  setPublicSettings: (_value: Record<string, unknown> | undefined) => {},
+}))
 
 vi.mock('vue-router', async () => {
   const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
@@ -75,13 +80,23 @@ vi.mock('@/stores/subscriptions', () => ({
   }),
 }))
 
-vi.mock('@/stores', () => ({
-  useAppStore: () => ({
-    showError,
-    showInfo,
-    showWarning,
-  }),
-}))
+vi.mock('@/stores', async () => {
+  const { reactive } = await import('vue')
+  const state = reactive({ cachedPublicSettings: undefined as Record<string, unknown> | undefined })
+  appStoreState.setPublicSettings = (value) => {
+    state.cachedPublicSettings = value
+  }
+  return {
+    useAppStore: () => ({
+      showError,
+      showInfo,
+      showWarning,
+      get cachedPublicSettings() {
+        return state.cachedPublicSettings
+      },
+    }),
+  }
+})
 
 vi.mock('@/api/payment', () => ({
   paymentAPI: {
@@ -114,6 +129,7 @@ function checkoutInfoFixture(overrides: Partial<CheckoutInfoResponse> = {}) {
     balance_disabled: false,
     balance_recharge_multiplier: 1,
     subscription_usd_to_cny_rate: 0,
+    usdt_usd_to_cny_rate: 0,
     recharge_fee_rate: 0,
     help_text: '',
     help_image_url: '',
@@ -519,13 +535,15 @@ describe('PaymentView recharge rate preview', () => {
     await flushPromises()
 
     expect(wrapper.getComponent(RechargeCheckoutDialog).props('creditAmountLabel')).toBe('$14.00')
+    expect(wrapper.getComponent(RechargeCheckoutDialog).props('extraBonusLabel')).toBe('')
 
     wrapper.getComponent(RechargeCheckoutDialog).vm.$emit('close')
     await flushPromises()
     wrapper.getComponent(RechargePackageGrid).vm.$emit('select', 200)
     await flushPromises()
 
-    expect(wrapper.getComponent(RechargeCheckoutDialog).props('creditAmountLabel')).toBe('$33.00')
+    expect(wrapper.getComponent(RechargeCheckoutDialog).props('creditAmountLabel')).toBe('$28.00')
+    expect(wrapper.getComponent(RechargeCheckoutDialog).props('extraBonusLabel')).toBe('$5.00')
   })
 
   it('keeps checkout amount currency aligned with the selected pay lane', async () => {
@@ -670,6 +688,153 @@ describe('PaymentView recharge rate preview', () => {
       order_type: 'balance',
       payment_type: 'infini',
     }))
+  })
+
+  it('still shows converted Infini USD when checkout-info labels the method as CNY', async () => {
+    window.localStorage.clear()
+    const method: MethodLimit = {
+      daily_limit: 0,
+      daily_used: 0,
+      daily_remaining: 0,
+      single_min: 0,
+      single_max: 0,
+      fee_rate: 0,
+      available: true,
+    }
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
+      usdt_usd_to_cny_rate: 6.67,
+      methods: {
+        alipay: { ...method, currency: 'CNY' },
+        infini: { ...method, currency: 'CNY' },
+      },
+    }))
+    quoteOrder.mockImplementation(async (data) => {
+      if (data.payment_type === 'infini') {
+        return quoteOrderFixture(data, {
+          pay_amount: '7.50',
+          pay_amount_value: 7.5,
+          credit_amount: '50.00',
+          fx_rate: 6.67,
+          fx_converted: true,
+          currency: 'USD',
+        })
+      }
+      return quoteOrderFixture(data, { currency: 'CNY', credit_amount: '50.00' })
+    })
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    wrapper.getComponent(RechargePackageGrid).vm.$emit('select', 50)
+    await flushPromises()
+    const dialog = wrapper.getComponent(RechargeCheckoutDialog)
+    dialog.vm.$emit('update:lane', 'usdt')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="selected-payment-method"]').text()).toBe('infini')
+    expect(dialog.props('currency')).toBe('USD')
+    expect(dialog.props('payAmountLabel')).toBe(formatPaymentAmount(7.5, 'USD'))
+    expect(dialog.props('creditAmountLabel')).toBe('$50.00')
+    expect(dialog.props('error')).toBe('')
+    wrapper.unmount()
+  })
+
+  it('compares Infini amount limits against the converted USD pay amount', async () => {
+    window.localStorage.clear()
+    const method: MethodLimit = {
+      daily_limit: 0,
+      daily_used: 0,
+      daily_remaining: 0,
+      single_min: 0,
+      single_max: 0,
+      fee_rate: 0,
+      available: true,
+    }
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
+      usdt_usd_to_cny_rate: 6.67,
+      methods: {
+        alipay: { ...method, currency: 'CNY' },
+        infini: { ...method, currency: 'USD', single_max: 20 },
+      },
+    }))
+    quoteOrder.mockImplementation(async (data) => {
+      if (data.payment_type === 'infini') {
+        return quoteOrderFixture(data, {
+          pay_amount: '7.50',
+          pay_amount_value: 7.5,
+          credit_amount: '50.00',
+          fx_rate: 6.67,
+          fx_converted: true,
+          currency: 'USD',
+        })
+      }
+      return quoteOrderFixture(data, { currency: 'CNY', credit_amount: '50.00' })
+    })
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    wrapper.getComponent(RechargePackageGrid).vm.$emit('select', 50)
+    await flushPromises()
+
+    const dialog = wrapper.getComponent(RechargeCheckoutDialog)
+    dialog.vm.$emit('update:lane', 'usdt')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="selected-payment-method"]').text()).toBe('infini')
+    expect(dialog.props('error')).toBe('')
+    expect(dialog.props('payAmountLabel')).toBe(formatPaymentAmount(7.5, 'USD'))
+
+    getCheckoutInfo.mockResolvedValue(checkoutInfoFixture({
+      usdt_usd_to_cny_rate: 6.67,
+      methods: {
+        alipay: { ...method, currency: 'CNY' },
+        infini: { ...method, currency: 'USD', single_min: 10 },
+      },
+    }))
+    wrapper.unmount()
+
+    const lowWrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    lowWrapper.getComponent(RechargePackageGrid).vm.$emit('select', 50)
+    await flushPromises()
+    const lowDialog = lowWrapper.getComponent(RechargeCheckoutDialog)
+    translate.mockClear()
+    lowDialog.vm.$emit('update:lane', 'usdt')
+    await flushPromises()
+
+    expect(lowWrapper.get('[data-testid="selected-payment-method"]').text()).toBe('infini')
+    expect(lowDialog.props('error')).toBe('payment.amountTooLow')
+    expect(translate).toHaveBeenCalledWith('payment.amountTooLow', {
+      min: formatPaymentAmount(10, 'USD'),
+    })
+    lowWrapper.unmount()
   })
 
   it('updates CNY/USD preview before creating a Stripe order', async () => {
@@ -829,6 +994,26 @@ describe('PaymentView recharge rate preview', () => {
 })
 
 describe('PaymentView subscription confirmation amounts', () => {
+  it('keeps subscription CNY conversion on the subscription rate when a USDT rate is also set', async () => {
+    const wrapper = await mountSubscriptionConfirm({
+      checkout: {
+        balance_recharge_multiplier: 1,
+        subscription_usd_to_cny_rate: 7.15,
+        usdt_usd_to_cny_rate: 6.67,
+      },
+      method: {
+        currency: 'CNY',
+      },
+      plan: {
+        price: 9.99,
+      },
+    })
+
+    const text = wrapper.text()
+    expect(text).toContain(formatPaymentAmount(71.43, 'CNY'))
+    expect(text).not.toContain(formatPaymentAmount(66.63, 'CNY'))
+  })
+
   it('shows converted CNY pay amount using the subscription rate, not the balance multiplier', async () => {
     const wrapper = await mountSubscriptionConfirm({
       checkout: {
@@ -1234,5 +1419,79 @@ describe('PaymentView WeChat JSAPI flow', () => {
     expect(showWarning).toHaveBeenCalledWith('payment.errors.mobilePaymentFallbackToQr')
     expect(showError).not.toHaveBeenCalled()
     expect(window.localStorage.getItem(PAYMENT_RECOVERY_STORAGE_KEY)).toContain('weixin://wxpay/bizpayurl?pr=fallback-native')
+  })
+})
+
+describe('PaymentView subscription feature flag', () => {
+  afterEach(() => {
+    appStoreState.setPublicSettings(undefined)
+  })
+
+  function tabLabels(wrapper: Awaited<ReturnType<typeof mountSubscriptionPlanList>>) {
+    return wrapper
+      .findAll('button')
+      .map((button) => button.text())
+      .filter((text) => text === 'payment.tabPayAsYouGo' || text === 'payment.tabMonthlyPlan')
+  }
+
+  it('keeps the top-up / subscribe switcher when subscription_enabled is absent (opt-out default)', async () => {
+    const wrapper = await mountSubscriptionPlanList(2)
+
+    expect(tabLabels(wrapper)).toEqual(['payment.tabPayAsYouGo', 'payment.tabMonthlyPlan'])
+    expect(wrapper.findAllComponents(SubscriptionPlanCard)).toHaveLength(2)
+  })
+
+  it('drops the subscribe tab, hides the switcher and ignores ?tab=subscription when subscriptions are disabled', async () => {
+    appStoreState.setPublicSettings({ subscription_enabled: false })
+    const wrapper = await mountSubscriptionPlanList(2)
+
+    expect(tabLabels(wrapper)).toEqual([])
+    expect(wrapper.findAllComponents(SubscriptionPlanCard)).toHaveLength(0)
+    expect(wrapper.text()).toContain('payment.rechargeAccount')
+  })
+
+  it('shows an unavailable notice instead of a doomed top-up form when balance recharge is disabled too', async () => {
+    appStoreState.setPublicSettings({ subscription_enabled: false })
+    const wrapper = await mountSubscriptionConfirm({ checkout: { balance_disabled: true } })
+
+    expect(tabLabels(wrapper)).toEqual([])
+    expect(wrapper.findAllComponents(SubscriptionPlanCard)).toHaveLength(0)
+    expect(wrapper.text()).not.toContain('payment.confirmSubscription')
+    // 二开：充值账户余额卡常驻页面顶部（recharge-balance-card），不再只出现在充值 tab，
+    // 因此改判充值 tab 正文是否渲染——该 tab 必渲染 notAvailable 或 selected-payment-method 之一。
+    expect(wrapper.text()).not.toContain('payment.notAvailable')
+    expect(wrapper.find('[data-testid="selected-payment-method"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('payment.billingUnavailable')
+    wrapper.unmount()
+  })
+
+  it('falls back from the subscribe tab to top-up when the flag flips off after mount', async () => {
+    const wrapper = await mountSubscriptionPlanList(2)
+    expect(wrapper.findAllComponents(SubscriptionPlanCard)).toHaveLength(2)
+
+    appStoreState.setPublicSettings({ subscription_enabled: false })
+    await flushPromises()
+
+    expect(tabLabels(wrapper)).toEqual([])
+    expect(wrapper.findAllComponents(SubscriptionPlanCard)).toHaveLength(0)
+    expect(wrapper.text()).toContain('payment.rechargeAccount')
+    wrapper.unmount()
+  })
+
+  it('enters the subscribe tab when a subscription-only site turns subscriptions back on', async () => {
+    appStoreState.setPublicSettings({ subscription_enabled: false })
+    const wrapper = await mountSubscriptionConfirm({ checkout: { balance_disabled: true } })
+    expect(wrapper.text()).toContain('payment.billingUnavailable')
+
+    appStoreState.setPublicSettings({ subscription_enabled: true })
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('payment.billingUnavailable')
+    // 二开：充值账户余额卡常驻页面顶部（recharge-balance-card），不再只出现在充值 tab，
+    // 因此改判充值 tab 正文是否渲染——该 tab 必渲染 notAvailable 或 selected-payment-method 之一。
+    expect(wrapper.text()).not.toContain('payment.notAvailable')
+    expect(wrapper.find('[data-testid="selected-payment-method"]').exists()).toBe(false)
+    expect(wrapper.findAllComponents(SubscriptionPlanCard).length).toBeGreaterThan(0)
+    wrapper.unmount()
   })
 })

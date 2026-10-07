@@ -29,6 +29,18 @@ func testInfiniConfig(apiBase string) map[string]string {
 	}
 }
 
+func TestNewInfiniCoercesCNYConfigToUSD(t *testing.T) {
+	t.Parallel()
+
+	cfg := testInfiniConfig(infiniSandboxAPIBase)
+	cfg["currency"] = "CNY"
+	prov, err := NewInfini("1", cfg)
+	require.NoError(t, err)
+	require.Equal(t, "USD", prov.config["currency"])
+	require.Equal(t, "USD", prov.currency())
+	require.Equal(t, "USD", prov.MerchantIdentityMetadata()["currency"])
+}
+
 func TestNewInfiniNormalizesSandboxBaseAndCurrency(t *testing.T) {
 	t.Parallel()
 
@@ -102,6 +114,7 @@ func TestInfiniCreatePaymentSignsHostedCheckoutRequest(t *testing.T) {
 	require.Equal(t, "7.50", captured.body.Amount)
 	require.Equal(t, "sub2_order_9", captured.body.ClientReference)
 	require.Equal(t, []int{1}, captured.body.PayMethods)
+	require.Equal(t, "USD", captured.body.Currency)
 	require.Equal(t, infiniDeterministicRequestID("order", "sub2_order_9", "7.50", "USD"), captured.body.RequestID)
 
 	expected, err := infiniSignRequest(cfg["keyId"], cfg["secretKey"], http.MethodPost, "/v1/acquiring/order", captured.raw, func() time.Time { return fixed })
@@ -109,6 +122,121 @@ func TestInfiniCreatePaymentSignsHostedCheckoutRequest(t *testing.T) {
 	require.Equal(t, expected["Date"], captured.date)
 	require.Equal(t, expected["Authorization"], captured.auth)
 	require.Equal(t, expected["Digest"], captured.digest)
+}
+
+func TestInfiniCreatePaymentSendsUSDWhenInstanceCurrencyIsCNY(t *testing.T) {
+	t.Parallel()
+
+	var captured infiniCreateOrderRequest
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&captured))
+		_ = json.NewEncoder(w).Encode(infiniCreateOrderResponse{
+			OrderID:     "ord-cny",
+			CheckoutURL: "https://checkout.infini.money/pay/cny",
+		})
+	}))
+	defer server.Close()
+
+	cfg := testInfiniConfig(infiniSandboxAPIBase)
+	cfg["currency"] = "CNY"
+	prov, err := NewInfini("1", cfg)
+	require.NoError(t, err)
+	prov.httpClient = server.Client()
+	prov.httpClient.Transport = rewriteInfiniHost(server)
+
+	resp, err := prov.CreatePayment(context.Background(), payment.CreatePaymentRequest{
+		OrderID: "sub2_order_9",
+		Amount:  "7.50",
+		Subject: "Balance recharge",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "USD", resp.Currency)
+	require.Equal(t, "7.50", captured.Amount)
+	require.Equal(t, "USD", captured.Currency)
+}
+
+func TestInfiniCreatePaymentAcceptsWrappedAndCamelCaseResponses(t *testing.T) {
+	t.Parallel()
+
+	cases := [][]byte{
+		[]byte(`{"code":0,"data":{"order_id":"ord-wrap","checkout_url":"https://checkout.infini.money/pay/wrap"}}`),
+		[]byte(`{"code":"0","result":{"orderId":"ord-camel","checkoutUrl":"https://checkout.infini.money/pay/camel"}}`),
+		[]byte(`{"success":true,"data":{"id":"ord-id","pay_url":"https://checkout.infini.money/pay/id"}}`),
+		[]byte(`{"order":{"order_id":"ord-nested","checkout_url":"https://checkout.infini.money/pay/nested"}}`),
+	}
+	for _, body := range cases {
+		parsed, err := parseInfiniCreateOrderResponse(body)
+		require.NoError(t, err, string(body))
+		require.NotEmpty(t, parsed.orderID(), string(body))
+		require.NotEmpty(t, parsed.checkoutURL(), string(body))
+	}
+}
+
+func TestInfiniCreatePaymentSurfacesBusinessErrorEnvelope(t *testing.T) {
+	t.Parallel()
+
+	_, err := parseInfiniCreateOrderResponse([]byte(`{"code":40006,"message":"amount must be greater than 0.1","detail":"crypto min 0.1"}`))
+	require.ErrorContains(t, err, "40006")
+	require.ErrorContains(t, err, "amount must be greater than 0.1")
+}
+
+func TestInfiniCreatePaymentReissuesCheckoutURLWhenOrderIDOnly(t *testing.T) {
+	t.Parallel()
+
+	var paths []string
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
+		switch r.URL.Path {
+		case "/v1/acquiring/order":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"code": 0,
+				"data": map[string]string{"order_id": "ord-reissue"},
+			})
+		case "/v1/acquiring/token/reissue":
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"order_id":     "ord-reissue",
+				"checkout_url": "https://checkout.infini.money/pay/reissued",
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	prov, err := NewInfini("1", testInfiniConfig(infiniSandboxAPIBase))
+	require.NoError(t, err)
+	prov.httpClient = server.Client()
+	prov.httpClient.Transport = rewriteInfiniHost(server)
+
+	resp, err := prov.CreatePayment(context.Background(), payment.CreatePaymentRequest{
+		OrderID: "sub2_order_reissue",
+		Amount:  "7.50",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "ord-reissue", resp.TradeNo)
+	require.Equal(t, "https://checkout.infini.money/pay/reissued", resp.PayURL)
+	require.Equal(t, []string{"/v1/acquiring/order", "/v1/acquiring/token/reissue"}, paths)
+}
+
+func TestInfiniCreatePaymentIncludesBodyWhenCheckoutFieldsMissing(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{}}`))
+	}))
+	defer server.Close()
+
+	prov, err := NewInfini("1", testInfiniConfig(infiniSandboxAPIBase))
+	require.NoError(t, err)
+	prov.httpClient = server.Client()
+	prov.httpClient.Transport = rewriteInfiniHost(server)
+
+	_, err = prov.CreatePayment(context.Background(), payment.CreatePaymentRequest{
+		OrderID: "sub2_order_empty",
+		Amount:  "7.50",
+	})
+	require.ErrorContains(t, err, "missing order_id or checkout_url")
+	require.ErrorContains(t, err, `"message":"success"`)
 }
 
 func TestInfiniVerifyNotificationCompletesPaidOrder(t *testing.T) {

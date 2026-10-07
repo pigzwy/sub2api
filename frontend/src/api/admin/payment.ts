@@ -27,6 +27,7 @@ export interface AdminPaymentConfig {
   balance_recharge_multiplier: number
   balance_recharge_packages?: RechargePackage[]
   subscription_usd_to_cny_rate: number
+  usdt_usd_to_cny_rate?: number
   recharge_fee_rate: number
   load_balance_strategy: string
   product_name_prefix: string
@@ -48,6 +49,7 @@ export interface UpdatePaymentConfigRequest {
   balance_recharge_multiplier?: number
   balance_recharge_packages?: RechargePackage[]
   subscription_usd_to_cny_rate?: number
+  usdt_usd_to_cny_rate?: number
   recharge_fee_rate?: number
   load_balance_strategy?: string
   product_name_prefix?: string

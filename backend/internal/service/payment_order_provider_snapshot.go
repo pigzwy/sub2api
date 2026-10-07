@@ -102,14 +102,8 @@ func newPaymentOrderFinancialSnapshot(
 	sel *payment.InstanceSelection,
 	orderAmount, limitAmount, feeRate, payAmount float64,
 ) paymentOrderFinancialSnapshot {
-	currency := payment.DefaultPaymentCurrency
-	if sel != nil {
-		currency = paymentProviderConfigCurrency(sel.ProviderKey, sel.Config)
-	}
-	fxRate := 0.0
-	if cfg != nil {
-		fxRate = normalizeSubscriptionUSDToCNYRate(cfg.SubscriptionUSDToCNYRate)
-	}
+	currency := resolveOrderSettlementCurrency(req.PaymentType, payment.DefaultPaymentCurrency, sel)
+	fxRate := resolvePayFXRate(cfg, req.OrderType, req.PaymentType, currency)
 	return paymentOrderFinancialSnapshot{
 		PackageAmount: decimalAmountString(limitAmount, 2),
 		CreditAmount:  decimalAmountString(orderAmount, 2),

@@ -50,6 +50,7 @@ export interface PaymentConfig {
   balance_recharge_multiplier: number
   balance_recharge_packages?: RechargePackage[]
   subscription_usd_to_cny_rate: number
+  usdt_usd_to_cny_rate?: number
   enabled_payment_types: PaymentType[]
   help_image_url: string
   help_text: string
@@ -100,6 +101,8 @@ export interface CheckoutInfoResponse {
   balance_recharge_packages?: RechargePackage[]
   /** Subscription CNY conversion rate (1 USD = X CNY); 0 = disabled, plan price is charged as-is */
   subscription_usd_to_cny_rate: number
+  /** Infini/USDT balance pay conversion (1 USD = X CNY). 0 falls back to subscription_usd_to_cny_rate. */
+  usdt_usd_to_cny_rate?: number
   recharge_fee_rate: number
   help_text: string
   help_image_url: string

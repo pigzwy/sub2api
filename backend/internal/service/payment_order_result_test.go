@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -296,6 +297,14 @@ func TestCalculateCreateOrderPayAmountForInfiniConvertsCNYPackageWhenRateConfigu
 	if amountStr != "7.50" || amount != 7.5 {
 		t.Fatalf("Infini USD pay amount = (%q, %v), want (7.50, 7.5)", amountStr, amount)
 	}
+
+	amountStr, amount, err = calculateCreateOrderPayAmountForOrderType(50, 0, "CNY", payment.OrderTypeBalance, payment.TypeInfini, 6.67)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if amountStr != "7.50" || amount != 7.5 {
+		t.Fatalf("Infini labeled CNY pay amount = (%q, %v), want (7.50, 7.5)", amountStr, amount)
+	}
 }
 
 func TestCalculateCreateOrderPayAmountForInfiniAppliesFeeAfterUSDConversion(t *testing.T) {
@@ -357,6 +366,112 @@ func TestCalculateCreateOrderPayAmountForUsdtLaneConvertsWhenRateConfigured(t *t
 	}
 	if amountStr != "7.50" || amount != 7.5 {
 		t.Fatalf("USDT pay amount = (%q, %v), want (7.50, 7.5)", amountStr, amount)
+	}
+}
+
+func TestResolvePayFXRateUsesDedicatedUSDTRateWithoutTouchingAlipayOrSubscription(t *testing.T) {
+	t.Parallel()
+
+	cfg := &PaymentConfig{
+		SubscriptionUSDToCNYRate: 7.15,
+		USDTUSDToCNYRate:         6.67,
+	}
+	if got := resolvePayFXRate(cfg, payment.OrderTypeBalance, payment.TypeInfini, "USD"); got != 6.67 {
+		t.Fatalf("Infini dedicated rate = %v, want 6.67", got)
+	}
+	if got := resolvePayFXRate(cfg, payment.OrderTypeBalance, payment.TypeInfini, "CNY"); got != 6.67 {
+		t.Fatalf("Infini labeled CNY dedicated rate = %v, want 6.67", got)
+	}
+	if got := resolvePayFXRate(cfg, payment.OrderTypeBalance, payment.TypeAlipay, "CNY"); got != 0 {
+		t.Fatalf("Alipay FX rate = %v, want 0", got)
+	}
+	if got := resolvePayFXRate(cfg, payment.OrderTypeSubscription, payment.TypeAlipay, "CNY"); got != 7.15 {
+		t.Fatalf("subscription FX rate = %v, want 7.15", got)
+	}
+
+	cfg.USDTUSDToCNYRate = 0
+	if got := resolveUSDTBalanceUSDToCNYRate(cfg.USDTUSDToCNYRate, cfg.SubscriptionUSDToCNYRate); got != 7.15 {
+		t.Fatalf("Infini fallback rate = %v, want 7.15", got)
+	}
+}
+
+func TestPaymentProviderConfigCurrencyForcesInfiniUSD(t *testing.T) {
+	t.Parallel()
+
+	if got := paymentProviderConfigCurrency(payment.TypeInfini, map[string]string{"currency": "CNY"}); got != "USD" {
+		t.Fatalf("Infini CNY config currency = %q, want USD", got)
+	}
+	if got := paymentProviderConfigCurrency(payment.TypeInfini, map[string]string{"currency": "USDT"}); got != "USD" {
+		t.Fatalf("Infini USDT config currency = %q, want USD", got)
+	}
+	if got := paymentProviderConfigCurrency(payment.TypeInfini, nil); got != "USD" {
+		t.Fatalf("Infini empty config currency = %q, want USD", got)
+	}
+	if got := paymentProviderConfigCurrency(payment.TypeAlipay, map[string]string{"currency": "USD"}); got != payment.DefaultPaymentCurrency {
+		t.Fatalf("Alipay currency = %q, want CNY", got)
+	}
+	if got := paymentProviderConfigCurrency(payment.TypeStripe, map[string]string{"currency": "HKD"}); got != "HKD" {
+		t.Fatalf("Stripe currency = %q, want HKD", got)
+	}
+	if got := paymentProviderConfigCurrency(payment.TypeAirwallex, map[string]string{"currency": "USD"}); got != "USD" {
+		t.Fatalf("Airwallex currency = %q, want USD", got)
+	}
+}
+
+func TestResolveOrderSettlementCurrencyMatchesQuoteAndCreate(t *testing.T) {
+	t.Parallel()
+
+	infiniCNY := &payment.InstanceSelection{
+		ProviderKey: payment.TypeInfini,
+		Config:      map[string]string{"currency": "CNY"},
+	}
+	if got := resolveOrderSettlementCurrency(payment.TypeInfini, "CNY", nil); got != "USD" {
+		t.Fatalf("Infini quote currency with CNY method = %q, want USD", got)
+	}
+	if got := resolveOrderSettlementCurrency(payment.TypeInfini, payment.DefaultPaymentCurrency, nil); got != "USD" {
+		t.Fatalf("Infini quote currency with empty/default method = %q, want USD", got)
+	}
+	if got := resolveOrderSettlementCurrency(payment.TypeInfini, "CNY", infiniCNY); got != "USD" {
+		t.Fatalf("Infini create currency with CNY instance = %q, want USD", got)
+	}
+
+	if got := resolveOrderSettlementCurrency(payment.TypeAlipay, "CNY", nil); got != "CNY" {
+		t.Fatalf("Alipay quote currency = %q, want CNY", got)
+	}
+	if got := resolveOrderSettlementCurrency(payment.TypeAlipay, "CNY", &payment.InstanceSelection{
+		ProviderKey: payment.TypeAlipay,
+		Config:      map[string]string{"currency": "USD"},
+	}); got != payment.DefaultPaymentCurrency {
+		t.Fatalf("Alipay create currency = %q, want CNY", got)
+	}
+	if got := resolveOrderSettlementCurrency(payment.TypeStripe, "USD", nil); got != "USD" {
+		t.Fatalf("Stripe quote currency = %q, want USD", got)
+	}
+	if got := resolveOrderSettlementCurrency(payment.TypeStripe, "USD", &payment.InstanceSelection{
+		ProviderKey: payment.TypeStripe,
+		Config:      map[string]string{"currency": "HKD"},
+	}); got != "HKD" {
+		t.Fatalf("Stripe create currency = %q, want HKD", got)
+	}
+	if got := resolveOrderSettlementCurrency(payment.TypeAirwallex, "USD", &payment.InstanceSelection{
+		ProviderKey: payment.TypeAirwallex,
+		Config:      map[string]string{"currency": "USD"},
+	}); got != "USD" {
+		t.Fatalf("Airwallex create currency = %q, want USD", got)
+	}
+}
+
+func TestClassifyCreatePaymentErrorKeepsInfiniGatewayFailureDistinct(t *testing.T) {
+	t.Parallel()
+
+	err := classifyCreatePaymentError(
+		CreateOrderRequest{PaymentType: payment.TypeInfini},
+		payment.TypeInfini,
+		fmt.Errorf("infini create payment: unauthorized"),
+	)
+	appErr := infraerrors.FromError(err)
+	if appErr.Reason != "PAYMENT_PROVIDER_CREATE_FAILED" {
+		t.Fatalf("reason = %q, want PAYMENT_PROVIDER_CREATE_FAILED", appErr.Reason)
 	}
 }
 

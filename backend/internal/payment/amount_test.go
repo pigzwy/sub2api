@@ -221,6 +221,14 @@ func TestThreeDecimalPaymentCurrencies(t *testing.T) {
 	}
 }
 
+func TestInfiniSettlementCurrencyAlwaysUSD(t *testing.T) {
+	for _, raw := range []string{"", "cny", "CNY", "HKD", "EUR", "usd", "USD", "usdt", "USDT"} {
+		if got := InfiniSettlementCurrency(raw); got != "USD" {
+			t.Fatalf("InfiniSettlementCurrency(%q) = %q, want USD", raw, got)
+		}
+	}
+}
+
 func TestNormalizePaymentCurrencyRejectsInvalidCodes(t *testing.T) {
 	if _, err := NormalizePaymentCurrency("HK"); err == nil {
 		t.Fatal("expected invalid two-letter currency to fail")

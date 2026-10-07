@@ -16,7 +16,8 @@ const i18n = createI18n({
       payment: {
         bestValue: 'Best value',
         popular: 'Popular',
-        bonusTag: '+{amount} bonus',
+        extraBonus: 'Extra {amount}',
+        bonusTag: 'Extra {amount}',
         getCredit: 'Get {amount} credit',
         getCreditLead: 'Get',
         getCreditTrail: 'credit',
@@ -46,5 +47,23 @@ describe('RechargePackageGrid', () => {
     expect(wrapper.get('[data-testid="recharge-package-10.5"]').text()).toContain(formatPaymentNumber(10.5, 'CNY'))
     expect(wrapper.get('[data-testid="recharge-package-10.49"]').text()).not.toContain('¥10\n')
     expect(wrapper.get('[data-testid="recharge-package-10.5"]').text()).not.toContain('11')
+  })
+
+  it('uses the Extra badge copy and does not repeat the credited-amount line', () => {
+    const wrapper = mount(RechargePackageGrid, {
+      props: {
+        packages: [
+          { id: 'standard', amount: 100, bonus: 2.99, name: 'Standard', description: '' },
+        ],
+        multiplier: 1,
+        currency: 'CNY',
+      },
+      global: { plugins: [i18n] },
+    })
+
+    const card = wrapper.get('[data-testid="recharge-package-100"]')
+    expect(card.get('[data-testid="package-extra-bonus"]').text()).toContain('payment.extraBonus')
+    expect(card.text()).toContain('$102.99')
+    expect(card.text().match(/\$102\.99/g)).toHaveLength(1)
   })
 })
