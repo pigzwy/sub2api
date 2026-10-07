@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import RechargeCheckoutDialog from '@/components/payment/RechargeCheckoutDialog.vue'
 import enMisc from '@/i18n/locales/en/misc'
@@ -35,6 +35,10 @@ function mountDialog(overrides: Record<string, unknown> = {}) {
     },
   })
 }
+
+afterEach(() => {
+  document.body.querySelectorAll('[data-testid="recharge-checkout-dialog"]').forEach((el) => el.remove())
+})
 
 describe('RechargeCheckoutDialog', () => {
   it('starts payment when a method button is clicked', async () => {
@@ -151,6 +155,10 @@ describe('RechargeCheckoutDialog', () => {
   it('centers the accepted-brand row at the bottom of the dialog', () => {
     const wrapper = mountDialog({
       error: 'quote failed',
+      rmbMethods: [
+        { type: 'alipay', display_name: 'Alipay', fee_rate: 0, available: true },
+        { type: 'wxpay', display_name: 'WeChat Pay', fee_rate: 0, available: true },
+      ],
     })
 
     const dialog = document.body.querySelector('[data-testid="recharge-checkout-dialog"]')
@@ -159,9 +167,10 @@ describe('RechargeCheckoutDialog', () => {
     expect(brands?.className).toContain('justify-center')
     expect(brands?.textContent).toContain('payment.supportedMethods')
     expect(brands?.getAttribute('data-lane')).toBe('rmb')
-    expect(brands?.querySelectorAll('img')).toHaveLength(1)
+    expect(brands?.querySelectorAll('img')).toHaveLength(2)
     expect(Array.from(brands?.querySelectorAll('img') ?? []).map((img) => img.getAttribute('alt'))).toEqual([
       'Alipay',
+      'WeChat Pay',
     ])
 
     const children = Array.from(dialog?.firstElementChild?.children ?? [])
@@ -210,6 +219,40 @@ describe('RechargeCheckoutDialog', () => {
       'TRON',
       'Base',
     ])
+    wrapper.unmount()
+  })
+
+  it('shows Stripe card marks only when Stripe is an enabled RMB method', () => {
+    const wrapper = mountDialog({
+      selected: 'stripe',
+      rmbMethods: [
+        { type: 'alipay', display_name: 'Alipay', fee_rate: 0, available: true },
+        { type: 'stripe', display_name: 'Stripe', fee_rate: 0, available: true },
+      ],
+      usdtMethods: [],
+    })
+
+    const brands = document.body.querySelector('[data-testid="supported-methods"]')
+    expect(Array.from(brands?.querySelectorAll('img') ?? []).map((img) => img.getAttribute('alt'))).toEqual([
+      'Alipay',
+      'WeChat Pay',
+      'Visa',
+      'Mastercard',
+      'Apple Pay',
+      'USD',
+    ])
+    wrapper.unmount()
+  })
+
+  it('hides the footer when the current lane has no matching brand marks', () => {
+    const wrapper = mountDialog({
+      selected: '',
+      lane: 'usdt',
+      rmbMethods: [{ type: 'alipay', display_name: 'Alipay', fee_rate: 0, available: true }],
+      usdtMethods: [],
+    })
+
+    expect(document.body.querySelector('[data-testid="supported-methods"]')).toBeNull()
     wrapper.unmount()
   })
 })
