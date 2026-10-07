@@ -10,6 +10,9 @@ import (
 )
 
 type QuoteOrderResponse struct {
+	BonusAmount    string  `json:"bonus_amount"`
+	BonusMode      string  `json:"bonus_mode"`
+	BonusPercent   float64 `json:"bonus_percent"`
 	OrderType      string  `json:"order_type"`
 	PaymentType    string  `json:"payment_type"`
 	PackageAmount  string  `json:"package_amount"`
@@ -54,7 +57,11 @@ func (s *PaymentService) QuoteOrder(ctx context.Context, req CreateOrderRequest)
 		orderAmount = plan.Price
 		limitAmount = plan.Price
 	} else if req.OrderType == payment.OrderTypeBalance {
-		orderAmount = calculateCreditedBalance(req.Amount, cfg.BalanceRechargeMultiplier, cfg.BalanceRechargePackages)
+		credit, err := calculateBalanceRechargeCredit(req.Amount, cfg)
+		if err != nil {
+			return nil, err
+		}
+		orderAmount = credit.Credit
 	}
 
 	return s.quoteOrderAmounts(ctx, req, cfg, limitAmount, orderAmount, nil)
@@ -96,7 +103,17 @@ func (s *PaymentService) quoteOrderAmounts(
 		feeDec = decimal.Zero
 	}
 
+	bonus := balanceRechargeCredit{}
+	if req.OrderType == payment.OrderTypeBalance {
+		bonus, err = calculateBalanceRechargeCredit(limitAmount, cfg)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return &QuoteOrderResponse{
+		BonusAmount:    decimalAmountString(bonus.Bonus, 2),
+		BonusMode:      bonus.Mode,
+		BonusPercent:   bonus.Percent,
 		OrderType:      req.OrderType,
 		PaymentType:    req.PaymentType,
 		PackageAmount:  decimal.NewFromFloat(limitAmount).StringFixed(2),

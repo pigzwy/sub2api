@@ -10,7 +10,7 @@ import type {
   LoginAgreementDocument,
   NotifyEmailEntry,
 } from "@/types";
-import type { RechargePackage } from "@/types/payment";
+import type { RechargePackage, RechargeBonusMode, RechargeBonusTier } from "@/types/payment";
 
 export interface DefaultSubscriptionSetting {
   group_id: number;
@@ -687,6 +687,8 @@ export interface SystemSettings {
   payment_balance_disabled: boolean;
   payment_balance_recharge_multiplier: number;
   payment_balance_recharge_packages?: RechargePackage[];
+  payment_recharge_bonus_mode?: RechargeBonusMode;
+  payment_recharge_bonus_tiers?: RechargeBonusTier[];
   payment_subscription_usd_to_cny_rate: number;
   payment_usdt_usd_to_cny_rate?: number;
   payment_recharge_fee_rate: number;
@@ -1026,6 +1028,8 @@ export interface UpdateSettingsRequest {
   payment_balance_disabled?: boolean;
   payment_balance_recharge_multiplier?: number;
   payment_balance_recharge_packages?: RechargePackage[];
+  payment_recharge_bonus_mode?: RechargeBonusMode;
+  payment_recharge_bonus_tiers?: RechargeBonusTier[];
   payment_subscription_usd_to_cny_rate?: number;
   payment_usdt_usd_to_cny_rate?: number;
   payment_recharge_fee_rate?: number;

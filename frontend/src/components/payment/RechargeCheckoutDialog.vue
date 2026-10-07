@@ -105,6 +105,7 @@
           </div>
 
           <div
+            v-if="supportedBrands.length > 0"
             data-testid="supported-methods"
             :data-lane="lane"
             class="flex flex-wrap items-center justify-center gap-3 px-6 pb-6 pt-4 text-xs font-medium text-gray-500 dark:text-gray-300"
@@ -216,8 +217,8 @@ const supportedBrands = computed(() => {
     return types.size === 0 ? [] : usdtBrands
   }
   return rmbBrands.filter((brand) => {
-    if (brand.alt === 'Alipay') return hasStripe || types.has('alipay') || types.has('alipay_direct')
-    if (brand.alt === 'WeChat Pay') return hasStripe || types.has('wxpay') || types.has('wxpay_direct')
+    if (brand.alt === 'Alipay') return hasStripe || [...types].some(isBuiltInAlipayMethod)
+    if (brand.alt === 'WeChat Pay') return hasStripe || [...types].some(isBuiltInWxpayMethod)
     if (['Visa', 'Mastercard', 'Apple Pay'].includes(brand.alt)) return hasStripe
     if (brand.alt === 'USD') return hasStripe || types.has('airwallex')
     return false

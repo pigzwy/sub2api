@@ -8843,8 +8843,13 @@
           </div>
 
           <div v-if="form.payment_enabled" class="card overflow-hidden">
+            <RechargeBonusSettings
+              v-model:mode="form.payment_recharge_bonus_mode"
+              v-model:tiers="form.payment_recharge_bonus_tiers"
+            />
             <RechargePackageSettingsEditor
               v-model="form.payment_balance_recharge_packages"
+              :bonus-disabled="form.payment_recharge_bonus_mode === 'percentage'"
             />
           </div>
 
@@ -9405,7 +9410,7 @@ import type {
   NotifyEmailEntry,
   Proxy,
 } from "@/types";
-import type { ProviderInstance, RechargePackage } from "@/types/payment";
+import type { ProviderInstance, RechargePackage, RechargeBonusMode, RechargeBonusTier } from "@/types/payment";
 import AppLayout from "@/components/layout/AppLayout.vue";
 import Icon from "@/components/icons/Icon.vue";
 import Select, { type SelectOption } from "@/components/common/Select.vue";
@@ -9419,6 +9424,7 @@ import {
 import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
 import PaymentProviderList from "@/components/payment/PaymentProviderList.vue";
 import PaymentProviderDialog from "@/components/payment/PaymentProviderDialog.vue";
+import RechargeBonusSettings from "@/components/payment/RechargeBonusSettings.vue";
 import RechargePackageSettingsEditor from "@/components/payment/RechargePackageSettingsEditor.vue";
 import { resolveRechargePackages } from "@/components/payment/rechargePackages";
 import GroupBadge from "@/components/common/GroupBadge.vue";
@@ -10149,6 +10155,8 @@ type SettingsForm = Omit<
   default_platform_quotas: DefaultPlatformQuotasMap;
   account_scheduling_thresholds: ReturnType<typeof normalizeAccountSchedulingThresholdsMap>;
   payment_balance_recharge_packages: RechargePackage[];
+  payment_recharge_bonus_mode: RechargeBonusMode;
+  payment_recharge_bonus_tiers: RechargeBonusTier[];
 };
 
 const schedulingThresholdPlatforms = SCHEDULING_THRESHOLD_PLATFORMS;
@@ -10219,6 +10227,8 @@ const form = reactive<SettingsForm>({
   payment_balance_disabled: false,
   payment_balance_recharge_multiplier: 1,
   payment_balance_recharge_packages: resolveRechargePackages(),
+  payment_recharge_bonus_mode: "fixed",
+  payment_recharge_bonus_tiers: [],
   payment_subscription_usd_to_cny_rate: 0,
   payment_usdt_usd_to_cny_rate: 0,
   payment_recharge_fee_rate: 0,
@@ -11645,6 +11655,8 @@ async function loadSettings() {
     settings.payment_balance_recharge_packages = resolveRechargePackages(
       settings.payment_balance_recharge_packages,
     );
+    settings.payment_recharge_bonus_mode ||= "fixed";
+    settings.payment_recharge_bonus_tiers ||= [];
     // Only assign non-null values from backend (null means unconfigured, keep defaults)
     for (const [key, value] of Object.entries(settings)) {
       if (value !== null && value !== undefined) {
@@ -12324,6 +12336,8 @@ async function saveSettings() {
       payment_balance_disabled: form.payment_balance_disabled,
       payment_balance_recharge_multiplier:
         Number(form.payment_balance_recharge_multiplier) || 1,
+      payment_recharge_bonus_mode: form.payment_recharge_bonus_mode,
+      payment_recharge_bonus_tiers: form.payment_recharge_bonus_tiers,
       payment_balance_recharge_packages: resolveRechargePackages(
         form.payment_balance_recharge_packages,
       ),
