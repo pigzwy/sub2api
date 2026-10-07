@@ -145,6 +145,8 @@ import visaIcon from '@/assets/icons/visa.svg'
 import mastercardIcon from '@/assets/icons/mastercard.svg'
 import applePayIcon from '@/assets/icons/apple-pay.svg'
 import dollarIcon from '@/assets/icons/dollar.svg'
+import usdtIcon from '@/assets/icons/usdt.svg'
+import usdcIcon from '@/assets/icons/usdc.svg'
 
 const CHECKOUT_METHOD_BUTTON_CLASS = [
   'inline-flex w-full items-center justify-center gap-3 rounded-2xl border border-gray-200',
@@ -193,16 +195,23 @@ const rmbBrands = [
   { src: applePayIcon, alt: 'Apple Pay', class: 'h-5 w-5 object-contain' },
   { src: dollarIcon, alt: 'USD', class: 'h-5 w-5 object-contain' },
 ]
+const usdtBrands = [
+  { src: usdtIcon, alt: 'USDT', class: 'h-5 w-5 object-contain' },
+  { src: usdcIcon, alt: 'USDC', class: 'h-5 w-5 object-contain' },
+  { src: infiniIcon, alt: 'Infini', class: 'h-5 w-5 object-contain' },
+]
 const supportedBrands = computed(() => {
   const types = new Set(visibleMethods.value.map((method) => method.type.toLowerCase()))
+  const hasStripe = types.has('stripe')
   if (props.lane === 'usdt') {
-    return types.has('infini') ? [{ src: infiniIcon, alt: 'Infini', class: 'h-5 w-5 object-contain' }] : []
+    if (types.size === 0) return []
+    return usdtBrands.filter((brand) => brand.alt !== 'Infini' || types.has('infini'))
   }
   return rmbBrands.filter((brand) => {
-    if (brand.alt === 'Alipay') return types.has('alipay') || types.has('alipay_direct')
-    if (brand.alt === 'WeChat Pay') return types.has('wxpay') || types.has('wxpay_direct')
-    if (['Visa', 'Mastercard', 'Apple Pay'].includes(brand.alt)) return types.has('stripe')
-    if (brand.alt === 'USD') return types.has('stripe') || types.has('airwallex')
+    if (brand.alt === 'Alipay') return hasStripe || types.has('alipay') || types.has('alipay_direct')
+    if (brand.alt === 'WeChat Pay') return hasStripe || types.has('wxpay') || types.has('wxpay_direct')
+    if (['Visa', 'Mastercard', 'Apple Pay'].includes(brand.alt)) return hasStripe
+    if (brand.alt === 'USD') return hasStripe || types.has('airwallex')
     return false
   })
 })
