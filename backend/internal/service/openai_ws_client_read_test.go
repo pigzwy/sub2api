@@ -29,7 +29,7 @@ func TestReadOpenAIWSClientMessageRejectsAmbiguousSessionFrames(t *testing.T) {
 						result <- err
 						return
 					}
-					defer conn.CloseNow()
+					defer func() { _ = conn.CloseNow() }()
 					_, body, err := ReadOpenAIWSClientMessage(r.Context(), conn, time.Second, coderws.StatusPolicyViolation, "timeout")
 					if len(body) > 0 {
 						result <- errors.New("ambiguous payload exposed to forwarding caller")
@@ -42,7 +42,7 @@ func TestReadOpenAIWSClientMessageRejectsAmbiguousSessionFrames(t *testing.T) {
 				defer cancel()
 				client, _, err := coderws.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http"), nil)
 				require.NoError(t, err)
-				defer client.CloseNow()
+				defer func() { _ = client.CloseNow() }()
 				require.NoError(t, client.Write(ctx, messageType, []byte(payload)))
 				_, _, err = client.Read(ctx)
 				require.Equal(t, coderws.StatusPolicyViolation, coderws.CloseStatus(err))
