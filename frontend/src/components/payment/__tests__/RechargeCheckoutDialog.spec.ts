@@ -205,7 +205,6 @@ describe('RechargeCheckoutDialog', () => {
     expect(Array.from(brands?.querySelectorAll('img') ?? []).map((img) => img.getAttribute('alt'))).toEqual([
       'USDT',
       'USDC',
-      'DAI',
     ])
     wrapper.unmount()
   })

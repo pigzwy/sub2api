@@ -147,7 +147,6 @@ import applePayIcon from '@/assets/icons/apple-pay.svg'
 import dollarIcon from '@/assets/icons/dollar.svg'
 import usdtIcon from '@/assets/icons/usdt.svg'
 import usdcIcon from '@/assets/icons/usdc.svg'
-import daiIcon from '@/assets/icons/dai.svg'
 
 const CHECKOUT_METHOD_BUTTON_CLASS = [
   'inline-flex w-full items-center justify-center gap-3 rounded-2xl border border-gray-200',
@@ -197,9 +196,8 @@ const rmbBrands = [
   { src: dollarIcon, alt: 'USD', class: 'h-5 w-5 object-contain' },
 ]
 const usdtBrands = [
-  { src: usdtIcon, alt: 'USDT', class: 'h-5 w-5 object-contain' },
-  { src: usdcIcon, alt: 'USDC', class: 'h-5 w-5 object-contain' },
-  { src: daiIcon, alt: 'DAI', class: 'h-5 w-5 object-contain' },
+  { src: usdtIcon, alt: 'USDT', class: 'h-5 w-auto object-contain' },
+  { src: usdcIcon, alt: 'USDC', class: 'h-5 w-auto object-contain' },
 ]
 const supportedBrands = computed(() => {
   const types = new Set(visibleMethods.value.map((method) => method.type.toLowerCase()))
