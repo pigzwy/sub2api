@@ -107,13 +107,13 @@
           <div
             data-testid="supported-methods"
             :data-lane="lane"
-            class="flex flex-wrap items-center justify-center gap-2 px-6 pb-6 pt-4 text-xs font-medium text-gray-500 dark:text-gray-300"
+            class="flex flex-wrap items-center justify-center gap-3 px-6 pb-6 pt-4 text-xs font-medium text-gray-500 dark:text-gray-300"
           >
             <span>{{ t('payment.supportedMethods') }}</span>
             <span
               v-for="brand in supportedBrands"
               :key="brand.alt"
-              class="inline-flex h-7 items-center rounded-md bg-white px-1 shadow-sm"
+              class="inline-flex items-center"
             >
               <img
                 :src="brand.src"
@@ -141,6 +141,8 @@ import stripeIcon from '@/assets/icons/stripe.svg'
 import airwallexIcon from '@/assets/icons/airwallex.svg'
 import infiniIcon from '@/assets/icons/infini.svg'
 import paymentIcon from '@/assets/icons/payment.svg'
+import alipayMark from '@/assets/icons/alipay-mark.svg'
+import wechatMark from '@/assets/icons/wechat-mark.svg'
 import visaIcon from '@/assets/icons/visa.svg'
 import mastercardIcon from '@/assets/icons/mastercard.svg'
 import applePayIcon from '@/assets/icons/apple-pay.svg'
@@ -192,12 +194,12 @@ const { t } = useI18n()
 const showLaneToggle = computed(() => props.rmbMethods.length > 0 && props.usdtMethods.length > 0)
 const visibleMethods = computed(() => (props.lane === 'usdt' ? props.usdtMethods : props.rmbMethods))
 const rmbBrands = [
-  { src: alipayIcon, alt: 'Alipay', class: 'h-5 w-5 object-contain' },
-  { src: wxpayIcon, alt: 'WeChat Pay', class: 'h-5 w-5 object-contain' },
+  { src: alipayMark, alt: 'Alipay', class: 'h-6 w-6 object-contain' },
+  { src: wechatMark, alt: 'WeChat Pay', class: 'h-6 w-6 object-contain' },
   { src: visaIcon, alt: 'Visa', class: 'h-3.5 w-auto object-contain' },
-  { src: mastercardIcon, alt: 'Mastercard', class: 'h-5 w-auto object-contain' },
-  { src: applePayIcon, alt: 'Apple Pay', class: 'h-5 w-5 object-contain' },
-  { src: dollarIcon, alt: 'USD', class: 'h-5 w-5 object-contain' },
+  { src: mastercardIcon, alt: 'Mastercard', class: 'h-6 w-auto object-contain' },
+  { src: applePayIcon, alt: 'Apple Pay', class: 'h-6 w-auto object-contain' },
+  { src: dollarIcon, alt: 'USD', class: 'h-6 w-6 object-contain' },
 ]
 const usdtBrands = [
   { src: bnbIcon, alt: 'BNB', class: 'h-6 w-6 object-contain' },
