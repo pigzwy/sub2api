@@ -5,7 +5,10 @@ import CustomPageView from '../CustomPageView.vue'
 
 const route = reactive({ params: { id: 'old' } })
 const fetchPage = vi.fn()
-vi.mock('vue-router', () => ({ useRoute: () => route }))
+vi.mock('vue-router', () => ({
+  useRoute: () => route,
+  useRouter: () => ({ back: vi.fn(), replace: vi.fn() }),
+}))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key, locale: { value: 'en' } }) }))
 vi.mock('@/stores', () => ({ useAppStore: () => ({
   publicSettingsLoaded: true,

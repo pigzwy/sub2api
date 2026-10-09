@@ -34,8 +34,11 @@ Ent runtime 自动合并采用上游新增平台校验，fork 独有 Ent 表及�
 unit、integration、frontend、lint、安全扫描和镜像构建由推送后的 GitHub Actions 验证；
 本机仅执行冲突、差异和格式静态核验，不重启生产容器。
 
-合并提交为 `0004634dc`。首次推送未生成 Actions 任务（推送范围含上游 `[skip ci]`
-版本提交）；追加本条发布记录以触发最终代码的 CI、安全扫描和 fork Docker 构建。
+合并提交为 `0004634dc`。新增自定义页面竞态测试的 router mock 补齐 fork 使用的
+`useRouter`。静态差异检查通过，构建和测试尚未执行：推送后未生成 Actions 任务，
+手动触发 fork Docker workflow 返回 HTTP 422，消息为
+`Actions has been disabled for this repository.`。尽管权限查询显示 enabled、workflow
+显示 active，实际任务派发仍被 GitHub 拒绝；需要恢复 Actions 后补跑完整 CI 和镜像构建。
 
 ## 2026-10-07：审查并整合充值 PR 与最新上游版本号
 
