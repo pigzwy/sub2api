@@ -18,6 +18,22 @@
 上游正式实现 > 上游后续安全修复 > 本地旧二开 > 历史兼容代码
 ```
 
+## 2026-10-09：合并上游 v0.2.15
+
+将 `upstream/main` 从 `3f1a2ea0a` 合并至 `3a6fd1c9d`（`v0.2.15`），合并前备份为
+`backup/request-audit-before-v0.2.15-20261009`。本轮采用上游 Go 1.27.2 与依赖安全
+升级、平台清单和 provider profile、Cline/Command Code 平台、协议路由收敛、Claude
+计费修复、Web Search 历史重放、前端竞态修复及迁移 `242_drop_platform_check_constraints.sql`。
+
+迁移只移除用户平台配额和复合模型路由的平台 CHECK，改由同一平台清单的应用校验；
+渠道监控 provider CHECK 保留。现有 request-audit、请求本地直答、签到、OpenAI
+Realtime、Gemini Images、媒体 S3、Infini 支付和百分比充值均保留。共享路由复核确认
+OpenAI Realtime 与 Gemini Images 分支未被上游覆盖。
+
+上游删除/重构的生成代码按本地 schema 和装配结果保留 fork 独有 Ent 表及服务。完整
+unit、integration、frontend、lint、安全扫描和镜像构建由推送后的 GitHub Actions 验证；
+本机仅执行冲突、差异和格式静态核验，不重启生产容器。
+
 ## 2026-10-07：审查并整合充值 PR 与最新上游版本号
 
 以远端 `request-audit` 的 `b956a4972` 为基线，整合 PR #8 的结账标识修正与

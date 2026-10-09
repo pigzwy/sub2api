@@ -8,15 +8,15 @@
 
 | 项 | 值 |
 |---|---|
-| 统计日期 | 2026-10-07 |
-| 上游基线 | `3f1a2ea0a`（`v0.2.14` 后的版本号同步，已合并入本分支） |
-| 分支共同祖先 | `3f1a2ea0a`（本次合并后） |
+| 统计日期 | 2026-10-09 |
+| 上游基线 | `3a6fd1c9d`（`v0.2.15`，已合并入本分支） |
+| 分支共同祖先 | `3a6fd1c9d`（本次合并后） |
 | 差异规模 | 以以下重新核对命令为准 |
 
-合并 `v0.2.14` 及后续版本号同步后，本分支不再落后本次拉取的上游；`VERSION` 为 `0.2.14`。
+合并 `v0.2.15` 后，本分支不再落后本次拉取的上游；`VERSION` 为 `0.2.15`。
 
 本次生产源码复核以合并后的 `request-audit` 为基线；该提交包含上游
-`v0.2.14` 及本文件列出的独有功能。仓库没有可访问的 GitHub Wiki remote，
+`v0.2.15` 及本文件列出的独有功能。仓库没有可访问的 GitHub Wiki remote，
 因此本文件和 [MERGE_RECORDS.md](./MERGE_RECORDS.md) 是当前可发布的二开记录。
 
 重新核对清单：
@@ -42,6 +42,10 @@ v0.2.3 采用上游 `236_group_model_allowlist_repair.sql` 修复旧列残留或
 独有 Realtime 账号测试和 GPT Image 测试兼容逻辑继续保留。
 
 ## 功能一览
+
+2026-10-09 同步上游 v0.2.15：Go 1.27.2 安全升级、动态平台清单与 provider profile、
+Cline/Command Code 平台、协议路由和 Claude 计费修复。保留 request-audit、签到、
+Realtime、Gemini Images、媒体对象存储、Infini 支付和百分比充值。
 
 2026-10-07 同步上游 v0.2.14：全新安装随机管理员邮箱与密码强度校验、EasyPay 回调防伪造、远程 Codex 目录的 API Key 发现，以及 Vue / source-map-js / xlsx 审计修复。充值到账、套餐卡片、固定赠送、倍率和 Infini 汇率保持不变。
 
