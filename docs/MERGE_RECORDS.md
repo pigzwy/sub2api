@@ -40,6 +40,9 @@ unit、integration、frontend、lint、安全扫描和镜像构建由推送后�
 `Actions has been disabled for this repository.`。尽管权限查询显示 enabled、workflow
 显示 active，实际任务派发仍被 GitHub 拒绝；需要恢复 Actions 后补跑完整 CI 和镜像构建。
 
+用户重新开启 Actions 后，手动派发已返回 HTTP 204。追加本记录重新触发同一版本的
+CI、安全扫描和 Docker 发布，最终结果以本次推送的 Actions 为准。
+
 ## 2026-10-07：审查并整合充值 PR 与最新上游版本号
 
 以远端 `request-audit` 的 `b956a4972` 为基线，整合 PR #8 的结账标识修正与
