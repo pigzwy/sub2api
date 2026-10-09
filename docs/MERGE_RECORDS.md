@@ -30,9 +30,12 @@
 Realtime、Gemini Images、媒体 S3、Infini 支付和百分比充值均保留。共享路由复核确认
 OpenAI Realtime 与 Gemini Images 分支未被上游覆盖。
 
-上游删除/重构的生成代码按本地 schema 和装配结果保留 fork 独有 Ent 表及服务。完整
+Ent runtime 自动合并采用上游新增平台校验，fork 独有 Ent 表及服务装配均保留。完整
 unit、integration、frontend、lint、安全扫描和镜像构建由推送后的 GitHub Actions 验证；
 本机仅执行冲突、差异和格式静态核验，不重启生产容器。
+
+合并提交为 `0004634dc`。首次推送未生成 Actions 任务（推送范围含上游 `[skip ci]`
+版本提交）；追加本条发布记录以触发最终代码的 CI、安全扫描和 fork Docker 构建。
 
 ## 2026-10-07：审查并整合充值 PR 与最新上游版本号
 
