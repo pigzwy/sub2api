@@ -25,6 +25,11 @@
 `4d9ac3e48`（`v0.2.16`），上游共新增 79 个提交。合并前备份为
 `backup/request-audit-before-v0.2.16-20261013`。
 
+原合并遇到四个文本冲突文件：`cmd/server/wire_gen.go`、
+`internal/handler/gateway_handler.go`、`internal/repository/scheduler_cache.go`、
+`internal/service/pricing_service.go`。原 agent 已解决这些冲突，并修正自动合并导致的
+16 处 Ent runtime 索引错位；接力复核最终字段映射和调用接线后完成合并提交。
+
 采用上游 Gemini 显式缓存（创建、修改、删除、存储计费及修改恢复）、分组多语言字段、
 Claude Haiku 5.5 与 Responses 桥接、Vertex 模型接口、模型级限流、计费和前端交互修复。
 上游独有功能文件保持上游实现，未另建一套缓存或多语言逻辑；上游已有文档和 workflow
@@ -54,7 +59,13 @@ Ent 分组的 65 个 schema 字段、49 个 runtime 描述符和 69 个生成/�
 迁移完整性、价格 JSON 和前端 CI 测试路径检查通过。
 未运行 Go/frontend 构建、测试、lint 或依赖安装。完整 unit、integration、frontend、
 lint、安全扫描及镜像构建仍须由推送后的 GitHub Actions 验证；此前 v0.2.15 的 CI
-成功不代表本次合并已通过。当前仅完成本地合并，不推送、不部署、不重启生产容器。
+成功不代表本次合并已通过。合并提交完成时尚未推送，不部署、不重启生产容器。
+
+随后按用户授权推送合并提交 `cdc94c3aa`，触发 CI、安全扫描和 fork 镜像构建。
+补充派发 Ent Codegen，自动提交 `157a91099` 仅将 GroupMutation.Fields 的切片
+预分配容量从 67 调整为 68，并补齐 9 行生成工具依赖校验值，未改变字段或业务逻辑。
+自动提交带有 `[skip ci]`，因此追加本记录重新触发最终代码的完整 CI 和镜像构建；
+最终结果必须以该后续提交的 Actions 为准，不能沿用合并提交或旧版本的成功结果。
 
 另记录一个纯上游缓存计费疑点：创建显式缓存时先按请求 TTL 估算存储费，即使上游返回
 更早的到期时间、持久化时已取较早时间，首次存储收费仍使用原估算 token-hours。
