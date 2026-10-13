@@ -8,15 +8,15 @@
 
 | 项 | 值 |
 |---|---|
-| 统计日期 | 2026-10-09 |
-| 上游基线 | `3a6fd1c9d`（`v0.2.15`，已合并入本分支） |
-| 分支共同祖先 | `3a6fd1c9d`（本次合并后） |
+| 统计日期 | 2026-10-13 |
+| 上游基线 | `4d9ac3e48`（`v0.2.16`，已合并入本分支） |
+| 分支共同祖先 | `4d9ac3e48`（本次合并后） |
 | 差异规模 | 以以下重新核对命令为准 |
 
-合并 `v0.2.15` 后，本分支不再落后本次拉取的上游；`VERSION` 为 `0.2.15`。
+合并 `v0.2.16` 后，本分支不再落后本次拉取的上游；`VERSION` 为 `0.2.16`。
 
 本次生产源码复核以合并后的 `request-audit` 为基线；该提交包含上游
-`v0.2.15` 及本文件列出的独有功能。仓库没有可访问的 GitHub Wiki remote，
+`v0.2.16` 及本文件列出的独有功能。仓库没有可访问的 GitHub Wiki remote，
 因此本文件和 [MERGE_RECORDS.md](./MERGE_RECORDS.md) 是当前可发布的二开记录。
 
 重新核对清单：
@@ -42,6 +42,12 @@ v0.2.3 采用上游 `236_group_model_allowlist_repair.sql` 修复旧列残留或
 独有 Realtime 账号测试和 GPT Image 测试兼容逻辑继续保留。
 
 ## 功能一览
+
+2026-10-13 同步上游 v0.2.16：Gemini 显式缓存及存储计费、分组多语言字段、
+Claude Haiku 5.5 适配、Vertex 模型接口、模型级限流及前端交互修复均采用上游实现。
+保留请求审计/本地直答、签到、OpenAI Realtime 及音频拆项计费、Gemini Images、
+媒体对象存储、Infini 支付及可选百分比充值。既有充值卡片、固定赠送、倍率和
+Infini 独立实付汇率不变；未改写既有迁移。验证与上游缓存 TTL 计费疑点见本次合并记录。
 
 2026-10-09 同步上游 v0.2.15：Go 1.27.2 安全升级、动态平台清单与 provider profile、
 Cline/Command Code 平台、协议路由和 Claude 计费修复。保留 request-audit、签到、
@@ -505,7 +511,12 @@ Authorization: Bearer sk-...                 # 仅支持请求头；不支持 WS
 - 价格表补 `gpt-realtime-2.1` 条目（沿用 `gpt-realtime-2` 官方价：文本 $4/$16、音频 $32/$64、缓存 $0.4，均为每百万 token）。
 - Grok 语音计费不变：按连接分钟 × 分组 `audio_realtime_price_per_min`（默认 $0.05）× 倍率，观察到音频事件才计费。
 
-**迁移**：`227_add_group_allow_realtime.sql`、`228_usage_log_audio_tokens.sql`。usage_logs 加列采用**追加式列序**：四列固定位于 `session_id` 与 `created_at` 之间，`usage_log_session_id_unit_test.go` 守护测试锁 63 列布局，后续加列必须同步该测试与 `usage_log_repo_insert.go` 顶部注释列出的全部调用点。
+**迁移**：`227_add_group_allow_realtime.sql`、`228_usage_log_audio_tokens.sql`。
+usage_logs 的 INSERT/SELECT 使用统一列布局，目前为 66 列，固定尾序为
+`upstream_request_id, session_id, native_compaction_v2, audio_input_tokens, audio_input_cost, audio_output_tokens, audio_output_cost, created_at`。
+`usage_log_session_id_unit_test.go` 守护测试锁定列数、参数类型与尾序；后续加列必须同步
+该测试与 `usage_log_repo_insert.go` 顶部注释列出的全部调用点。此处指读写语句列序，
+不是数据库表的物理列序。
 
 **新增文件**
 

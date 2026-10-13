@@ -5,6 +5,10 @@ FRONTEND_CRITICAL_VITEST := \
 	src/api/__tests__/client.spec.ts \
 	src/api/__tests__/tokenRefresh.spec.ts \
 	src/api/__tests__/keys.bulkUpdate.spec.ts \
+	src/composables/__tests__/useGeminiOAuth.errors.spec.ts \
+	src/composables/__tests__/useModelWhitelist.spec.ts \
+	src/utils/__tests__/geminiExplicitCache.spec.ts \
+	src/components/account/__tests__/AccountUsageCell.spec.ts \
 	src/components/account/__tests__/OpenAIReferralCell.spec.ts \
 	src/components/account/__tests__/OpenAIReferralCell.transport.spec.ts \
 	src/components/account/__tests__/OpenAIQuotaResetCell.spark_shadow.spec.ts \
@@ -12,9 +16,16 @@ FRONTEND_CRITICAL_VITEST := \
 	src/components/account/__tests__/credentialsBuilder.platformCatalog.spec.ts \
 	src/components/account/__tests__/CreateAccountModal.spec.ts \
 	src/components/account/__tests__/EditAccountModal.spec.ts \
+	src/components/account/__tests__/ModelWhitelistSelector.spec.ts \
+	src/components/account/__tests__/UsageProgressBar.spec.ts \
 	src/components/account/__tests__/credentialsBuilder.spec.ts \
 	src/components/account/__tests__/OpenCodeGoProtocolRulesEditor.spec.ts \
+	src/components/admin/group/__tests__/GroupI18nField.spec.ts \
+	src/components/admin/group/__tests__/GroupRPMOverridesModal.requests.spec.ts \
+	src/components/admin/group/__tests__/GroupRateMultipliersModal.edit.spec.ts \
 	src/components/keys/__tests__/BulkEditKeysModal.spec.ts \
+	src/components/common/__tests__/LocaleSwitcher.spec.ts \
+	src/components/common/__tests__/Select.ime.spec.ts \
 	src/components/admin/user/__tests__/UserPlatformQuotaModal.spec.ts \
 	src/views/user/__tests__/KeysView.spec.ts \
 	src/api/__tests__/channelMonitorV2.spec.ts \
@@ -32,11 +43,17 @@ FRONTEND_CRITICAL_VITEST := \
 	src/components/payment/__tests__/RechargeBonusSettings.spec.ts \
 	src/components/payment/__tests__/RechargePackageGrid.spec.ts \
 	src/components/payment/__tests__/currency.spec.ts \
+	src/components/payment/__tests__/paymentCountdown.spec.ts \
 	src/views/user/__tests__/ChannelStatusView.mode.spec.ts \
+	src/views/user/__tests__/ChannelStatusV1View.details.spec.ts \
 	src/components/user/profile/__tests__/ProfileInfoCard.spec.ts \
 	src/components/user/profile/__tests__/ProfileIdentityBindingsSection.spec.ts \
 	src/views/admin/__tests__/SettingsView.spec.ts \
 	src/views/admin/__tests__/backupObjectStorage.spec.ts \
+	src/views/admin/__tests__/groupsVoicePricing.spec.ts \
+	src/views/admin/ops/components/__tests__/OpsDashboardHeader.timezone.spec.ts \
+	src/views/admin/ops/components/__tests__/OpsRequestDetailsModal.spec.ts \
+	src/features/channel-monitor-v2/__tests__/MonitorSettingsPanel.spec.ts \
 	src/features/channel-monitor-v2/__tests__/designSystem.structure.spec.ts \
 	src/features/channel-monitor-v2/__tests__/monitorFormat.spec.ts \
 	src/features/channel-monitor-v2/__tests__/monitorZoom.spec.ts \

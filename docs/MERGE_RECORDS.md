@@ -18,6 +18,49 @@
 上游正式实现 > 上游后续安全修复 > 本地旧二开 > 历史兼容代码
 ```
 
+## 2026-10-13：接力完成上游 v0.2.16 合并
+
+从 `request-audit` 的 `12e45a74a` 接手未完成的合并，保留已有暂存结果，
+将 `upstream/main` 从共同祖先 `3a6fd1c9d`（`v0.2.15`）合并至
+`4d9ac3e48`（`v0.2.16`），上游共新增 79 个提交。合并前备份为
+`backup/request-audit-before-v0.2.16-20261013`。
+
+采用上游 Gemini 显式缓存（创建、修改、删除、存储计费及修改恢复）、分组多语言字段、
+Claude Haiku 5.5 与 Responses 桥接、Vertex 模型接口、模型级限流、计费和前端交互修复。
+上游独有功能文件保持上游实现，未另建一套缓存或多语言逻辑；上游已有文档和 workflow
+不作 fork 修改，既有 fork 文档、Ent 检查及镜像发布 workflow 继续保留。
+
+请求审计/本地直答、签到、OpenAI Realtime 路由与显式能力准入、音频拆项计费、
+Gemini Images、媒体对象存储和独有设置装配均保留。支付继续使用既有充值卡片、
+固定赠送、倍率及 Infini 独立实付汇率；百分比赠送仍须管理员主动选择。
+旧订单按冻结到账额履约，报价接口与退款/回调链路不改写。
+既有排除上游 `241_add_payment_order_bonus_amount.sql` 的支付边界不变。
+
+仅新增以下四个上游迁移，内容与上游一致；既有迁移文件名和字节内容均未改变，
+不重命名 fork 的同编号迁移（执行器按完整文件名追踪）：
+
+- `242_group_i18n.sql`
+- `243_gemini_cached_contents.sql`
+- `244_gemini_cached_contents_channel_usage.sql`
+- `245_gemini_cached_contents_mutation_lease.sql`
+
+接力收尾为前端 CI 白名单补充 16 个回归测试路径，白名单共 57 个有效且不重复的文件，
+覆盖本轮全部 18 个新增/修改的前端测试及 fork 分组语音定价回归。
+同步更新二开基线和 usage_logs 的 66 列读写布局说明。
+
+本机仅执行静态核验：无未解决冲突或冲突标记，工作区/暂存区 whitespace 检查通过；
+Ent 分组的 65 个 schema 字段、49 个 runtime 描述符和 69 个生成/迁移列映射一致；
+新增缓存服务 provider 与生成 Wire 的调用参数、初始化和退出清理一致；
+迁移完整性、价格 JSON 和前端 CI 测试路径检查通过。
+未运行 Go/frontend 构建、测试、lint 或依赖安装。完整 unit、integration、frontend、
+lint、安全扫描及镜像构建仍须由推送后的 GitHub Actions 验证；此前 v0.2.15 的 CI
+成功不代表本次合并已通过。当前仅完成本地合并，不推送、不部署、不重启生产容器。
+
+另记录一个纯上游缓存计费疑点：创建显式缓存时先按请求 TTL 估算存储费，即使上游返回
+更早的到期时间、持久化时已取较早时间，首次存储收费仍使用原估算 token-hours。
+相关 handler/service/repository 与上游一致，不属于本轮合并差异；本轮不改写上游计费，
+部署启用显式缓存前应单独核验该边界。
+
 ## 2026-10-09：合并上游 v0.2.15
 
 将 `upstream/main` 从 `3f1a2ea0a` 合并至 `3a6fd1c9d`（`v0.2.15`），合并前备份为

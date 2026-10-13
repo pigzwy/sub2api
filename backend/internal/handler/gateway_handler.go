@@ -53,13 +53,15 @@ type GatewayHandler struct {
 	contentModerationService  *service.ContentModerationService
 	requestAuditLogService    *service.RequestAuditLogService
 	securityAuditCoordinator  *securityaudit.Coordinator
-	concurrencyHelper         *ConcurrencyHelper
-	userMsgQueueHelper        *UserMsgQueueHelper
-	maxAccountSwitches        int
-	maxAccountSwitchesGemini  int
-	cfg                       *config.Config
-	settingService            *service.SettingService
-	modelPricingResolver      groupModelAudioTokenPricingResolver
+	// geminiCachedContentService 管理 Gemini 显式缓存；为 nil 时相关接口不可用。
+	geminiCachedContentService *service.GeminiCachedContentService
+	concurrencyHelper          *ConcurrencyHelper
+	userMsgQueueHelper         *UserMsgQueueHelper
+	maxAccountSwitches         int
+	maxAccountSwitchesGemini   int
+	cfg                        *config.Config
+	settingService             *service.SettingService
+	modelPricingResolver       groupModelAudioTokenPricingResolver
 }
 
 // NewGatewayHandler creates a new GatewayHandler
