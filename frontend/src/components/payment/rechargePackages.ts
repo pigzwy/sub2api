@@ -53,6 +53,21 @@ export function packageBonusAmount(
   return roundMoney(Number(pkg.bonus) || 0)
 }
 
+export function isEasyPayTenAmount(amount: number): boolean {
+  return Number.isFinite(amount) && Math.round(amount * 100) === 1000
+}
+
+export function isEasyPayMethod(providerKey?: string | null): boolean {
+  return String(providerKey || '').trim().toLowerCase() === 'easypay'
+}
+
+// ¥10 balance top-ups are EasyPay-only. Every other amount stays off EasyPay.
+// A missing provider key is not treated as EasyPay, so official Alipay buttons keep working.
+export function rechargeMethodAllowed(amount: number, providerKey?: string | null): boolean {
+  if (isEasyPayTenAmount(amount)) return isEasyPayMethod(providerKey)
+  return !isEasyPayMethod(providerKey)
+}
+
 export function filterRechargePackages(
   packages: RechargePackage[],
   min: number,

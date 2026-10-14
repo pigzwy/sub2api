@@ -824,6 +824,7 @@ Infini 仍独立按 `充值面额 / USDT 汇率` 加手续费计算实付；其�
 - 管理后台 `系统设置 → 支付设置`：`payment_balance_recharge_multiplier`、`payment_balance_recharge_packages`。
 - 用户页 `/purchase` 充值 Tab：档位卡片 → 确认框先选支付方式（同一栏可以混 CNY/USD）→ 独立确认后下单。
 - `GET /api/v1/payment/checkout-info` 返回带 `credit` / `bonus` 的档位列表，供前端展示；下单仍只传金额。
+- 余额充值面额正好 ¥10 时只允许易支付。收银台没有 ¥10 卡片时临时补一张「小额 / EasyPay」，不写入后台配置，也不改到账公式：没单独配置的这张卡只按倍率换算。全局最低充值额和易支付单笔最低额都不挡住它。其他面额拒绝易支付，继续走 Stripe、Infini，以及站点原本开启的官方支付宝 / Airwallex。方式限额带 `provider_key`，用来区分易支付支付宝和官方支付宝；订阅不受这条规则影响。
 
 **关键文件**
 

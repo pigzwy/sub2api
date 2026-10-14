@@ -124,6 +124,9 @@ func BuildCheckoutRechargePackagesForConfig(cfg *PaymentConfig) ([]CheckoutRecha
 	if len(packages) == 0 {
 		packages = DefaultRechargePackages()
 	}
+	// Checkout-only. The stored package list is left unchanged, so a site that
+	// never configured ¥10 still gets multiplier-only credit for this card.
+	packages = ensureEasyPayTenPackage(packages)
 	out := BuildCheckoutRechargePackages(packages, cfg.BalanceRechargeMultiplier)
 	for i, pkg := range packages {
 		credit, err := calculateBalanceRechargeCredit(pkg.Amount, cfg)

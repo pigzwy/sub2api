@@ -48,8 +48,10 @@ func TestCreateOrderSnapshotsBonusCreditBeforeFulfillment(t *testing.T) {
 		mode, nextMode string
 		credit         float64
 	}{
-		{RechargeBonusFixed, RechargeBonusPercentage, 33},
-		{RechargeBonusPercentage, RechargeBonusFixed, 33.6},
+		// EasyPay balance checkout is only valid at ¥10. The 200-yuan formula
+		// stays covered by the recharge bonus unit tests.
+		{RechargeBonusFixed, RechargeBonusPercentage, 6.4},
+		{RechargeBonusPercentage, RechargeBonusFixed, 1.68},
 	} {
 		t.Run(tc.mode, func(t *testing.T) {
 			ctx := context.Background()
@@ -67,10 +69,10 @@ func TestCreateOrderSnapshotsBonusCreditBeforeFulfillment(t *testing.T) {
 			multiplier := 0.14
 			feeRate := 0.0
 			packages := []RechargePackage{{
-				ID:     "cny200",
-				Amount: 200,
+				ID:     "cny10",
+				Amount: 10,
 				Bonus:  5,
-				Name:   "加赠",
+				Name:   "小额",
 			}}
 			settings := &paymentConfigSettingRepoStub{values: map[string]string{
 				SettingMinRechargeAmount: "1",
@@ -78,7 +80,7 @@ func TestCreateOrderSnapshotsBonusCreditBeforeFulfillment(t *testing.T) {
 			configService := &PaymentConfigService{entClient: client, settingRepo: settings}
 			require.NoError(t, configService.UpdatePaymentConfig(ctx, UpdatePaymentConfigRequest{
 				RechargeBonusMode:         &tc.mode,
-				RechargeBonusTiers:        &[]RechargeBonusTier{{MinAmount: 200, BonusPercent: 20}},
+				RechargeBonusTiers:        &[]RechargeBonusTier{{MinAmount: 10, BonusPercent: 20}},
 				Enabled:                   &enabled,
 				BalanceRechargeMultiplier: &multiplier,
 				BalanceRechargePackages:   &packages,
@@ -91,7 +93,7 @@ func TestCreateOrderSnapshotsBonusCreditBeforeFulfillment(t *testing.T) {
 			require.InDelta(t, 0.14, stored.BalanceRechargeMultiplier, 1e-9)
 			require.InDelta(t, 0, stored.RechargeFeeRate, 1e-9)
 			require.Len(t, stored.BalanceRechargePackages, 1)
-			require.InDelta(t, 200, stored.BalanceRechargePackages[0].Amount, 1e-9)
+			require.InDelta(t, 10, stored.BalanceRechargePackages[0].Amount, 1e-9)
 			require.InDelta(t, 5, stored.BalanceRechargePackages[0].Bonus, 1e-9)
 
 			balance := 0.0
@@ -118,7 +120,7 @@ func TestCreateOrderSnapshotsBonusCreditBeforeFulfillment(t *testing.T) {
 
 			resp, err := svc.CreateOrder(ctx, CreateOrderRequest{
 				UserID:      user.ID,
-				Amount:      200,
+				Amount:      10,
 				PaymentType: payment.TypeAlipay,
 				OrderType:   payment.OrderTypeBalance,
 				ClientIP:    "127.0.0.1",
@@ -130,7 +132,7 @@ func TestCreateOrderSnapshotsBonusCreditBeforeFulfillment(t *testing.T) {
 			order, err := client.PaymentOrder.Get(ctx, resp.OrderID)
 			require.NoError(t, err)
 			require.InDelta(t, tc.credit, order.Amount, 1e-8)
-			require.InDelta(t, 200.0, order.PayAmount, 1e-8)
+			require.InDelta(t, 10.0, order.PayAmount, 1e-8)
 			require.Equal(t, payment.OrderTypeBalance, order.OrderType)
 			require.Equal(t, tc.mode, order.ProviderSnapshot["bonus_mode"])
 			require.Equal(t, decimalAmountString(tc.credit, 2), order.ProviderSnapshot["credit_amount"])
@@ -138,10 +140,10 @@ func TestCreateOrderSnapshotsBonusCreditBeforeFulfillment(t *testing.T) {
 
 			changedMultiplier := 1.0
 			changedPackages := []RechargePackage{{
-				ID:     "cny200",
-				Amount: 200,
+				ID:     "cny10",
+				Amount: 10,
 				Bonus:  80,
-				Name:   "加赠",
+				Name:   "小额",
 			}}
 			require.NoError(t, configService.UpdatePaymentConfig(ctx, UpdatePaymentConfigRequest{
 				RechargeBonusMode:         &tc.nextMode,
@@ -150,12 +152,12 @@ func TestCreateOrderSnapshotsBonusCreditBeforeFulfillment(t *testing.T) {
 			}))
 			live, err := configService.GetPaymentConfig(ctx)
 			require.NoError(t, err)
-			require.NotEqual(t, tc.credit, calculateCreditedBalance(200, live.BalanceRechargeMultiplier, live.BalanceRechargePackages))
+			require.NotEqual(t, tc.credit, calculateCreditedBalance(10, live.BalanceRechargeMultiplier, live.BalanceRechargePackages))
 
 			mismatch := &payment.PaymentNotification{
 				TradeNo: "easypay-bonus-mismatch",
 				OrderID: order.OutTradeNo,
-				Amount:  199,
+				Amount:  9,
 				Status:  payment.NotificationStatusSuccess,
 			}
 			require.ErrorContains(t, svc.HandlePaymentNotification(ctx, mismatch, payment.TypeEasyPay), "amount mismatch")
@@ -168,7 +170,7 @@ func TestCreateOrderSnapshotsBonusCreditBeforeFulfillment(t *testing.T) {
 			success := &payment.PaymentNotification{
 				TradeNo: "easypay-bonus-credit",
 				OrderID: order.OutTradeNo,
-				Amount:  200,
+				Amount:  10,
 				Status:  payment.NotificationStatusSuccess,
 			}
 			require.NoError(t, svc.HandlePaymentNotification(ctx, success, payment.TypeEasyPay))
@@ -181,7 +183,7 @@ func TestCreateOrderSnapshotsBonusCreditBeforeFulfillment(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, OrderStatusCompleted, completed.Status)
 			require.InDelta(t, tc.credit, completed.Amount, 1e-8)
-			require.InDelta(t, 200.0, completed.PayAmount, 1e-8)
+			require.InDelta(t, 10.0, completed.PayAmount, 1e-8)
 
 		})
 	}

@@ -506,6 +506,98 @@ describe('PaymentView recharge rate preview', () => {
     ])
   })
 
+  it('keeps a 10 yuan card on EasyPay and sends other amounts to Stripe and Infini', async () => {
+    const method: MethodLimit = {
+      daily_limit: 0,
+      daily_used: 0,
+      daily_remaining: 0,
+      single_min: 50,
+      single_max: 0,
+      fee_rate: 0,
+      available: true,
+    }
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
+      methods: {
+        alipay: { ...method, currency: 'CNY', provider_key: 'easypay' },
+        stripe: { ...method, currency: 'USD', provider_key: 'stripe' },
+        infini: { ...method, currency: 'USD', provider_key: 'infini' },
+      },
+      balance_recharge_packages: [
+        { id: 'easypay-10', amount: 10, bonus: 0, credit: 10, name: '小额', description: '易支付' },
+        { id: 'starter', amount: 50, bonus: 0, credit: 50, name: '体验', description: '' },
+      ],
+    }))
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.getComponent(RechargePackageGrid).props('packages').map((pkg: { amount: number }) => pkg.amount)).toEqual([10, 50])
+    wrapper.getComponent(RechargePackageGrid).vm.$emit('select', 10)
+    await flushPromises()
+
+    const dialog = wrapper.getComponent(RechargeCheckoutDialog)
+    expect(dialog.props('rmbMethods').map((item: { type: string }) => item.type)).toEqual(['alipay'])
+    expect(dialog.props('rmbMethods')[0].available).toBe(true)
+    expect(dialog.props('usdtMethods')).toEqual([])
+
+    dialog.vm.$emit('close')
+    await flushPromises()
+    wrapper.getComponent(RechargePackageGrid).vm.$emit('select', 50)
+    await flushPromises()
+
+    expect(dialog.props('rmbMethods').map((item: { type: string }) => item.type)).toEqual(['stripe'])
+    expect(dialog.props('rmbMethods')[0].available).toBe(true)
+    expect(dialog.props('usdtMethods').map((item: { type: string }) => item.type)).toEqual(['infini'])
+    wrapper.unmount()
+  })
+
+  it('hides the 10 yuan card when the alipay button is not EasyPay', async () => {
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
+      methods: {
+        alipay: {
+          daily_limit: 0,
+          daily_used: 0,
+          daily_remaining: 0,
+          single_min: 0,
+          single_max: 0,
+          fee_rate: 0,
+          available: true,
+          currency: 'CNY',
+        },
+      },
+      balance_recharge_packages: [
+        { id: 'easypay-10', amount: 10, bonus: 0, credit: 10, name: '小额', description: '易支付' },
+        { id: 'starter', amount: 50, bonus: 0, credit: 50, name: '体验', description: '' },
+      ],
+    }))
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.getComponent(RechargePackageGrid).props('packages').map((pkg: { amount: number }) => pkg.amount)).toEqual([50])
+    wrapper.unmount()
+  })
+
   it('credits pay amount times rate plus that package bonus only', async () => {
     routeState.path = '/purchase'
     routeState.query = {}

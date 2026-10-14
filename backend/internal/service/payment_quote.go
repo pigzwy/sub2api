@@ -50,6 +50,15 @@ func (s *PaymentService) QuoteOrder(ctx context.Context, req CreateOrderRequest)
 	if err != nil {
 		return nil, err
 	}
+	if req.OrderType == payment.OrderTypeBalance {
+		providerKey, providerErr := s.balanceQuoteProviderKey(ctx, req.PaymentType)
+		if providerErr != nil {
+			return nil, providerErr
+		}
+		if err := validateBalanceRechargeMethodRoute(req.Amount, providerKey, req.PaymentType); err != nil {
+			return nil, err
+		}
+	}
 
 	orderAmount := req.Amount
 	limitAmount := req.Amount

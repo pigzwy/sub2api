@@ -34,6 +34,7 @@ func (s *PaymentConfigService) GetAvailableMethodLimits(ctx context.Context) (*M
 		ml := pcAggregateMethodLimits(pt, insts)
 		ml.DisplayName = s.pcAggregateMethodDisplayName(pt, insts)
 		ml.Currency = currency
+		ml.ProviderKey = sharedProviderKey(insts)
 		resp.Methods[ml.PaymentType] = ml
 	}
 	resp.GlobalMin, resp.GlobalMax = pcComputeGlobalRange(resp.Methods)
@@ -97,6 +98,7 @@ func (s *PaymentConfigService) GetMethodLimits(ctx context.Context, types []stri
 		ml := pcAggregateMethodLimits(pt, matching)
 		ml.DisplayName = s.pcAggregateMethodDisplayName(pt, matching)
 		ml.Currency = currency
+		ml.ProviderKey = sharedProviderKey(matching)
 		result = append(result, ml)
 	}
 	return result, nil
@@ -314,6 +316,30 @@ func pcAggregateMethodLimits(pt string, instances []*dbent.PaymentProviderInstan
 		ml.DailyLimit = 0
 	}
 	return ml
+}
+
+// sharedProviderKey reports the provider when a checkout button is backed by one
+// provider. Mixed official and EasyPay instances stay blank so the client does
+// not treat a shared alipay button as EasyPay.
+func sharedProviderKey(instances []*dbent.PaymentProviderInstance) string {
+	key := ""
+	for _, inst := range instances {
+		if inst == nil {
+			continue
+		}
+		next := strings.ToLower(strings.TrimSpace(inst.ProviderKey))
+		if next == "" {
+			continue
+		}
+		if key == "" {
+			key = next
+			continue
+		}
+		if key != next {
+			return ""
+		}
+	}
+	return key
 }
 
 // pcComputeGlobalRange computes the widest [min, max] across all methods.
