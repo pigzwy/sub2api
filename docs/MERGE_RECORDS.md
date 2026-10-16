@@ -18,6 +18,39 @@
 上游正式实现 > 上游后续安全修复 > 本地旧二开 > 历史兼容代码
 ```
 
+## 2026-10-16：合并上游 v0.2.17
+
+从 `request-audit` 的 `aeef107cc` 合并 `upstream/main` 的 `b0a02a330`，
+共同祖先为 `4d9ac3e48`（v0.2.16）。Git fetch 与 GitHub API 的上游 main SHA 一致；
+上游新增 48 个提交、153 个文件变更。合并前备份为
+`backup/request-audit-before-v0.2.17-20261016`。
+
+自动合并没有文本冲突，24 个上游变更文件与二开差异重叠。按功能复核支付、网关、
+Realtime、音频计费、模型清单及前端入口，未发现需要手工修改业务代码的合并问题。
+合并前 113 个 fork 新增文件全部保留，业务文件内容不变；本次仅更新其中两份二开文档。
+上游独有文件逐字采用上游版本，没有新增业务代码分叉。
+
+采用上游 EasyPay 验签后由同一商户实例查单确认、订单类型白名单、退款 pending 期间
+保留余额/订阅扣减并在失败终态归还、支付宝退款状态查询，以及 Stripe 从浏览器中匹配
+订单的恢复快照读取 client_secret。原充值套餐、固定/百分比赠送、倍率、Infini 实付
+汇率及旧订单冻结到账额不变；不引入此前排除的支付 bonus_amount 字段及迁移。
+
+采用 Gemini 4 Argon 价格与模型目录、兼容入口思考档位及摘要、Vertex 容量重试与账号
+错误处理、GPT-5.5 在 ChatGPT/OAuth 订阅通道的退役限制（API-Key 通道保留）、复合分组
+OAuth 歧义路由拒绝、Responses created_at 补齐及 Anthropic base URL 修复。
+请求审计/本地直答、OpenAI Realtime 显式能力与分组准入、音频拆项计费、Gemini Images、
+视频/音频对象存储、签到、Studio 和模型广场二开均继续保留。
+
+本轮没有新增、修改或删除数据库迁移，Ent schema、Ent 生成代码与 Wire 装配均未变。
+Go 与三个 Dockerfile 保持 1.27.2。将本轮修改的 `StripePaymentView.spec.ts` 加入根
+Makefile 的前端 CI 白名单；另一修改测试 `useModelWhitelist.spec.ts` 已登记。
+上游撤回筛选布局时删除的 `AccountTableFilters.spec.ts` 随上游删除，不恢复旧测试。
+
+本机仅做静态检查：未解决冲突与冲突标记检查、差异 whitespace、二开文件完整性、
+迁移/生成代码不变、价格 JSON 和 CI 白名单路径检查。按约定不在本机运行构建、测试、
+lint 或安装依赖。完整 CI、安全扫描与镜像构建以本次推送最终提交的 GitHub Actions
+结果为准，记录写入时尚待验证；本次不部署或重启生产。
+
 ## 2026-10-13：接力完成上游 v0.2.16 合并
 
 从 `request-audit` 的 `12e45a74a` 接手未完成的合并，保留已有暂存结果，
