@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -106,7 +107,7 @@ func TestOpenAIResponsesWebSocket_FirstFrameDuplicateModelKeysRejected(t *testin
 				firstPayload:            `{"type":"response.create","model":"gpt-5.4","model":"gpt-4.1","stream":false}`,
 				group:                   wsAllowlistGroup(true, "gpt-5.4"),
 				ingressMode:             mode,
-				firstFrameCloseExpected: true,
+				firstFrameCloseExpected: true, closeReason: "duplicate model",
 			})
 		})
 	}
@@ -120,7 +121,7 @@ func TestOpenAIResponsesWebSocket_FirstFrameCaseVariantModelKeyRejected(t *testi
 		firstPayload:            `{"type":"response.create","model":"gpt-5.4","Model":"gpt-4.1","stream":false}`,
 		group:                   wsAllowlistGroup(true, "gpt-5.4"),
 		ingressMode:             service.OpenAIWSIngressModePassthrough,
-		firstFrameCloseExpected: true,
+		firstFrameCloseExpected: true, closeReason: "duplicate model",
 	})
 }
 
@@ -133,21 +134,38 @@ func TestOpenAIResponsesWebSocket_SubsequentTurnDuplicateModelKeysRejected(t *te
 				secondPayload:           `{"type":"response.create","model":"gpt-5.4","model":"gpt-4.1","stream":false}`,
 				group:                   wsAllowlistGroup(true, "gpt-5.4"),
 				ingressMode:             mode,
-				secondTurnCloseExpected: true,
+				secondTurnCloseExpected: true, closeReason: "duplicate model",
 			})
 		})
 	}
 }
 
-// 重复但同值的 model 键不误伤，连接正常完成两个 turn。
-func TestOpenAIResponsesWebSocket_DuplicateIdenticalModelKeysAllowed(t *testing.T) {
-	got := runOpenAIResponsesWebSocketUsageLogCase(t, openAIResponsesWSUsageLogCase{
-		firstPayload:  `{"type":"response.create","model":"gpt-5.4","model":"gpt-5.4","stream":false}`,
-		secondPayload: `{"type":"response.create","model":"gpt-5.4","stream":false}`,
-		group:         wsAllowlistGroup(true, "gpt-5.4"),
-	})
-	if len(got.clientEvents) != 2 {
-		t.Fatalf("expected two completed events, got %d", len(got.clientEvents))
+// Even identical duplicates are rejected independently of allowlist policy.
+func TestOpenAIResponsesWebSocket_AmbiguousModelsRejected(t *testing.T) {
+	for _, mode := range []string{service.OpenAIWSIngressModePassthrough, service.OpenAIWSIngressModeDedicated} {
+		for _, fields := range []string{
+			`"model":"gpt-5.4","model":"gpt-5.4"`,
+			`"model":"gpt-5.4","Model":"gpt-4.1"`,
+			`"model":"gpt-5.4","\u006dodel":"gpt-4.1"`,
+			`"model":"gpt-5.4","model":null`,
+		} {
+			for _, first := range []bool{true, false} {
+				t.Run(mode+fields+fmt.Sprint(first), func(t *testing.T) {
+					tc := openAIResponsesWSUsageLogCase{
+						firstPayload:  `{"type":"response.create","model":"gpt-5.4","stream":false}`,
+						secondPayload: `{"type":"response.create",` + fields + `,"messages":[{"role":"user","content":"hello"}],"stream":false}`,
+						group:         wsAllowlistGroup(false), ingressMode: mode, secondTurnCloseExpected: true, closeReason: "duplicate model",
+					}
+					if first {
+						tc.firstPayload = tc.secondPayload
+						tc.secondPayload = ""
+						tc.firstFrameCloseExpected = true
+						tc.secondTurnCloseExpected = false
+					}
+					runOpenAIResponsesWebSocketUsageLogCase(t, tc)
+				})
+			}
+		}
 	}
 }
 
