@@ -288,10 +288,13 @@ import RechargeCheckoutDialog from '@/components/payment/RechargeCheckoutDialog.
 import {
   balanceGatewayPayAmount,
   filterRechargePackages,
+  isEasyPayMethod,
+  isEasyPayTenAmount,
   maxRechargeBonus,
   packageBonusAmount,
   packageCreditAmount,
   paymentMethodLane,
+  rechargeMethodAllowed,
   resolveRechargePackages,
   resolveUsdtUsdToCnyRate,
   type PaymentMethodLane,
@@ -601,12 +604,14 @@ function methodLimitAmount(amt: number, methodType: string): number {
 }
 
 // Check if an amount fits a method's [min, max]. 0 = no limit.
-function amountFitsMethod(amt: number, methodType: string): boolean {
+function amountFitsMethod(amt: number, methodType: string, rechargeRoute = false): boolean {
   if (amt <= 0) return true
   const ml = visibleMethods.value[methodType]
   if (!ml) return false
+  if (rechargeRoute && !rechargeMethodAllowed(amt, ml.provider_key)) return false
   const limitAmt = methodLimitAmount(amt, methodType)
-  if (ml.single_min > 0 && limitAmt < ml.single_min) return false
+  const bypassMin = rechargeRoute && isEasyPayTenAmount(amt) && isEasyPayMethod(ml.provider_key)
+  if (!bypassMin && ml.single_min > 0 && limitAmt < ml.single_min) return false
   if (ml.single_max > 0 && limitAmt > ml.single_max) return false
   return true
 }
@@ -679,16 +684,18 @@ function formatSelectedSubscriptionPaymentAmount(value: number): string {
 }
 
 const methodOptions = computed<PaymentMethodOption[]>(() =>
-  enabledMethods.value.map((type) => {
-    const ml = visibleMethods.value[type]
-    return {
-      type,
-      display_name: ml?.display_name,
-      fee_rate: ml?.fee_rate ?? 0,
-      available: ml?.available !== false && amountFitsMethod(validAmount.value, type),
-      currency: ml?.currency,
-    }
-  })
+  enabledMethods.value
+    .filter((type) => activeTab.value !== 'recharge' || validAmount.value <= 0 || rechargeMethodAllowed(validAmount.value, visibleMethods.value[type]?.provider_key))
+    .map((type) => {
+      const ml = visibleMethods.value[type]
+      return {
+        type,
+        display_name: ml?.display_name,
+        fee_rate: ml?.fee_rate ?? 0,
+        available: ml?.available !== false && amountFitsMethod(validAmount.value, type, activeTab.value === 'recharge'),
+        currency: ml?.currency,
+      }
+    })
 )
 
 const rmbMethods = computed(() =>
@@ -697,9 +704,19 @@ const rmbMethods = computed(() =>
 const usdtMethods = computed(() =>
   methodOptions.value.filter((method) => paymentMethodLane(method.type, method.currency) === 'usdt')
 )
-const visiblePackages = computed(() =>
-  filterRechargePackages(configuredPackages.value, globalMinAmount.value, globalMaxAmount.value),
+const hasEasyPayMethod = computed(() =>
+  enabledMethods.value.some((type) => isEasyPayMethod(visibleMethods.value[type]?.provider_key)),
 )
+const visiblePackages = computed(() => {
+  const filtered = filterRechargePackages(configuredPackages.value, globalMinAmount.value, globalMaxAmount.value)
+  if (!hasEasyPayMethod.value) {
+    return filtered.filter((pkg) => !isEasyPayTenAmount(pkg.amount))
+  }
+  if (filtered.some((pkg) => isEasyPayTenAmount(pkg.amount))) return filtered
+  const ten = configuredPackages.value.find((pkg) => isEasyPayTenAmount(pkg.amount))
+  if (!ten || (globalMaxAmount.value > 0 && ten.amount > globalMaxAmount.value)) return filtered
+  return [ten, ...filtered]
+})
 const bonusMax = computed(() => maxRechargeBonus(visiblePackages.value, balanceRechargeMultiplier.value))
 const packageDisplayCurrency = computed(() => {
   const rmbType = enabledMethods.value.find((type) => paymentMethodLane(type, visibleMethods.value[type]?.currency) === 'rmb')
@@ -774,14 +791,15 @@ async function loadRechargeQuote() {
 const amountError = computed(() => {
   if (validAmount.value <= 0) return ''
   // No method can handle this amount
-  if (!enabledMethods.value.some((m) => amountFitsMethod(validAmount.value, m))) {
+  if (!enabledMethods.value.some((m) => amountFitsMethod(validAmount.value, m, true))) {
     return t('payment.amountNoMethod')
   }
   // Selected method can't handle this amount (but others can)
   const ml = selectedLimit.value
   if (ml) {
     const limitAmount = methodLimitAmount(validAmount.value, selectedMethod.value)
-    if (ml.single_min > 0 && limitAmount < ml.single_min) {
+    const bypassMin = isEasyPayTenAmount(validAmount.value) && isEasyPayMethod(ml.provider_key)
+    if (!bypassMin && ml.single_min > 0 && limitAmount < ml.single_min) {
       return t('payment.amountTooLow', { min: formatMethodLimitAmount(ml.single_min, ml.currency) })
     }
     if (ml.single_max > 0 && limitAmount > ml.single_max) {
@@ -793,7 +811,7 @@ const amountError = computed(() => {
 
 const canSubmit = computed(() =>
   validAmount.value > 0
-    && amountFitsMethod(validAmount.value, selectedMethod.value)
+    && amountFitsMethod(validAmount.value, selectedMethod.value, true)
     && selectedLimit.value?.available !== false
     && !quoteLoading.value
     && !quoteError.value
@@ -851,7 +869,7 @@ let rechargeConfirmLock = false
 // Auto-switch to first available method when current selection can't handle the amount
 watch(() => [validAmount.value, selectedMethod.value, payLane.value] as const, ([amt, method]) => {
   if (showPayDialog.value || submitting.value || rechargeConfirmLock) return
-  if (amt <= 0 || amountFitsMethod(amt, method)) return
+  if (amt <= 0 || amountFitsMethod(amt, method, activeTab.value === 'recharge')) return
   const laneMethods = payLane.value === 'usdt' ? usdtMethods.value : rmbMethods.value
   const preferred = [...laneMethods, ...methodOptions.value].find((m) => m.available)
   if (preferred) {
@@ -973,7 +991,7 @@ async function confirmRechargeCheckout(type: string) {
   if (rechargeConfirmLock || submitting.value) return
   const requestType = type || selectedMethod.value
   const method = methodOptions.value.find((item) => item.type === requestType)
-  if (!method?.available || !amountFitsMethod(validAmount.value, requestType)) return
+  if (!method?.available || !amountFitsMethod(validAmount.value, requestType, true)) return
   rechargeConfirmLock = true
   selectedMethod.value = requestType
   payLane.value = paymentMethodLane(requestType, method.currency)

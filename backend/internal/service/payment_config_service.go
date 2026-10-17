@@ -145,6 +145,8 @@ type MethodLimits struct {
 	DailyLimit  float64 `json:"daily_limit"`
 	SingleMin   float64 `json:"single_min"`
 	SingleMax   float64 `json:"single_max"`
+	// ProviderKey is set when every enabled instance behind this button shares one provider.
+	ProviderKey string `json:"provider_key,omitempty"`
 }
 
 // MethodLimitsResponse is the full response for the user-facing /limits API.

@@ -4,18 +4,37 @@ import {
   balanceGatewayPayAmount,
   creditedRechargeAmount,
   filterRechargePackages,
+  isEasyPayMethod,
+  isEasyPayTenAmount,
   isUsdtPaymentMethod,
   maxRechargeBonus,
   packageBonusAmount,
   packageCreditAmount,
   paymentMethodLane,
   rechargeBonusAmount,
+  rechargeMethodAllowed,
   resolveRechargePackages,
   resolveUsdtUsdToCnyRate,
   shouldConvertBalancePayAmountToUsd,
 } from '@/components/payment/rechargePackages'
 
 describe('rechargePackages', () => {
+  it('routes 10 yuan to EasyPay and keeps other amounts off EasyPay', () => {
+    expect(isEasyPayTenAmount(10)).toBe(true)
+    expect(isEasyPayTenAmount(10.004)).toBe(true)
+    expect(isEasyPayTenAmount(10.01)).toBe(false)
+    expect(isEasyPayMethod(' EasyPay ')).toBe(true)
+    expect(isEasyPayMethod('alipay')).toBe(false)
+    expect(isEasyPayMethod('')).toBe(false)
+    expect(rechargeMethodAllowed(10, 'easypay')).toBe(true)
+    expect(rechargeMethodAllowed(10, 'stripe')).toBe(false)
+    expect(rechargeMethodAllowed(10, undefined)).toBe(false)
+    expect(rechargeMethodAllowed(50, 'easypay')).toBe(false)
+    expect(rechargeMethodAllowed(50, 'stripe')).toBe(true)
+    expect(rechargeMethodAllowed(50, 'infini')).toBe(true)
+    expect(rechargeMethodAllowed(100, undefined)).toBe(true)
+  })
+
   it('keeps package amounts inside the checkout min/max window', () => {
     expect(filterRechargePackages(DEFAULT_RECHARGE_PACKAGES, 100, 2000).map((pkg) => pkg.amount)).toEqual([100, 500, 1000, 1500, 2000])
   })
