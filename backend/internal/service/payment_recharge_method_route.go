@@ -11,29 +11,8 @@ import (
 
 const easyPayTenYuanAmount = 10
 
-// EasyPayTenPackage is the balance card that can only be paid with EasyPay.
-func EasyPayTenPackage() RechargePackage {
-	return RechargePackage{
-		ID:            "easypay-10",
-		Amount:        easyPayTenYuanAmount,
-		Name:          "小额",
-		Description:   "易支付",
-		NameEn:        "Small",
-		DescriptionEn: "EasyPay",
-	}
-}
-
 func isEasyPayTenYuanAmount(amount float64) bool {
 	return decimal.NewFromFloat(amount).Round(2).Equal(decimal.NewFromInt(easyPayTenYuanAmount))
-}
-
-func ensureEasyPayTenPackage(packages []RechargePackage) []RechargePackage {
-	if _, ok := FindRechargePackageByAmount(packages, easyPayTenYuanAmount); ok {
-		return packages
-	}
-	out := make([]RechargePackage, 0, len(packages)+1)
-	out = append(out, EasyPayTenPackage())
-	return append(out, packages...)
 }
 
 func (s *PaymentService) balanceQuoteProviderKey(ctx context.Context, paymentType string) (string, error) {

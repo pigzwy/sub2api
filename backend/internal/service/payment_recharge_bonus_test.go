@@ -137,16 +137,9 @@ func TestRechargeBonusDoesNotChangeGatewayAmounts(t *testing.T) {
 			require.NoError(t, err)
 			cards, err := BuildCheckoutRechargePackagesForConfig(cfg)
 			require.NoError(t, err)
-			var starter CheckoutRechargePackage
-			for _, card := range cards {
-				if card.Amount == 50 {
-					starter = card
-					break
-				}
-			}
-			require.Equal(t, 50.0, starter.Amount)
-			require.Equal(t, 8.40, starter.Credit)
-			require.Equal(t, 1.40, starter.Bonus)
+			require.Equal(t, 50.0, cards[0].Amount)
+			require.Equal(t, 8.40, cards[0].Credit)
+			require.Equal(t, 1.40, cards[0].Bonus)
 			// Subscription quoting bypasses even malformed balance bonus settings.
 			cfg.RechargeBonusMode = "invalid"
 			sub, err := svc.quoteOrderAmounts(ctx, CreateOrderRequest{OrderType: payment.OrderTypeSubscription, PaymentType: method}, cfg, 50, 50, nil)

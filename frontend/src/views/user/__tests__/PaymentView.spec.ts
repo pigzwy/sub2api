@@ -525,7 +525,7 @@ describe('PaymentView recharge rate preview', () => {
         infini: { ...method, currency: 'USD', provider_key: 'infini' },
       },
       balance_recharge_packages: [
-        { id: 'easypay-10', amount: 10, bonus: 0, credit: 10, name: '小额', description: '易支付' },
+        { id: 'ten', amount: 10, bonus: 0, credit: 10, name: '十元', description: '后台配置' },
         { id: 'starter', amount: 50, bonus: 0, credit: 50, name: '体验', description: '' },
       ],
     }))
@@ -578,7 +578,7 @@ describe('PaymentView recharge rate preview', () => {
         },
       },
       balance_recharge_packages: [
-        { id: 'easypay-10', amount: 10, bonus: 0, credit: 10, name: '小额', description: '易支付' },
+        { id: 'ten', amount: 10, bonus: 0, credit: 10, name: '十元', description: '后台配置' },
         { id: 'starter', amount: 50, bonus: 0, credit: 50, name: '体验', description: '' },
       ],
     }))
