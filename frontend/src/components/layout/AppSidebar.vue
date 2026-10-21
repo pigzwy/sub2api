@@ -130,10 +130,20 @@
 
       <!-- Regular User View -->
       <template v-else-if="!appStore.backendModeEnabled">
-        <div class="sidebar-section">
+        <div v-for="section in userNavSections" :key="section.id" class="sidebar-section">
+          <div
+            v-if="section.title"
+            class="sidebar-section-title"
+            :class="{ 'sidebar-section-title-collapsed': sidebarCollapsed }"
+            :aria-hidden="sidebarCollapsed ? 'true' : 'false'"
+          >
+            <span class="sidebar-section-title-text" :class="{ 'sidebar-section-title-text-collapsed': sidebarCollapsed }">
+              {{ section.title }}
+            </span>
+          </div>
           <component
             :is="item.href ? 'a' : RouterLink"
-            v-for="item in userNavItems"
+            v-for="item in section.items"
             :key="item.path"
             v-bind="navLinkProps(item)"
             class="sidebar-link mb-1"
@@ -795,8 +805,74 @@ function finalizeNav(items: NavItem[]): NavItem[] {
   return authStore.isSimpleMode ? visible.filter(item => !item.hideInSimpleMode) : visible
 }
 
-// User navigation items (for regular users)
-const userNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(true)))
+const docNavHref = computed(() => sanitizeUrl(appStore.docUrl || ''))
+const contactNavHref = computed(() => sanitizeUrl(appStore.contactInfo || ''))
+
+interface NavSection {
+  id: string
+  title?: string
+  items: NavItem[]
+}
+
+const BookIcon = {
+  render: () =>
+    h('svg', { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' }, [
+      h('path', {
+        'stroke-linecap': 'round',
+        'stroke-linejoin': 'round',
+        d: 'M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25',
+      }),
+    ]),
+}
+
+const ChatIcon = {
+  render: () =>
+    h('svg', { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' }, [
+      h('path', {
+        'stroke-linecap': 'round',
+        'stroke-linejoin': 'round',
+        d: 'M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155',
+      }),
+    ]),
+}
+
+// 普通用户侧栏按 API / 账单 / 其他分组。功能开关和简单模式过滤仍按条目生效。
+const userNavSections = computed((): NavSection[] => {
+  const home = finalizeNav(
+    buildSelfNavItems(true).filter((item) => item.path === '/dashboard'),
+  )
+  const api = finalizeNav([
+    { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
+    { path: '/batch-image', label: t('nav.batchImage'), icon: BatchImageIcon, hideInSimpleMode: true, featureFlag: flagBatchImageAccess },
+    { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
+    { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
+    { path: '/model-plaza', label: t('nav.modelPlaza'), icon: PriceTagIcon, hideInSimpleMode: true, featureFlag: flagModelPlaza },
+    { path: '/monitor', label: t('nav.channelStatus'), icon: SignalIcon, featureFlag: flagChannelMonitor },
+    ...(docNavHref.value
+      ? [{ path: docNavHref.value, label: t('nav.tutorialDocs'), icon: BookIcon, href: docNavHref.value, newTab: true }]
+      : []),
+  ])
+  const billing = finalizeNav([
+    { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true, featureFlag: flagSubscription },
+    { path: '/purchase', label: purchaseNavLabel.value, icon: RechargeSubscriptionIcon, hideInSimpleMode: true, featureFlag: flagPayment },
+    { path: '/orders', label: t('nav.myOrders'), icon: OrderListIcon, hideInSimpleMode: true, featureFlag: flagPayment },
+    { path: '/redeem', label: t('nav.redeem'), icon: GiftIcon, hideInSimpleMode: true },
+    { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagAffiliate },
+  ])
+  const other = finalizeNav([
+    { path: '/profile', label: t('nav.profile'), icon: UserIcon },
+    ...(contactNavHref.value
+      ? [{ path: contactNavHref.value, label: t('nav.contact'), icon: ChatIcon, href: contactNavHref.value, newTab: true }]
+      : []),
+    ...customMenuItemsForUser.value.map(customMenuNavItem),
+  ])
+  return [
+    { id: 'home', items: home },
+    { id: 'api', title: t('nav.sectionApi'), items: api },
+    { id: 'billing', title: t('nav.sectionBilling'), items: billing },
+    { id: 'other', title: t('nav.sectionOther'), items: other },
+  ].filter((section) => section.items.length > 0)
+})
 
 // Personal navigation items (for admin's "My Account" section, without Dashboard).
 // Admins access 可用渠道 from this section just like regular users — there is no
