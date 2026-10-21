@@ -749,6 +749,7 @@ export default {
       unitPerMillion: '$ / 1M token',
       perUnitRequest: '/ 次',
       perUnitImage: '/ 张',
+      perUnitVideo: '/ 秒',
       perRequest: '按次计费',
       perImage: '按图片计费',
       imagePrice: '图片价格',

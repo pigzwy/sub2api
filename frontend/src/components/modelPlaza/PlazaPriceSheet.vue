@@ -190,9 +190,9 @@ function requestRate(m: PlazaModel): number {
 }
 
 function mediaUnit(m: PlazaModel): string {
-  return billingMode(m) === BILLING_MODE_IMAGE
-    ? t('modelPlaza.table.perUnitImage')
-    : t('modelPlaza.table.perUnitRequest')
+  if (billingMode(m) === BILLING_MODE_IMAGE) return t('modelPlaza.table.perUnitImage')
+  if (billingMode(m) === BILLING_MODE_VIDEO) return t('modelPlaza.table.perUnitVideo')
+  return t('modelPlaza.table.perUnitRequest')
 }
 
 /** 按图/按视频/按次只展示按次价或分辨率档，不拆进输入/输出列。 */

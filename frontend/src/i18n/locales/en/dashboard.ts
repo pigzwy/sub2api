@@ -745,6 +745,7 @@ export default {
       unitPerMillion: '$ / 1M tokens',
       perUnitRequest: '/ request',
       perUnitImage: '/ image',
+      perUnitVideo: '/ sec',
       perRequest: 'Per request',
       perImage: 'Per image',
       imagePrice: 'Image price',

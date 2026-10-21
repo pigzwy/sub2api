@@ -118,6 +118,30 @@ describe('PlazaPriceSheet', () => {
     expect(wrapper.text()).not.toContain('modelPlaza.table.inputPrice')
   })
 
+  it('shows video resolution prices per second', () => {
+    const video: PlazaModel = {
+      ...model,
+      name: 'grok-imagine-video',
+      pricing: {
+        ...model.pricing!,
+        billing_mode: 'video',
+        input_price: null,
+        output_price: null,
+        per_request_price: null,
+        intervals: [
+          { min_tokens: 0, max_tokens: null, tier_label: '480p', input_price: null, output_price: null, cache_write_price: null, cache_read_price: null, per_request_price: 0.05 },
+          { min_tokens: 0, max_tokens: null, tier_label: '720p', input_price: null, output_price: null, cache_write_price: null, cache_read_price: null, per_request_price: 0.07 },
+        ],
+      },
+    }
+    const text = mountSheet('group', [video]).get('[data-testid="plaza-media-price"]').text()
+    expect(text).toContain('480p')
+    expect(text).toContain('¥0.04')
+    expect(text).toContain('720p')
+    expect(text).toContain('modelPlaza.table.perUnitVideo')
+    expect(text).not.toContain('modelPlaza.table.perUnitRequest')
+  })
+
   it('does not substitute output savings when input reference is missing', () => {
     const wrapper = mountSheet('group', [{
       ...model,
