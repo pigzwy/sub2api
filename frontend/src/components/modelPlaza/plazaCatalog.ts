@@ -83,6 +83,7 @@ const PLATFORM_I18N_KEY: Record<string, string> = {
   zhipu: 'modelPlaza.catalog.platforms.zhipu',
   kimi: 'modelPlaza.catalog.platforms.kimi',
   deepseek: 'modelPlaza.catalog.platforms.deepseek',
+  minimax: 'modelPlaza.catalog.platforms.minimax',
   antigravity: 'modelPlaza.catalog.platforms.antigravity',
   composite: 'modelPlaza.catalog.platforms.composite',
 }

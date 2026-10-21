@@ -661,10 +661,10 @@ export default {
       category: 'Category',
       products: 'Products',
       ruleTitle: 'Pricing rules',
-      ruleFx: '$1 = ¥1 (1 USD = 1 CNY)',
+      ruleFx: '$1 = ¥1',
       ruleFormula: 'Group price = official price × group rate',
       ruleExample: 'e.g. {model} input: official {official}, group {group}',
-      rule: 'Pricing rule: $1 = ¥1 (1 USD = 1 CNY). Group price = official price × group rate.',
+      rule: 'Pricing rule: $1 = ¥1. Group price = official price × group rate.',
       priceList: 'Price list',
       displayPriceNote: 'Base display prices only; resolution, long-context tiers and time-based prices are not expanded. Actual charges follow the billing rules. Per-image and per-request models do not include official token-price comparisons.',
       inputSavings: 'Input price comparison',
@@ -686,6 +686,7 @@ export default {
         zhipu: 'Zhipu',
         kimi: 'Kimi',
         deepseek: 'DeepSeek',
+        minimax: 'Minimax',
         antigravity: 'Antigravity',
         composite: 'Image/Video'
       }
