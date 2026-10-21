@@ -68,6 +68,8 @@
         :user-rate-multiplier="group.user_rate_multiplier ?? null"
         :image-rate-independent="group.image_rate_independent"
         :image-rate-multiplier="group.image_rate_multiplier"
+        :video-rate-independent="group.video_rate_independent"
+        :video-rate-multiplier="group.video_rate_multiplier"
         :price-mode="priceMode"
       />
       <PlazaModelPricingTable

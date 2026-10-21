@@ -57,17 +57,17 @@ describe('PlazaPriceSheet', () => {
     const text = wrapper.text().replace(/\s+/g, ' ')
     expect(text).toContain('claude-opus-4')
     expect(text).toContain('¥4.00')
-    expect(text).toContain('官方价格 ¥35.00')
+    expect(text).toContain('官方价格 ¥5.00')
     expect(text).toContain('¥20.00')
-    expect(text).toContain('官方价格 ¥175.00')
-    expect(text).toContain('省 89%')
+    expect(text).toContain('官方价格 ¥25.00')
+    expect(text).toContain('省 20%')
   })
 
   it('shows official amounts as the primary value in official mode', () => {
     const wrapper = mountSheet('official')
     const text = wrapper.text().replace(/\s+/g, ' ')
-    expect(text).toContain('¥35.00')
-    expect(text).not.toContain('官方价格 ¥35.00')
+    expect(text).toContain('¥5.00')
+    expect(text).not.toContain('官方价格 ¥5.00')
     expect(text).not.toContain('省 ')
   })
 
@@ -79,10 +79,67 @@ describe('PlazaPriceSheet', () => {
     }
     const wrapper = mountSheet('group', [media])
     expect(wrapper.text()).toContain('¥0.16')
+    expect(wrapper.get('[data-testid="plaza-media-price"]').attributes('colspan')).toBe('5')
     expect(wrapper.text()).not.toContain('官方价格 ¥')
     expect(wrapper.text()).not.toContain('省 ')
     await wrapper.setProps({ priceMode: 'official' })
     expect(wrapper.text()).not.toContain('¥')
+  })
+
+  it('shows image resolution tiers instead of input and output columns', () => {
+    const image: PlazaModel = {
+      ...model,
+      name: 'gpt-image-2.5',
+      pricing: {
+        ...model.pricing!,
+        billing_mode: 'image',
+        input_price: 0,
+        output_price: 0,
+        per_request_price: 0,
+        image_output_price: 0,
+        intervals: [
+          { min_tokens: 0, max_tokens: null, tier_label: '1K', input_price: null, output_price: null, cache_write_price: null, cache_read_price: null, per_request_price: 0.1 },
+          { min_tokens: 0, max_tokens: null, tier_label: '2K', input_price: null, output_price: null, cache_write_price: null, cache_read_price: null, per_request_price: 0.2 },
+          { min_tokens: 0, max_tokens: null, tier_label: '4K', input_price: null, output_price: null, cache_write_price: null, cache_read_price: null, per_request_price: 0.25 },
+        ],
+      },
+    }
+    const wrapper = mountSheet('group', [image])
+    const text = wrapper.get('[data-testid="plaza-media-price"]').text()
+    expect(text).toContain('1K')
+    expect(text).toContain('¥0.08')
+    expect(text).toContain('2K')
+    expect(text).toContain('¥0.16')
+    expect(text).toContain('4K')
+    expect(text).toContain('¥0.20')
+    expect(text).not.toContain('¥0.00')
+    expect(wrapper.get('[data-testid="plaza-media-price"]').attributes('colspan')).toBe('5')
+    expect(wrapper.text()).toContain('modelPlaza.table.imagePrice')
+    expect(wrapper.text()).not.toContain('modelPlaza.table.inputPrice')
+  })
+
+  it('shows video resolution prices per second', () => {
+    const video: PlazaModel = {
+      ...model,
+      name: 'grok-imagine-video',
+      pricing: {
+        ...model.pricing!,
+        billing_mode: 'video',
+        input_price: null,
+        output_price: null,
+        per_request_price: null,
+        intervals: [
+          { min_tokens: 0, max_tokens: null, tier_label: '480p', input_price: null, output_price: null, cache_write_price: null, cache_read_price: null, per_request_price: 0.05 },
+          { min_tokens: 0, max_tokens: null, tier_label: '720p', input_price: null, output_price: null, cache_write_price: null, cache_read_price: null, per_request_price: 0.07 },
+        ],
+      },
+    }
+    const text = mountSheet('group', [video]).get('[data-testid="plaza-media-price"]').text()
+    expect(text).toContain('480p')
+    expect(text).toContain('¥0.04')
+    expect(text).toContain('720p')
+    expect(text).toContain('modelPlaza.table.perUnitVideo')
+    expect(text).not.toContain('modelPlaza.table.perUnitRequest')
   })
 
   it('does not substitute output savings when input reference is missing', () => {

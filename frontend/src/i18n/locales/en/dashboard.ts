@@ -661,10 +661,10 @@ export default {
       category: 'Category',
       products: 'Products',
       ruleTitle: 'Pricing rules',
-      ruleFx: 'Official prices use $1 = ¥7',
-      ruleFormula: 'Group price = official price × group rate ÷ 7',
+      ruleFx: '$1 = ¥1',
+      ruleFormula: 'Group price = official price × group rate',
       ruleExample: 'e.g. {model} input: official {official}, group {group}',
-      rule: 'Pricing rule: official prices use $1 = ¥7; group price = official price × group rate ÷ 7.',
+      rule: 'Pricing rule: $1 = ¥1. Group price = official price × group rate.',
       priceList: 'Price list',
       displayPriceNote: 'Base display prices only; resolution, long-context tiers and time-based prices are not expanded. Actual charges follow the billing rules. Per-image and per-request models do not include official token-price comparisons.',
       inputSavings: 'Input price comparison',
@@ -686,8 +686,9 @@ export default {
         zhipu: 'Zhipu',
         kimi: 'Kimi',
         deepseek: 'DeepSeek',
+        minimax: 'Minimax',
         antigravity: 'Antigravity',
-        composite: 'Composite'
+        composite: 'Image/Video'
       }
     },
     filters: {
@@ -745,8 +746,12 @@ export default {
       unitPerMillion: '$ / 1M tokens',
       perUnitRequest: '/ request',
       perUnitImage: '/ image',
+      perUnitVideo: '/ sec',
       perRequest: 'Per request',
-      perImage: 'Per image'
+      perImage: 'Per image',
+      imagePrice: 'Image price',
+      videoPrice: 'Video price',
+      mediaPrice: 'Price'
     },
     nav: {
       login: 'Sign In',

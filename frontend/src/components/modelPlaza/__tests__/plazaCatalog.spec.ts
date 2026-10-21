@@ -7,6 +7,7 @@ import {
   officialYuan,
   plazaTabLabel,
   savingsPercent,
+  sortPlazaPlatforms,
 } from '../plazaCatalog'
 
 describe('plazaCatalog', () => {
@@ -17,25 +18,40 @@ describe('plazaCatalog', () => {
   })
 
   it('formats catalog 折 against official CNY', () => {
-    expect(formatCatalogZhe(0.8)).toBe('1.1')
-    expect(formatCatalogZhe(2)).toBe('2.9')
-    expect(formatCatalogZhe(5)).toBe('7.1')
+    expect(formatCatalogZhe(0.8)).toBe('8')
+    expect(formatCatalogZhe(1)).toBe('10')
+    expect(formatCatalogZhe(2)).toBe('20')
   })
 
   it('converts token prices to the catalog yuan pair', () => {
     expect(groupYuan(5e-6, 0.8)).toBe(4)
-    expect(officialYuan(5e-6)).toBe(35)
-    expect(savingsPercent(4, 35)).toBe(89)
+    expect(officialYuan(5e-6)).toBe(5)
+    expect(savingsPercent(4, 5)).toBe(20)
   })
 
   it('maps category tabs to the reference brand labels', () => {
     const t = (key: string) => ({
       'modelPlaza.catalog.platforms.anthropic': 'Claude',
       'modelPlaza.catalog.platforms.openai': 'ChatGPT',
+      'modelPlaza.catalog.platforms.zhipu': 'Zhipu',
+      'modelPlaza.catalog.platforms.composite': 'Image/Video',
+      'modelPlaza.catalog.platforms.minimax': 'Minimax',
     }[key] ?? key)
     expect(plazaTabLabel('anthropic', t)).toBe('Claude')
     expect(plazaTabLabel('openai', t)).toBe('ChatGPT')
+    expect(plazaTabLabel('zhipu', t)).toBe('Zhipu')
+    expect(plazaTabLabel('minimax', t)).toBe('Minimax')
+    expect(plazaTabLabel('composite', t)).toBe('Image/Video')
     expect(plazaTabLabel('unknown', t)).toBe('unknown')
+  })
+
+  it('keeps Image/Video last among category tabs', () => {
+    expect(sortPlazaPlatforms(['composite', 'minimax', 'anthropic', 'openai'])).toEqual([
+      'anthropic',
+      'openai',
+      'minimax',
+      'composite',
+    ])
   })
 
   it('sorts plaza models newest-version first', () => {

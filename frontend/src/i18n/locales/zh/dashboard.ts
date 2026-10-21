@@ -666,10 +666,10 @@ export default {
       category: '分类',
       products: '产品',
       ruleTitle: '计价规则',
-      ruleFx: '官方价格按 $1 = ¥7 折算',
-      ruleFormula: '分组价格 = 官方价格 × 分组倍率 ÷ 7',
+      ruleFx: '$1 = ¥1',
+      ruleFormula: '分组价格 = 官方价格 × 分组倍率',
       ruleExample: '如 {model} 输入价格，官方价格 {official}，分组价格 {group}',
-      rule: '计价规则：官方价格按 $1 = ¥7 折算，分组价格 = 官方价格 × 分组倍率 ÷ 7。',
+      rule: '计价规则：$1 = ¥1，分组价格 = 官方价格 × 分组倍率。',
       priceList: '价格列表',
       displayPriceNote: '本页为基础展示价，未展开分辨率、长上下文档位及分时价格；实际扣费以后台计费规则为准。按张或按次模型不提供官方 token 价格对比。',
       inputSavings: '输入价格对比',
@@ -688,11 +688,12 @@ export default {
         openai: 'ChatGPT',
         grok: 'Grok',
         gemini: 'Gemini',
-        zhipu: '智谱',
+        zhipu: 'Zhipu',
         kimi: 'Kimi',
         deepseek: 'DeepSeek',
+        minimax: 'Minimax',
         antigravity: 'Antigravity',
-        composite: '综合'
+        composite: 'Image/Video'
       }
     },
     filters: {
@@ -749,8 +750,12 @@ export default {
       unitPerMillion: '$ / 1M token',
       perUnitRequest: '/ 次',
       perUnitImage: '/ 张',
+      perUnitVideo: '/ 秒',
       perRequest: '按次计费',
-      perImage: '按图片计费'
+      perImage: '按图片计费',
+      imagePrice: '图片价格',
+      videoPrice: '视频价格',
+      mediaPrice: '价格'
     },
     nav: {
       login: '登录',

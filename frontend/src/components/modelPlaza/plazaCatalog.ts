@@ -1,5 +1,5 @@
-/** 官方价按 $1 = ¥7 展示；分组价 = 官方美元 × 倍率（与参考页 ÷7 后同一口径）。 */
-export const PLAZA_USD_TO_CNY = 7
+/** 官方价按 $1 = ¥1 展示；分组价 = 官方价 × 分组倍率。 */
+export const PLAZA_USD_TO_CNY = 1
 
 /** 分组倍率换算成常见「X 折」展示（0.8x → 8）。 */
 export function formatZhe(rate: number): string {
@@ -7,7 +7,7 @@ export function formatZhe(rate: number): string {
   return Number.isInteger(z) ? String(z) : z.toFixed(1)
 }
 
-/** 相对官方人民币的折数：分组价 = 官方美元 × 倍率，官方人民币 = 官方美元 × 7，故 0.8x → 1.1 折。 */
+/** 相对官方价的折数：官方价按 $1 = ¥1，故 0.8x → 8 折，1x → 10 折。 */
 export function formatCatalogZhe(rate: number, fx = PLAZA_USD_TO_CNY): string {
   return formatZhe(rate / fx)
 }
@@ -53,7 +53,7 @@ export function formatYuan(amount: number | null): string {
   return `¥${amount.toFixed(2)}`
 }
 
-/** 分类 Tab 顺序与参考页一致；只展示数据里实际出现的平台。 */
+/** 分类 Tab 顺序。Image/Video（composite）固定在最后；只展示数据里实际出现的平台。 */
 export const PLAZA_PLATFORM_ORDER = [
   'anthropic',
   'openai',
@@ -63,15 +63,15 @@ export const PLAZA_PLATFORM_ORDER = [
   'kimi',
   'deepseek',
   'antigravity',
-  'composite',
 ] as const
 
 export function sortPlazaPlatforms(platforms: string[]): string[] {
-  return [...platforms].sort((a, b) => {
-    const ai = PLAZA_PLATFORM_ORDER.indexOf(a as (typeof PLAZA_PLATFORM_ORDER)[number])
-    const bi = PLAZA_PLATFORM_ORDER.indexOf(b as (typeof PLAZA_PLATFORM_ORDER)[number])
-    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi) || a.localeCompare(b)
-  })
+  const rank = (platform: string) => {
+    if (platform === 'composite') return 10_000
+    const index = PLAZA_PLATFORM_ORDER.indexOf(platform as (typeof PLAZA_PLATFORM_ORDER)[number])
+    return index === -1 ? 99 : index
+  }
+  return [...platforms].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
 }
 
 /** 分类用参考页品牌名（Claude / ChatGPT）；分组卡片仍只用后台分组 name。 */
@@ -83,6 +83,7 @@ const PLATFORM_I18N_KEY: Record<string, string> = {
   zhipu: 'modelPlaza.catalog.platforms.zhipu',
   kimi: 'modelPlaza.catalog.platforms.kimi',
   deepseek: 'modelPlaza.catalog.platforms.deepseek',
+  minimax: 'modelPlaza.catalog.platforms.minimax',
   antigravity: 'modelPlaza.catalog.platforms.antigravity',
   composite: 'modelPlaza.catalog.platforms.composite',
 }

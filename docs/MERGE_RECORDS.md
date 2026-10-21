@@ -18,6 +18,15 @@
 上游正式实现 > 上游后续安全修复 > 本地旧二开 > 历史兼容代码
 ```
 
+## 2026-10-21：广场展示与 ¥10 易支付一并进入 request-audit
+
+`request-audit` 已含 `6505d1ddd`：余额充值正好 ¥10 时只走易支付，卡片必须由后台充值档位配置，代码不再预置这张卡。
+本次把 `cursor/plaza-image-price-display-3558`（含分类标签）合并进来，不改扣费和支付回调。
+
+广场展示：`$1 = ¥1`，分组价 = 官方价 × 分组倍率。分类名为 Zhipu、Minimax，Image/Video 固定最后。
+图片按 1K/2K/4K 以「/ 张」展示，视频按分辨率以「/ 秒」展示。模型按版本号从新到旧。
+功能边界见 [FORK_FEATURES.md](./FORK_FEATURES.md) 第 16 节 ¥10 条目和第 17 节。
+
 ## 2026-10-16：合并上游 v0.2.17
 
 从 `request-audit` 的 `aeef107cc` 合并 `upstream/main` 的 `b0a02a330`，
