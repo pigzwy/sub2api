@@ -7,11 +7,16 @@
       <thead>
         <tr class="border-b border-gray-200 text-left text-xs font-medium text-gray-500 dark:border-dark-700 dark:text-dark-400">
           <th class="px-5 py-3 font-medium">{{ t('modelPlaza.table.modelId') }}</th>
-          <th class="px-4 py-3 font-medium">{{ t('modelPlaza.table.inputPrice') }}</th>
-          <th class="px-4 py-3 font-medium">{{ t('modelPlaza.table.outputPrice') }}</th>
-          <th class="px-4 py-3 font-medium">{{ t('modelPlaza.table.cacheCreate') }}</th>
-          <th class="px-4 py-3 font-medium">{{ t('modelPlaza.table.cacheReadCol') }}</th>
-          <th class="px-4 py-3 pr-5 text-right font-medium">{{ t('modelPlaza.catalog.inputSavings') }}</th>
+          <template v-if="mediaOnly">
+            <th colspan="5" class="px-4 py-3 font-medium">{{ mediaColumnLabel }}</th>
+          </template>
+          <template v-else>
+            <th class="px-4 py-3 font-medium">{{ t('modelPlaza.table.inputPrice') }}</th>
+            <th class="px-4 py-3 font-medium">{{ t('modelPlaza.table.outputPrice') }}</th>
+            <th class="px-4 py-3 font-medium">{{ t('modelPlaza.table.cacheCreate') }}</th>
+            <th class="px-4 py-3 font-medium">{{ t('modelPlaza.table.cacheReadCol') }}</th>
+            <th class="px-4 py-3 pr-5 text-right font-medium">{{ t('modelPlaza.catalog.inputSavings') }}</th>
+          </template>
         </tr>
       </thead>
       <tbody>
@@ -33,26 +38,42 @@
               </button>
             </div>
           </td>
-          <td class="px-4 py-4 align-middle">
-            <PriceStack :primary="row.inputPrimary" :official="row.inputOfficial" :unit="row.unit" />
-          </td>
-          <td class="px-4 py-4 align-middle">
-            <PriceStack :primary="row.outputPrimary" :official="row.outputOfficial" :unit="row.unit" />
-          </td>
-          <td class="px-4 py-4 align-middle">
-            <PriceStack :primary="row.cacheWritePrimary" :official="row.cacheWriteOfficial" :unit="row.unit" />
-          </td>
-          <td class="px-4 py-4 align-middle">
-            <PriceStack :primary="row.cacheReadPrimary" :official="row.cacheReadOfficial" :unit="row.unit" />
-          </td>
-          <td class="px-4 py-4 pr-5 text-right align-middle">
-            <span
-              v-if="row.savings != null"
-              class="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
-            >
-              {{ t('modelPlaza.table.savePercent', { percent: row.savings }) }}
-            </span>
-            <span v-else class="text-xs text-gray-400">-</span>
+          <template v-if="row.kind === 'token'">
+            <td class="px-4 py-4 align-middle">
+              <PriceStack :primary="row.inputPrimary" :official="row.inputOfficial" :unit="row.unit" />
+            </td>
+            <td class="px-4 py-4 align-middle">
+              <PriceStack :primary="row.outputPrimary" :official="row.outputOfficial" :unit="row.unit" />
+            </td>
+            <td class="px-4 py-4 align-middle">
+              <PriceStack :primary="row.cacheWritePrimary" :official="row.cacheWriteOfficial" :unit="row.unit" />
+            </td>
+            <td class="px-4 py-4 align-middle">
+              <PriceStack :primary="row.cacheReadPrimary" :official="row.cacheReadOfficial" :unit="row.unit" />
+            </td>
+            <td class="px-4 py-4 pr-5 text-right align-middle">
+              <span
+                v-if="row.savings != null"
+                class="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
+              >
+                {{ t('modelPlaza.table.savePercent', { percent: row.savings }) }}
+              </span>
+              <span v-else class="text-xs text-gray-400">-</span>
+            </td>
+          </template>
+          <td v-else colspan="5" class="px-4 py-4 align-middle" data-testid="plaza-media-price">
+            <div v-if="row.prices.length" class="flex flex-wrap items-center gap-2">
+              <span
+                v-for="(price, index) in row.prices"
+                :key="`${row.name}-${index}`"
+                class="inline-flex items-baseline gap-1"
+              >
+                <span v-if="price.label" class="text-xs text-gray-400 dark:text-dark-500">{{ price.label }}</span>
+                <span class="text-base font-semibold tabular-nums text-amber-600 dark:text-amber-300">{{ price.amount }}</span>
+                <span class="text-[11px] text-gray-400 dark:text-dark-500">{{ row.unit }}</span>
+              </span>
+            </div>
+            <span v-else class="text-gray-400 dark:text-dark-500">-</span>
           </td>
         </tr>
       </tbody>
@@ -68,6 +89,7 @@ import type { PlazaModel } from '@/api/modelPlaza'
 import {
   BILLING_MODE_IMAGE,
   BILLING_MODE_TOKEN,
+  BILLING_MODE_VIDEO,
   type BillingMode,
 } from '@/constants/channel'
 import {
@@ -85,6 +107,8 @@ const props = defineProps<{
   userRateMultiplier?: number | null
   imageRateIndependent?: boolean
   imageRateMultiplier?: number | null
+  videoRateIndependent?: boolean
+  videoRateMultiplier?: number | null
   priceMode?: 'group' | 'official'
 }>()
 
@@ -118,7 +142,8 @@ const PriceStack = defineComponent({
   },
 })
 
-interface SheetRow {
+interface TokenSheetRow {
+  kind: 'token'
   name: string
   unit: string
   inputPrimary: string
@@ -132,6 +157,20 @@ interface SheetRow {
   savings: number | null
 }
 
+interface MediaPrice {
+  label: string
+  amount: string
+}
+
+interface MediaSheetRow {
+  kind: 'media'
+  name: string
+  unit: string
+  prices: MediaPrice[]
+}
+
+type SheetRow = TokenSheetRow | MediaSheetRow
+
 function billingMode(m: PlazaModel): BillingMode {
   return (m.pricing?.billing_mode || BILLING_MODE_TOKEN) as BillingMode
 }
@@ -141,10 +180,33 @@ function tokenRate(): number {
 }
 
 function requestRate(m: PlazaModel): number {
+  if (billingMode(m) === BILLING_MODE_VIDEO && props.videoRateIndependent) {
+    return props.videoRateMultiplier ?? 1
+  }
   if (billingMode(m) === BILLING_MODE_IMAGE && props.imageRateIndependent) {
     return props.imageRateMultiplier ?? 1
   }
   return effectiveRate.value
+}
+
+function mediaUnit(m: PlazaModel): string {
+  return billingMode(m) === BILLING_MODE_IMAGE
+    ? t('modelPlaza.table.perUnitImage')
+    : t('modelPlaza.table.perUnitRequest')
+}
+
+/** 按图/按视频/按次只展示按次价或分辨率档，不拆进输入/输出列。 */
+function mediaPrices(m: PlazaModel, rate: number): MediaPrice[] {
+  if (mode.value === 'official') return []
+  const tiers = (m.pricing?.intervals ?? []).filter((interval) => interval.per_request_price != null)
+  if (tiers.length > 0) {
+    return tiers.map((interval) => ({
+      label: interval.tier_label || '',
+      amount: formatYuan(requestGroupYuan(interval.per_request_price, rate)),
+    }))
+  }
+  if (m.pricing?.per_request_price == null) return []
+  return [{ label: '', amount: formatYuan(requestGroupYuan(m.pricing.per_request_price, rate)) }]
 }
 
 function pair(group: number | null, official: number | null): { primary: string; official: string } {
@@ -159,28 +221,28 @@ function pair(group: number | null, official: number | null): { primary: string;
 const rows = computed<SheetRow[]>(() =>
   [...props.models]
     .sort(comparePlazaModels)
-    .map((m) => {
+    .map((m): SheetRow => {
       const token = billingMode(m) === BILLING_MODE_TOKEN
       const rate = token ? tokenRate() : requestRate(m)
-      const unit = token ? t('modelPlaza.table.unitPerMillionShort') : (
-        billingMode(m) === BILLING_MODE_IMAGE
-          ? t('modelPlaza.table.perUnitImage')
-          : t('modelPlaza.table.perUnitRequest')
-      )
-      const gIn = token ? groupYuan(m.pricing?.input_price, rate) : requestGroupYuan(m.pricing?.per_request_price ?? m.pricing?.input_price, rate)
+      if (!token) {
+        return { kind: 'media', name: m.name, unit: mediaUnit(m), prices: mediaPrices(m, rate) }
+      }
+      const unit = t('modelPlaza.table.unitPerMillionShort')
+      const gIn = groupYuan(m.pricing?.input_price, rate)
       // Official prices are per token, never comparable to per-image/request prices.
-      const oIn = token ? officialYuan(m.official_pricing?.input_price) : null
-      const gOut = token ? groupYuan(m.pricing?.output_price, rate) : requestGroupYuan(m.pricing?.image_output_price ?? m.pricing?.output_price, rate)
-      const oOut = token ? officialYuan(m.official_pricing?.output_price) : null
-      const gCw = token ? groupYuan(m.pricing?.cache_write_price, rate) : null
-      const oCw = token ? officialYuan(m.official_pricing?.cache_write_price) : null
-      const gCr = token ? groupYuan(m.pricing?.cache_read_price, rate) : null
-      const oCr = token ? officialYuan(m.official_pricing?.cache_read_price) : null
+      const oIn = officialYuan(m.official_pricing?.input_price)
+      const gOut = groupYuan(m.pricing?.output_price, rate)
+      const oOut = officialYuan(m.official_pricing?.output_price)
+      const gCw = groupYuan(m.pricing?.cache_write_price, rate)
+      const oCw = officialYuan(m.official_pricing?.cache_write_price)
+      const gCr = groupYuan(m.pricing?.cache_read_price, rate)
+      const oCr = officialYuan(m.official_pricing?.cache_read_price)
       const input = pair(gIn, oIn)
       const output = pair(gOut, oOut)
       const cacheWrite = pair(gCw, oCw)
       const cacheRead = pair(gCr, oCr)
       return {
+        kind: 'token',
         name: m.name,
         unit,
         inputPrimary: input.primary,
@@ -191,10 +253,19 @@ const rows = computed<SheetRow[]>(() =>
         cacheWriteOfficial: cacheWrite.official,
         cacheReadPrimary: cacheRead.primary,
         cacheReadOfficial: cacheRead.official,
-        savings: token && mode.value === 'group' ? savingsPercent(gIn, oIn) : null,
+        savings: mode.value === 'group' ? savingsPercent(gIn, oIn) : null,
       }
     }),
 )
+
+const mediaOnly = computed(() => rows.value.length > 0 && rows.value.every((row) => row.kind === 'media'))
+
+const mediaColumnLabel = computed(() => {
+  const modes = new Set(props.models.map((model) => billingMode(model)))
+  if (modes.size === 1 && modes.has(BILLING_MODE_IMAGE)) return t('modelPlaza.table.imagePrice')
+  if (modes.size === 1 && modes.has(BILLING_MODE_VIDEO)) return t('modelPlaza.table.videoPrice')
+  return t('modelPlaza.table.mediaPrice')
+})
 
 async function copyName(name: string) {
   try {

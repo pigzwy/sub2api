@@ -746,7 +746,10 @@ export default {
       perUnitRequest: '/ request',
       perUnitImage: '/ image',
       perRequest: 'Per request',
-      perImage: 'Per image'
+      perImage: 'Per image',
+      imagePrice: 'Image price',
+      videoPrice: 'Video price',
+      mediaPrice: 'Price'
     },
     nav: {
       login: 'Sign In',

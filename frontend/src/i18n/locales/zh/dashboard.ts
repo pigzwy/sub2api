@@ -750,7 +750,10 @@ export default {
       perUnitRequest: '/ 次',
       perUnitImage: '/ 张',
       perRequest: '按次计费',
-      perImage: '按图片计费'
+      perImage: '按图片计费',
+      imagePrice: '图片价格',
+      videoPrice: '视频价格',
+      mediaPrice: '价格'
     },
     nav: {
       login: '登录',
