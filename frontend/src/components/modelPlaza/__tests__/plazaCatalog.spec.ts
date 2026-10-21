@@ -32,9 +32,13 @@ describe('plazaCatalog', () => {
     const t = (key: string) => ({
       'modelPlaza.catalog.platforms.anthropic': 'Claude',
       'modelPlaza.catalog.platforms.openai': 'ChatGPT',
+      'modelPlaza.catalog.platforms.zhipu': 'Zhipu',
+      'modelPlaza.catalog.platforms.composite': 'Image/Video',
     }[key] ?? key)
     expect(plazaTabLabel('anthropic', t)).toBe('Claude')
     expect(plazaTabLabel('openai', t)).toBe('ChatGPT')
+    expect(plazaTabLabel('zhipu', t)).toBe('Zhipu')
+    expect(plazaTabLabel('composite', t)).toBe('Image/Video')
     expect(plazaTabLabel('unknown', t)).toBe('unknown')
   })
 

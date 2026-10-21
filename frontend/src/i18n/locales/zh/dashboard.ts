@@ -688,11 +688,11 @@ export default {
         openai: 'ChatGPT',
         grok: 'Grok',
         gemini: 'Gemini',
-        zhipu: '智谱',
+        zhipu: 'Zhipu',
         kimi: 'Kimi',
         deepseek: 'DeepSeek',
         antigravity: 'Antigravity',
-        composite: '综合'
+        composite: 'Image/Video'
       }
     },
     filters: {
