@@ -76,6 +76,8 @@ export interface MethodLimit {
   single_max: number
   fee_rate: number
   available: boolean
+  /** Set when this button is backed by one provider, e.g. easypay or stripe. */
+  provider_key?: string
 }
 
 /** Response from /payment/limits API */

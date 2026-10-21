@@ -411,6 +411,7 @@ func TestGetAvailableMethodLimitsUsesConfiguredVisibleMethodSource(t *testing.T)
 		sourceSetting       string
 		wantAlipaySingleMin float64
 		wantAlipaySingleMax float64
+		wantProviderKey     string
 		wantGlobalMin       float64
 		wantGlobalMax       float64
 	}{
@@ -419,6 +420,7 @@ func TestGetAvailableMethodLimitsUsesConfiguredVisibleMethodSource(t *testing.T)
 			sourceSetting:       VisibleMethodSourceOfficialAlipay,
 			wantAlipaySingleMin: 10,
 			wantAlipaySingleMax: 100,
+			wantProviderKey:     payment.TypeAlipay,
 			wantGlobalMin:       10,
 			wantGlobalMax:       300,
 		},
@@ -427,6 +429,7 @@ func TestGetAvailableMethodLimitsUsesConfiguredVisibleMethodSource(t *testing.T)
 			sourceSetting:       VisibleMethodSourceEasyPayAlipay,
 			wantAlipaySingleMin: 20,
 			wantAlipaySingleMax: 200,
+			wantProviderKey:     payment.TypeEasyPay,
 			wantGlobalMin:       20,
 			wantGlobalMax:       300,
 		},
@@ -492,6 +495,9 @@ func TestGetAvailableMethodLimitsUsesConfiguredVisibleMethodSource(t *testing.T)
 			if alipayLimits.SingleMin != tt.wantAlipaySingleMin || alipayLimits.SingleMax != tt.wantAlipaySingleMax {
 				t.Fatalf("alipay limits = %+v, want min=%v max=%v", alipayLimits, tt.wantAlipaySingleMin, tt.wantAlipaySingleMax)
 			}
+			if alipayLimits.ProviderKey != tt.wantProviderKey {
+				t.Fatalf("alipay provider = %q, want %q", alipayLimits.ProviderKey, tt.wantProviderKey)
+			}
 
 			wxpayLimits, ok := resp.Methods[payment.TypeWxpay]
 			if !ok {
@@ -553,6 +559,7 @@ func TestGetAvailableMethodLimitsPreservesLegacyCrossProviderBehaviorWhenVisible
 	require.True(t, ok, "expected alipay limits to remain visible")
 	require.Equal(t, 10.0, alipayLimits.SingleMin)
 	require.Equal(t, 200.0, alipayLimits.SingleMax)
+	require.Empty(t, alipayLimits.ProviderKey)
 
 	wxpayLimits, ok := resp.Methods[payment.TypeWxpay]
 	require.True(t, ok, "expected wxpay limits to remain visible")

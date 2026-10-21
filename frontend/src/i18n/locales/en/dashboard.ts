@@ -687,7 +687,7 @@ export default {
         kimi: 'Kimi',
         deepseek: 'DeepSeek',
         antigravity: 'Antigravity',
-        composite: 'Composite'
+        composite: 'Image/Video'
       }
     },
     filters: {
