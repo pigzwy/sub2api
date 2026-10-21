@@ -102,30 +102,36 @@
           </template>
         </div>
 
-        <!-- Personal Section for Admin (hidden in simple mode) -->
-        <div v-if="!authStore.isSimpleMode" class="sidebar-section">
-          <div class="sidebar-section-title" :class="{ 'sidebar-section-title-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">
-            <span class="sidebar-section-title-text" :class="{ 'sidebar-section-title-text-collapsed': sidebarCollapsed }">
-              {{ t('nav.myAccount') }}
-            </span>
+        <!-- 管理员自己的账户：管理菜单不动，下面按 API / 账单 / 其他铺开 -->
+        <template v-if="!authStore.isSimpleMode">
+          <div v-for="section in adminAccountSections" :key="section.id" class="sidebar-section">
+            <div
+              v-if="section.title"
+              class="sidebar-section-title"
+              :class="{ 'sidebar-section-title-collapsed': sidebarCollapsed }"
+              :aria-hidden="sidebarCollapsed ? 'true' : 'false'"
+            >
+              <span class="sidebar-section-title-text" :class="{ 'sidebar-section-title-text-collapsed': sidebarCollapsed }">
+                {{ section.title }}
+              </span>
+            </div>
+            <component
+              :is="item.href ? 'a' : RouterLink"
+              v-for="item in section.items"
+              :key="item.path"
+              v-bind="navLinkProps(item)"
+              class="sidebar-link mb-1"
+              :class="{ 'sidebar-link-active': !item.href && isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
+              :title="sidebarCollapsed ? item.label : undefined"
+              :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
+              @click="handleMenuItemClick(item.path)"
+            >
+              <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
+              <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
+              <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
+            </component>
           </div>
-
-          <component
-            :is="item.href ? 'a' : RouterLink"
-            v-for="item in personalNavItems"
-            :key="item.path"
-            v-bind="navLinkProps(item)"
-            class="sidebar-link mb-1"
-            :class="{ 'sidebar-link-active': !item.href && isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
-            :title="sidebarCollapsed ? item.label : undefined"
-            :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
-            @click="handleMenuItemClick(item.path)"
-          >
-            <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
-            <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
-            <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
-          </component>
-        </div>
+        </template>
       </template>
 
       <!-- Regular User View -->
@@ -836,11 +842,7 @@ const ChatIcon = {
     ]),
 }
 
-// 普通用户侧栏按 API / 账单 / 其他分组。功能开关和简单模式过滤仍按条目生效。
-const userNavSections = computed((): NavSection[] => {
-  const home = finalizeNav(
-    buildSelfNavItems(true).filter((item) => item.path === '/dashboard'),
-  )
+function accountNavSections(): NavSection[] {
   const api = finalizeNav([
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
     { path: '/batch-image', label: t('nav.batchImage'), icon: BatchImageIcon, hideInSimpleMode: true, featureFlag: flagBatchImageAccess },
@@ -867,17 +869,23 @@ const userNavSections = computed((): NavSection[] => {
     ...customMenuItemsForUser.value.map(customMenuNavItem),
   ])
   return [
-    { id: 'home', items: home },
     { id: 'api', title: t('nav.sectionApi'), items: api },
     { id: 'billing', title: t('nav.sectionBilling'), items: billing },
     { id: 'other', title: t('nav.sectionOther'), items: other },
   ].filter((section) => section.items.length > 0)
+}
+
+// 普通用户侧栏：仪表盘在上，下面是 API / 账单 / 其他。
+const userNavSections = computed((): NavSection[] => {
+  const home = finalizeNav(
+    buildSelfNavItems(true).filter((item) => item.path === '/dashboard'),
+  )
+  const sections = accountNavSections()
+  return home.length ? [{ id: 'home', items: home }, ...sections] : sections
 })
 
-// Personal navigation items (for admin's "My Account" section, without Dashboard).
-// Admins access 可用渠道 from this section just like regular users — there is no
-// separate admin entry, since the page is purely a user-facing view.
-const personalNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(false)))
+// 管理员个人区不再单列「我的账户」，直接铺开同一套三组。
+const adminAccountSections = computed((): NavSection[] => accountNavSections())
 
 // Custom menu items filtered by visibility
 const customMenuItemsForUser = computed(() => {
