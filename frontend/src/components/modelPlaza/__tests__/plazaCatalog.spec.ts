@@ -7,6 +7,7 @@ import {
   officialYuan,
   plazaTabLabel,
   savingsPercent,
+  sortPlazaPlatforms,
 } from '../plazaCatalog'
 
 describe('plazaCatalog', () => {
@@ -40,6 +41,15 @@ describe('plazaCatalog', () => {
     expect(plazaTabLabel('zhipu', t)).toBe('Zhipu')
     expect(plazaTabLabel('composite', t)).toBe('Image/Video')
     expect(plazaTabLabel('unknown', t)).toBe('unknown')
+  })
+
+  it('keeps Image/Video last among category tabs', () => {
+    expect(sortPlazaPlatforms(['composite', 'minimax', 'anthropic', 'openai'])).toEqual([
+      'anthropic',
+      'openai',
+      'minimax',
+      'composite',
+    ])
   })
 
   it('sorts plaza models newest-version first', () => {
