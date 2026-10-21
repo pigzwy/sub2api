@@ -1,5 +1,5 @@
-/** 官方价按 $1 = ¥7 展示；分组价 = 官方美元 × 倍率（与参考页 ÷7 后同一口径）。 */
-export const PLAZA_USD_TO_CNY = 7
+/** 官方价按 $1 = ¥1 展示；分组价 = 官方价 × 分组倍率。 */
+export const PLAZA_USD_TO_CNY = 1
 
 /** 分组倍率换算成常见「X 折」展示（0.8x → 8）。 */
 export function formatZhe(rate: number): string {
@@ -7,7 +7,7 @@ export function formatZhe(rate: number): string {
   return Number.isInteger(z) ? String(z) : z.toFixed(1)
 }
 
-/** 相对官方人民币的折数：分组价 = 官方美元 × 倍率，官方人民币 = 官方美元 × 7，故 0.8x → 1.1 折。 */
+/** 相对官方价的折数：官方价按 $1 = ¥1，故 0.8x → 8 折，1x → 10 折。 */
 export function formatCatalogZhe(rate: number, fx = PLAZA_USD_TO_CNY): string {
   return formatZhe(rate / fx)
 }

@@ -57,17 +57,17 @@ describe('PlazaPriceSheet', () => {
     const text = wrapper.text().replace(/\s+/g, ' ')
     expect(text).toContain('claude-opus-4')
     expect(text).toContain('¥4.00')
-    expect(text).toContain('官方价格 ¥35.00')
+    expect(text).toContain('官方价格 ¥5.00')
     expect(text).toContain('¥20.00')
-    expect(text).toContain('官方价格 ¥175.00')
-    expect(text).toContain('省 89%')
+    expect(text).toContain('官方价格 ¥25.00')
+    expect(text).toContain('省 20%')
   })
 
   it('shows official amounts as the primary value in official mode', () => {
     const wrapper = mountSheet('official')
     const text = wrapper.text().replace(/\s+/g, ' ')
-    expect(text).toContain('¥35.00')
-    expect(text).not.toContain('官方价格 ¥35.00')
+    expect(text).toContain('¥5.00')
+    expect(text).not.toContain('官方价格 ¥5.00')
     expect(text).not.toContain('省 ')
   })
 
