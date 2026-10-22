@@ -246,6 +246,7 @@ func RegisterAuthRoutes(
 		settings.GET("/public", h.Setting.GetPublicSettings)
 		settings.GET("/public/compact", h.Setting.GetCompactPublicSettings)
 		settings.GET("/public/logo/:revision", h.Setting.GetPublicSettingsLogo)
+		settings.GET("/public/contact-image/:revision", h.Setting.GetPublicContactImage)
 		settings.GET("/public/legal/:revision/:document_id", h.Setting.GetPublicLoginAgreementDocument)
 		settings.GET("/email-unsubscribe", h.Setting.UnsubscribeNotificationEmail)
 	}

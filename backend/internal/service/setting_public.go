@@ -235,6 +235,7 @@ func (s *SettingService) GetCompactPublicSettings(ctx context.Context) (*PublicS
 		return nil, err
 	}
 	settings.SiteLogo = compactSiteLogo(settings.SiteLogo)
+	settings.ContactInfo = compactContactInfo(settings.ContactInfo)
 	settings.LoginAgreementDocuments = compactLoginAgreementDocuments(settings.LoginAgreementDocuments)
 	return settings, nil
 }
@@ -250,9 +251,16 @@ func (s *SettingService) GetPublicLogoAsset(ctx context.Context, revision string
 	if raw == "" || !supportedInlineLogoDataURL(raw) || publicAssetRevision(raw) != strings.TrimSpace(revision) {
 		return "", nil, false, nil
 	}
+	contentType, data, ok := decodePublicImageDataURL(raw)
+	return contentType, data, ok, nil
+}
+
+// decodePublicImageDataURL is shared by versioned logo and contact assets.
+// Keep unsupported formats inline rather than serving active content on our origin.
+func decodePublicImageDataURL(raw string) (string, []byte, bool) {
 	comma := strings.IndexByte(raw, ',')
 	if comma <= len("data:") || !strings.HasPrefix(strings.ToLower(raw), "data:image/") {
-		return "", nil, false, nil
+		return "", nil, false
 	}
 	meta, payload := raw[len("data:"):comma], raw[comma+1:]
 	parts := strings.Split(meta, ";")
@@ -260,10 +268,11 @@ func (s *SettingService) GetPublicLogoAsset(ctx context.Context, revision string
 	switch contentType {
 	case "image/png", "image/jpeg", "image/gif", "image/webp", "image/x-icon", "image/vnd.microsoft.icon":
 	default:
-		return "", nil, false, nil
+		return "", nil, false
 	}
 
 	var data []byte
+	var err error
 	if len(parts) > 1 && strings.EqualFold(strings.TrimSpace(parts[len(parts)-1]), "base64") {
 		data, err = base64.StdEncoding.DecodeString(payload)
 	} else {
@@ -272,12 +281,12 @@ func (s *SettingService) GetPublicLogoAsset(ctx context.Context, revision string
 		data = []byte(decoded)
 	}
 	if err != nil || len(data) == 0 || len(data) > 2<<20 {
-		return "", nil, false, nil
+		return "", nil, false
 	}
 	if detected := http.DetectContentType(data); detected != "application/octet-stream" && !strings.HasPrefix(detected, "image/") {
-		return "", nil, false, nil
+		return "", nil, false
 	}
-	return contentType, data, true, nil
+	return contentType, data, true
 }
 
 // GetPublicLoginAgreementDocument returns one versioned document body for

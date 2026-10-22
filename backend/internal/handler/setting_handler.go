@@ -162,6 +162,31 @@ func (h *SettingHandler) GetPublicSettingsLogo(c *gin.Context) {
 	c.Data(http.StatusOK, contentType, data)
 }
 
+// GetPublicContactImage serves a versioned contact image without bloating bootstrap JSON.
+// GET /api/v1/settings/public/contact-image/:revision
+func (h *SettingHandler) GetPublicContactImage(c *gin.Context) {
+	revision := c.Param("revision")
+	contentType, data, ok, err := h.settingService.GetPublicContactImageAsset(c.Request.Context(), revision)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if !ok {
+		response.NotFound(c, "contact image not found")
+		return
+	}
+	etag := `"` + revision + `"`
+	c.Header("Cache-Control", "public, max-age=31536000, immutable")
+	c.Header("ETag", etag)
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Content-Security-Policy", "default-src 'none'; sandbox")
+	if c.GetHeader("If-None-Match") == etag {
+		c.Status(http.StatusNotModified)
+		return
+	}
+	c.Data(http.StatusOK, contentType, data)
+}
+
 // GetPublicLoginAgreementDocument loads a single versioned legal document.
 // GET /api/v1/settings/public/legal/:revision/:document_id
 func (h *SettingHandler) GetPublicLoginAgreementDocument(c *gin.Context) {

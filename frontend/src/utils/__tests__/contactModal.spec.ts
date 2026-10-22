@@ -21,6 +21,7 @@ describe('contactModal', () => {
 
   it('round-trips qr cards without leaking the raw json into the summary', () => {
     const raw = serializeContactModal({
+      enabled: false,
       tabs: [
         {
           id: 'service',
@@ -57,6 +58,7 @@ describe('contactModal', () => {
   it('keeps an uploaded image for the contact dialog', () => {
     const image = 'data:image/png;base64,iVBORw0KGgo='
     const raw = serializeContactModal({
+      enabled: false,
       tabs: [
         { id: 'service', email: '', cards: [{ title: '微信客服', image, caption: '扫码添加客服' }] },
         { id: 'support', email: '', cards: [] },

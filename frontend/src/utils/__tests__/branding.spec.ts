@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { rememberSiteBrand, SITE_BRAND_STORAGE_KEY, updateFavicon } from '@/utils/branding'
 
 describe('updateFavicon', () => {
@@ -40,6 +40,11 @@ describe('updateFavicon', () => {
 })
 
 describe('rememberSiteBrand', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
   beforeEach(() => {
     localStorage.clear()
     document.head.innerHTML = '<title></title>'
@@ -53,6 +58,25 @@ describe('rememberSiteBrand', () => {
       name: 'Acme',
       logo: '/api/v1/settings/public/logo/abc',
     })
+  })
+
+  it('does not interrupt settings when storage is full', () => {
+    vi.stubGlobal('localStorage', {
+      setItem: () => { throw new DOMException('Storage full', 'QuotaExceededError') },
+    })
+    expect(() => rememberSiteBrand('Acme', '/logo.svg')).not.toThrow()
+  })
+
+  it('does not interrupt settings when clearing storage is blocked', () => {
+    vi.stubGlobal('localStorage', {
+      removeItem: () => { throw new DOMException('Storage blocked', 'SecurityError') },
+    })
+    expect(() => rememberSiteBrand('', '')).not.toThrow()
+  })
+
+  it('works when browser storage is unavailable', () => {
+    vi.stubGlobal('localStorage', undefined)
+    expect(() => rememberSiteBrand('Acme', '/logo.svg')).not.toThrow()
   })
 
   it('applies the saved brand before the default tab icon is parsed', () => {

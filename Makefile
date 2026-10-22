@@ -8,6 +8,10 @@ FRONTEND_CRITICAL_VITEST := \
 	src/composables/__tests__/useGeminiOAuth.errors.spec.ts \
 	src/composables/__tests__/useModelWhitelist.spec.ts \
 	src/utils/__tests__/geminiExplicitCache.spec.ts \
+	src/utils/__tests__/branding.spec.ts \
+	src/utils/__tests__/contactModal.spec.ts \
+	src/stores/__tests__/app.spec.ts \
+	src/components/layout/__tests__/ContactDialog.spec.ts \
 	src/components/account/__tests__/AccountUsageCell.spec.ts \
 	src/components/account/__tests__/OpenAIReferralCell.spec.ts \
 	src/components/account/__tests__/OpenAIReferralCell.transport.spec.ts \

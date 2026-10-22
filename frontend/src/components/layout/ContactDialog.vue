@@ -86,7 +86,7 @@ const cards = computed(() => visibleContactCards(activeTab.value))
 const emailHref = computed(() => sanitizeUrl(activeTab.value?.email || ''))
 
 function imageSrc(value: string): string {
-  return sanitizeUrl(value, { allowDataUrl: true })
+  return sanitizeUrl(value, { allowRelative: true, allowDataUrl: true })
 }
 
 watch(

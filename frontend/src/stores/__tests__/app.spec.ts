@@ -87,6 +87,8 @@ describe('useAppStore', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
     localStorage.clear()
   })
 
@@ -415,6 +417,23 @@ describe('useAppStore', () => {
       expect(store.siteLogo).toBe('/logo.png')
       expect(store.siteVersion).toBe('1.0.0')
       expect(store.publicSettingsLoaded).toBe(true)
+    })
+
+    it('applies all injected settings even when the brand cache is full', () => {
+      vi.stubGlobal('localStorage', {
+        setItem: () => { throw new DOMException('Storage full', 'QuotaExceededError') },
+      })
+      window.__APP_CONFIG__ = createPublicSettings({
+        contact_info: 'support@example.com',
+        doc_url: 'https://example.com/docs',
+        api_base_url: 'https://example.com/api',
+      })
+      const store = useAppStore()
+      expect(store.initFromInjectedConfig()).toBe(true)
+      expect(store.publicSettingsLoaded).toBe(true)
+      expect(store.contactInfo).toBe('support@example.com')
+      expect(store.docUrl).toBe('https://example.com/docs')
+      expect(store.apiBaseUrl).toBe('https://example.com/api')
     })
 
     it('无注入配置时返回 false', () => {
