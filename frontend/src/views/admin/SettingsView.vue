@@ -6865,16 +6865,6 @@
                 </button>
               </div>
 
-              <!-- Contact Info -->
-              <div>
-                <label
-                  class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                >
-                  {{ t("admin.settings.site.contactInfo") }}
-                </label>
-                <ContactSettingsFields v-model="form.contact_info" />
-              </div>
-
               <!-- Doc URL -->
               <div>
                 <label
@@ -7193,6 +7183,17 @@
                 </svg>
                 {{ t("admin.settings.customMenu.add") }}
               </button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t("admin.settings.site.contactInfo") }}
+              </h2>
+            </div>
+            <div class="p-6">
+              <ContactSettingsFields v-model="form.contact_info" />
             </div>
           </div>
 	        </div>
