@@ -22,17 +22,27 @@
           class="rounded-lg bg-gray-50 p-3 dark:bg-dark-800"
         >
           <p class="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('contactModal.qr') }} {{ index + 1 }}</p>
+          <ImageUpload
+            :model-value="card.image"
+            mode="image"
+            size="lg"
+            :max-size="1024 * 1024"
+            :upload-label="t('contactModal.qrUpload')"
+            :remove-label="t('admin.settings.site.remove')"
+            :hint="t('contactModal.qrHint')"
+            @update:model-value="(value) => setImage(tab.id, index, value)"
+          />
           <input
             v-model="card.title"
             type="text"
-            class="input mb-2 text-sm"
+            class="input mb-2 mt-3 text-sm"
             :placeholder="t('contactModal.titlePlaceholder')"
             @input="commit"
           />
           <input
             v-model="card.caption"
             type="text"
-            class="input mb-3 text-sm"
+            class="input mb-2 text-sm"
             :placeholder="t('contactModal.captionPlaceholder')"
             @input="commit"
           />
@@ -40,19 +50,9 @@
             v-if="!card.image.startsWith('data:')"
             v-model="card.image"
             type="text"
-            class="input mb-3 font-mono text-xs"
+            class="input font-mono text-xs"
             placeholder="https://"
             @input="commit"
-          />
-          <ImageUpload
-            :model-value="card.image"
-            mode="image"
-            size="sm"
-            :max-size="200 * 1024"
-            :upload-label="t('admin.settings.site.uploadImage')"
-            :remove-label="t('admin.settings.site.remove')"
-            :hint="t('contactModal.qrHint')"
-            @update:model-value="(value) => setImage(tab.id, index, value)"
           />
         </div>
       </div>

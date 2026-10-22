@@ -1,5 +1,5 @@
 <template>
-  <div class="flex items-start gap-4">
+  <div class="flex flex-wrap items-start gap-4">
     <!-- Preview Box -->
     <div class="flex-shrink-0">
       <div
@@ -42,7 +42,7 @@
     <!-- Controls -->
     <div class="flex-1 space-y-2">
       <div class="flex items-center gap-2">
-        <label class="btn btn-secondary btn-sm cursor-pointer">
+        <label class="btn btn-secondary btn-sm cursor-pointer whitespace-nowrap">
           <input
             type="file"
             :accept="acceptTypes"
@@ -55,7 +55,7 @@
         <button
           v-if="modelValue"
           type="button"
-          class="btn btn-secondary btn-sm text-red-600 hover:text-red-700 dark:text-red-400"
+          class="btn btn-secondary btn-sm whitespace-nowrap text-red-600 hover:text-red-700 dark:text-red-400"
           @click="removeImage"
         >
           <Icon name="trash" size="sm" class="mr-1.5" :stroke-width="2" />
@@ -79,7 +79,7 @@ const { t } = useI18n()
 const props = withDefaults(defineProps<{
   modelValue: string
   mode?: 'image' | 'svg'
-  size?: 'sm' | 'md'
+  size?: 'sm' | 'md' | 'lg'
   uploadLabel?: string
   removeLabel?: string
   hint?: string
@@ -116,9 +116,9 @@ const sanitizedValue = computed(() =>
   props.mode === 'svg' ? sanitizeSvg(props.modelValue ?? '') : ''
 )
 
-const previewSizeClass = computed(() => props.size === 'sm' ? 'h-14 w-14' : 'h-20 w-20')
-const innerSizeClass = computed(() => props.size === 'sm' ? 'h-7 w-7' : 'h-12 w-12')
-const placeholderSizeClass = computed(() => props.size === 'sm' ? 'h-5 w-5' : 'h-8 w-8')
+const previewSizeClass = computed(() => props.size === 'sm' ? 'h-14 w-14' : props.size === 'lg' ? 'h-40 w-40' : 'h-20 w-20')
+const innerSizeClass = computed(() => props.size === 'sm' ? 'h-7 w-7' : props.size === 'lg' ? 'h-32 w-32' : 'h-12 w-12')
+const placeholderSizeClass = computed(() => props.size === 'sm' ? 'h-5 w-5' : props.size === 'lg' ? 'h-10 w-10' : 'h-8 w-8')
 
 function handleUpload(event: Event) {
   const input = event.target as HTMLInputElement

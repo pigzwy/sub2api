@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { sanitizeUrl } from '../url'
 import {
   contactSummary,
   hasContactContent,
@@ -48,6 +49,20 @@ describe('contactModal', () => {
     expect(contactSummary(raw)).toBe('admin@example.com')
     expect(hasContactContent(raw)).toBe(true)
     expect(raw.startsWith('{')).toBe(true)
+  })
+
+  it('keeps an uploaded image for the contact dialog', () => {
+    const image = 'data:image/png;base64,iVBORw0KGgo='
+    const raw = serializeContactModal({
+      tabs: [
+        { id: 'service', email: '', cards: [{ title: '微信客服', image, caption: '扫码添加客服' }] },
+        { id: 'support', email: '', cards: [] },
+        { id: 'business', email: '', cards: [] },
+      ],
+    })
+    expect(parseContactModal(raw).tabs[0].cards[0].image).toBe(image)
+    expect(sanitizeUrl(image, { allowDataUrl: true })).toBe(image)
+    expect(hasContactContent(raw)).toBe(true)
   })
 
   it('treats an empty value as no contact menu', () => {

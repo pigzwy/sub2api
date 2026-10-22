@@ -22,7 +22,7 @@
         </button>
       </div>
 
-      <div v-if="cards.length" class="mt-5 grid gap-4 sm:grid-cols-2">
+      <div v-if="cards.length" class="mt-5 grid gap-4" :class="cards.length > 1 ? 'sm:grid-cols-2' : 'mx-auto max-w-sm'">
         <div
           v-for="(card, index) in cards"
           :key="`${activeId}-${index}`"
