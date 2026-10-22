@@ -1,5 +1,25 @@
 import { sanitizeUrl } from '@/utils/url'
 
+export const SITE_BRAND_STORAGE_KEY = 'sub2api_site_brand'
+
+const maxStoredLogoLength = 64 * 1024
+
+export function rememberSiteBrand(name: string, logo: string): void {
+  if (typeof localStorage === 'undefined') return
+  const brand = {
+    name: name.trim(),
+    logo: sanitizeUrl(logo, { allowRelative: true, allowDataUrl: true }),
+  }
+  if (brand.logo.startsWith('data:') && brand.logo.length > maxStoredLogoLength) {
+    brand.logo = ''
+  }
+  if (!brand.name && !brand.logo) {
+    localStorage.removeItem(SITE_BRAND_STORAGE_KEY)
+    return
+  }
+  localStorage.setItem(SITE_BRAND_STORAGE_KEY, JSON.stringify(brand))
+}
+
 function faviconType(url: string): string | undefined {
   const value = url.trim().toLowerCase()
   if (value.startsWith('data:')) {
