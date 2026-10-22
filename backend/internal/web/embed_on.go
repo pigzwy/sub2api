@@ -276,7 +276,16 @@ func injectSiteFavicon(html, settingsJSON []byte) []byte {
 
 	linkStart := bytes.Index(html, []byte(`<link rel="icon"`))
 	if linkStart == -1 {
-		return html
+		headClose := bytes.Index(html, []byte("</head>"))
+		if headClose == -1 {
+			return html
+		}
+		replacement := []byte(`<link rel="icon" href="` + htmlpkg.EscapeString(logoURL) + `" />`)
+		var inserted bytes.Buffer
+		inserted.Write(html[:headClose])
+		inserted.Write(replacement)
+		inserted.Write(html[headClose:])
+		return inserted.Bytes()
 	}
 	linkEndOffset := bytes.IndexByte(html[linkStart:], '>')
 	if linkEndOffset == -1 {
@@ -328,7 +337,7 @@ func injectSiteTitle(html, settingsJSON []byte) []byte {
 		return html
 	}
 
-	newTitle := []byte("<title>" + htmlpkg.EscapeString(cfg.SiteName) + " - AI API Gateway</title>")
+	newTitle := []byte("<title>" + htmlpkg.EscapeString(cfg.SiteName) + "</title>")
 	var buf bytes.Buffer
 	buf.Write(html[:titleStart])
 	buf.Write(newTitle)

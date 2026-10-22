@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { updateFavicon } from '@/utils/branding'
+import { rememberSiteBrand, SITE_BRAND_STORAGE_KEY, updateFavicon } from '@/utils/branding'
 
 describe('updateFavicon', () => {
   beforeEach(() => {
@@ -13,10 +15,57 @@ describe('updateFavicon', () => {
     expect(link?.href).toBe('https://example.com/custom-logo.png')
   })
 
+  it('keeps a png logo as png instead of the default svg icon type', () => {
+    updateFavicon('data:image/png;base64,abc')
+
+    const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
+    expect(link?.type).toBe('image/png')
+    expect(link?.getAttribute('href')).toBe('data:image/png;base64,abc')
+  })
+
+  it('does not mark a hosted logo url as an ico', () => {
+    updateFavicon('/api/v1/settings/public/logo/abc123')
+
+    const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
+    expect(link?.getAttribute('type')).toBeNull()
+    expect(link?.getAttribute('href')).toBe('/api/v1/settings/public/logo/abc123')
+  })
+
   it('ignores unsafe logo URLs', () => {
     updateFavicon('javascript:alert(1)')
 
     const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
     expect(link?.getAttribute('href')).toBe('/logo.svg')
+  })
+})
+
+describe('rememberSiteBrand', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    document.head.innerHTML = '<title></title>'
+    document.title = ''
+  })
+
+  it('saves the site name and logo for the next refresh', () => {
+    rememberSiteBrand('Acme', '/api/v1/settings/public/logo/abc')
+
+    expect(JSON.parse(localStorage.getItem(SITE_BRAND_STORAGE_KEY) || '')).toEqual({
+      name: 'Acme',
+      logo: '/api/v1/settings/public/logo/abc',
+    })
+  })
+
+  it('applies the saved brand before the default tab icon is parsed', () => {
+    localStorage.setItem(SITE_BRAND_STORAGE_KEY, JSON.stringify({
+      name: 'Acme',
+      logo: '/api/v1/settings/public/logo/abc',
+    }))
+    const boot = readFileSync(resolve(process.cwd(), 'public/branding-boot.js'), 'utf8')
+    // The boot file is a classic script, so evaluate it in the page.
+    // eslint-disable-next-line no-eval
+    eval(boot)
+
+    expect(document.title).toBe('Acme')
+    expect(document.querySelector('link[rel="icon"]')?.getAttribute('href')).toBe('/api/v1/settings/public/logo/abc')
   })
 })
