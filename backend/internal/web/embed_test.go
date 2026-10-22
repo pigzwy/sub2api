@@ -30,7 +30,8 @@ func TestInjectSiteTitle(t *testing.T) {
 
 		result := injectSiteTitle(html, settingsJSON)
 
-		assert.Contains(t, string(result), "<title>MyCustomSite - AI API Gateway</title>")
+		assert.Contains(t, string(result), "<title>MyCustomSite</title>")
+		assert.NotContains(t, string(result), "AI API Gateway")
 		assert.NotContains(t, string(result), "Sub2API")
 	})
 
@@ -98,7 +99,7 @@ func TestInjectSiteTitle(t *testing.T) {
 
 		result := injectSiteTitle(html, settingsJSON)
 
-		assert.Contains(t, string(result), "<title>A&amp;B - AI API Gateway</title>")
+		assert.Contains(t, string(result), "<title>A&amp;B</title>")
 	})
 
 	t.Run("preserves_rest_of_html", func(t *testing.T) {
@@ -110,7 +111,7 @@ func TestInjectSiteTitle(t *testing.T) {
 		assert.Contains(t, string(result), `<meta charset="UTF-8">`)
 		assert.Contains(t, string(result), `<script src="app.js"></script>`)
 		assert.Contains(t, string(result), `<div id="app"></div>`)
-		assert.Contains(t, string(result), "<title>TestSite - AI API Gateway</title>")
+		assert.Contains(t, string(result), "<title>TestSite</title>")
 	})
 }
 
