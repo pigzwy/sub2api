@@ -239,7 +239,7 @@ import VersionBadge from '@/components/common/VersionBadge.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { sanitizeUrl } from '@/utils/url'
-import { hasContactContent } from '@/utils/contactModal'
+import { contactMenuEnabled } from '@/utils/contactModal'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
 import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
@@ -839,7 +839,7 @@ function finalizeNav(items: NavItem[]): NavItem[] {
 }
 
 const docNavHref = computed(() => sanitizeUrl(appStore.docUrl || ''))
-const showContact = computed(() => hasContactContent(appStore.contactInfo))
+const showContact = computed(() => contactMenuEnabled(appStore.contactInfo))
 
 interface NavSection {
   id: string

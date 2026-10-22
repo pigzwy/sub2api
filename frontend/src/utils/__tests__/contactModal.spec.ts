@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { sanitizeUrl } from '../url'
 import {
+  contactMenuEnabled,
   contactSummary,
   hasContactContent,
   parseContactModal,
@@ -15,6 +16,7 @@ describe('contactModal', () => {
     expect(serializeContactModal(modal)).toBe('QQ: 123456')
     expect(contactSummary('QQ: 123456')).toBe('QQ: 123456')
     expect(hasContactContent('QQ: 123456')).toBe(true)
+    expect(contactMenuEnabled('QQ: 123456')).toBe(false)
   })
 
   it('round-trips qr cards without leaking the raw json into the summary', () => {
@@ -48,6 +50,7 @@ describe('contactModal', () => {
     expect(visibleContactCards(modal.tabs[1])).toHaveLength(1)
     expect(contactSummary(raw)).toBe('admin@example.com')
     expect(hasContactContent(raw)).toBe(true)
+    expect(contactMenuEnabled(raw)).toBe(false)
     expect(raw.startsWith('{')).toBe(true)
   })
 
@@ -63,6 +66,32 @@ describe('contactModal', () => {
     expect(parseContactModal(raw).tabs[0].cards[0].image).toBe(image)
     expect(sanitizeUrl(image, { allowDataUrl: true })).toBe(image)
     expect(hasContactContent(raw)).toBe(true)
+    expect(contactMenuEnabled(raw)).toBe(false)
+  })
+
+  it('shows the sidebar item only after the switch is turned on', () => {
+    const hidden = serializeContactModal({
+      enabled: false,
+      tabs: [
+        { id: 'service', email: 'qq: 1', cards: [] },
+        { id: 'support', email: '', cards: [] },
+        { id: 'business', email: '', cards: [] },
+      ],
+    })
+    expect(hidden).toBe('qq: 1')
+    expect(contactMenuEnabled(hidden)).toBe(false)
+
+    const shown = serializeContactModal({
+      enabled: true,
+      tabs: [
+        { id: 'service', email: 'qq: 1', cards: [] },
+        { id: 'support', email: '', cards: [] },
+        { id: 'business', email: '', cards: [] },
+      ],
+    })
+    expect(JSON.parse(shown).enabled).toBe(true)
+    expect(contactMenuEnabled(shown)).toBe(true)
+    expect(parseContactModal(shown).tabs[0].email).toBe('qq: 1')
   })
 
   it('treats an empty value as no contact menu', () => {

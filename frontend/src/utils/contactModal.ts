@@ -15,6 +15,7 @@ export interface ContactTab {
 }
 
 export interface ContactModal {
+  enabled: boolean
   tabs: ContactTab[]
 }
 
@@ -24,6 +25,7 @@ function emptyCard(): ContactCard {
 
 export function emptyContactModal(): ContactModal {
   return {
+    enabled: false,
     tabs: CONTACT_TAB_IDS.map((id) => ({
       id,
       cards: [emptyCard(), emptyCard()],
@@ -77,8 +79,11 @@ export function parseContactModal(raw: string | null | undefined): ContactModal 
   if (!text) return modal
   if (text.startsWith('{')) {
     try {
-      const data = JSON.parse(text) as { version?: unknown; tabs?: unknown }
-      if (data?.version === 1) return applyParsedTabs(modal, data.tabs)
+      const data = JSON.parse(text) as { version?: unknown; enabled?: unknown; tabs?: unknown }
+      if (data?.version === 1) {
+        modal.enabled = data.enabled === true
+        return applyParsedTabs(modal, data.tabs)
+      }
     } catch {
       // A plain note that happens to start with "{" stays readable as text.
     }
@@ -106,8 +111,13 @@ export function serializeContactModal(modal: ContactModal): string {
   const serviceEmail = tabs[0]?.email ?? ''
   const hasCards = tabs.some((tab) => tab.cards.length > 0)
   const hasMoreEmail = tabs.slice(1).some((tab) => tab.email)
-  if (!hasCards && !hasMoreEmail) return serviceEmail
-  return JSON.stringify({ version: 1, tabs })
+  if (!modal.enabled && !hasCards && !hasMoreEmail) return serviceEmail
+  return JSON.stringify({ version: 1, enabled: modal.enabled, tabs })
+}
+
+/** The sidebar item is visible only after an admin turns the switch on. */
+export function contactMenuEnabled(raw: string | null | undefined): boolean {
+  return parseContactModal(raw).enabled
 }
 
 export function hasContactContent(raw: string | null | undefined): boolean {

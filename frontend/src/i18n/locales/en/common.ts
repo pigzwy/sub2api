@@ -173,7 +173,9 @@ export default {
     qrHint: 'Shown in the contact dialog after upload. PNG or JPG, up to 1MB. An image URL also works.',
     titlePlaceholder: 'e.g. WeChat support',
     captionPlaceholder: 'e.g. Scan to add support',
-    hint: 'After saving, Contact appears under Other in the sidebar and opens this dialog. Each tab can hold two QR codes and a contact line. A single line is still saved as the original contact note.',
+    enabled: 'Show Contact in the sidebar',
+    enabledHint: 'While this is off, the sidebar item stays hidden. QR codes and contact details are kept until you turn it on.',
+    hint: 'Contact appears under Other only after this switch is on. Each tab can hold two QR codes and a contact line.',
   },
 
   // Navigation

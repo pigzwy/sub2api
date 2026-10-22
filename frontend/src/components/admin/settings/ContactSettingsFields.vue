@@ -1,5 +1,12 @@
 <template>
   <div class="space-y-4">
+    <div class="flex items-center justify-between gap-4 rounded-xl border border-gray-200 px-4 py-3 dark:border-dark-600">
+      <div>
+        <p class="text-sm font-medium text-gray-900 dark:text-white">{{ t('contactModal.enabled') }}</p>
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('contactModal.enabledHint') }}</p>
+      </div>
+      <Toggle :model-value="draft.enabled" @update:model-value="setEnabled" />
+    </div>
     <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('contactModal.hint') }}</p>
     <div
       v-for="tab in draft.tabs"
@@ -64,6 +71,7 @@
 import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ImageUpload from '@/components/common/ImageUpload.vue'
+import Toggle from '@/components/common/Toggle.vue'
 import { parseContactModal, serializeContactModal, type ContactTabId } from '@/utils/contactModal'
 
 const props = defineProps<{
@@ -87,6 +95,11 @@ watch(
 
 function commit() {
   emit('update:modelValue', serializeContactModal(draft.value))
+}
+
+function setEnabled(value: boolean) {
+  draft.value.enabled = value
+  commit()
 }
 
 function setImage(id: ContactTabId, index: number, value: string) {
