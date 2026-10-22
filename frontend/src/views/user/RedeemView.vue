@@ -379,6 +379,7 @@ import { redeemAPI, authAPI, type RedeemHistoryItem } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { formatDateTime } from '@/utils/format'
+import { contactSummary } from '@/utils/contactModal'
 
 const { t } = useI18n()
 const authStore = useAuthStore()
@@ -531,7 +532,7 @@ onMounted(async () => {
   fetchHistory()
   try {
     const settings = await authAPI.getPublicSettings()
-    contactInfo.value = settings.contact_info || ''
+    contactInfo.value = contactSummary(settings.contact_info)
   } catch (error) {
     console.error('Failed to load contact info:', error)
   }

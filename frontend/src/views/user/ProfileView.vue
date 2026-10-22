@@ -61,6 +61,7 @@ import ProfileTotpCard from '@/components/user/profile/ProfileTotpCard.vue'
 import ProfilePasskeyCard from '@/components/user/profile/ProfilePasskeyCard.vue'
 import { isWeChatWebOAuthEnabled } from '@/api/auth'
 import { useAppStore } from '@/stores/app'
+import { contactSummary } from '@/utils/contactModal'
 import { useAuthStore } from '@/stores/auth'
 
 const { t } = useI18n()
@@ -90,7 +91,7 @@ onMounted(async () => {
       if (!settings) {
         return
       }
-      contactInfo.value = settings.contact_info || ''
+      contactInfo.value = contactSummary(settings.contact_info)
       balanceLowNotifyEnabled.value = settings.balance_low_notify_enabled ?? false
       systemDefaultThreshold.value = settings.balance_low_notify_threshold ?? 0
       linuxdoOAuthEnabled.value = settings.linuxdo_oauth_enabled ?? false

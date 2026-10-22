@@ -161,6 +161,20 @@ export default {
     }
   },
 
+  contactModal: {
+    service: '客服联系',
+    support: '售后支持',
+    business: '企业合作',
+    email: '邮件联系',
+    emailPlaceholder: 'admin@example.com',
+    empty: '暂无内容',
+    qr: '二维码',
+    qrHint: 'PNG 或 JPG，最大 200KB。也可以直接粘贴图片地址。',
+    titlePlaceholder: '例如：微信客服',
+    captionPlaceholder: '例如：扫码添加客服',
+    hint: '保存后，侧栏「其他」会出现「联系我们」，点击后打开弹窗。每个分页可以放两张二维码和一段联系方式。只填一行文字时，仍按原来的客服联系方式保存。',
+  },
+
   // Navigation
   nav: {
     dashboard: '仪表盘',

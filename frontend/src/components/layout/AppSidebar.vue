@@ -115,21 +115,33 @@
                 {{ section.title }}
               </span>
             </div>
-            <component
-              :is="item.href ? 'a' : RouterLink"
-              v-for="item in section.items"
-              :key="item.path"
-              v-bind="navLinkProps(item)"
-              class="sidebar-link mb-1"
-              :class="{ 'sidebar-link-active': !item.href && isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
-              :title="sidebarCollapsed ? item.label : undefined"
-              :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
-              @click="handleMenuItemClick(item.path)"
-            >
-              <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
-              <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
-              <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
-            </component>
+            <template v-for="item in section.items" :key="item.path">
+              <button
+                v-if="item.action === 'contact'"
+                type="button"
+                class="sidebar-link mb-1 w-full text-left"
+                :class="{ 'sidebar-link-collapsed': sidebarCollapsed }"
+                :title="sidebarCollapsed ? item.label : undefined"
+                @click="openContact"
+              >
+                <component :is="item.icon" class="h-5 w-5 flex-shrink-0" />
+                <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
+              </button>
+              <component
+                :is="item.href ? 'a' : RouterLink"
+                v-else
+                v-bind="navLinkProps(item)"
+                class="sidebar-link mb-1"
+                :class="{ 'sidebar-link-active': !item.href && isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
+                :title="sidebarCollapsed ? item.label : undefined"
+                :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
+                @click="handleMenuItemClick(item.path)"
+              >
+                <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
+                <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
+                <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
+              </component>
+            </template>
           </div>
         </template>
       </template>
@@ -147,21 +159,33 @@
               {{ section.title }}
             </span>
           </div>
-          <component
-            :is="item.href ? 'a' : RouterLink"
-            v-for="item in section.items"
-            :key="item.path"
-            v-bind="navLinkProps(item)"
-            class="sidebar-link mb-1"
-            :class="{ 'sidebar-link-active': !item.href && isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
-            :title="sidebarCollapsed ? item.label : undefined"
-            :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
-            @click="handleMenuItemClick(item.path)"
-          >
-            <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
-            <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
-            <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
-          </component>
+          <template v-for="item in section.items" :key="item.path">
+            <button
+              v-if="item.action === 'contact'"
+              type="button"
+              class="sidebar-link mb-1 w-full text-left"
+              :class="{ 'sidebar-link-collapsed': sidebarCollapsed }"
+              :title="sidebarCollapsed ? item.label : undefined"
+              @click="openContact"
+            >
+              <component :is="item.icon" class="h-5 w-5 flex-shrink-0" />
+              <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
+            </button>
+            <component
+              :is="item.href ? 'a' : RouterLink"
+              v-else
+              v-bind="navLinkProps(item)"
+              class="sidebar-link mb-1"
+              :class="{ 'sidebar-link-active': !item.href && isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
+              :title="sidebarCollapsed ? item.label : undefined"
+              :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
+              @click="handleMenuItemClick(item.path)"
+            >
+              <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
+              <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
+              <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
+            </component>
+          </template>
         </div>
       </template>
     </nav>
@@ -215,6 +239,7 @@ import VersionBadge from '@/components/common/VersionBadge.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { sanitizeUrl } from '@/utils/url'
+import { hasContactContent } from '@/utils/contactModal'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
 import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
@@ -249,6 +274,8 @@ interface NavItem {
   href?: string
   /** Only meaningful alongside `href`: open in a new tab rather than this one. */
   newTab?: boolean
+  /** Opens the contact dialog instead of navigating. */
+  action?: 'contact'
 }
 
 /**
@@ -812,7 +839,7 @@ function finalizeNav(items: NavItem[]): NavItem[] {
 }
 
 const docNavHref = computed(() => sanitizeUrl(appStore.docUrl || ''))
-const contactNavHref = computed(() => sanitizeUrl(appStore.contactInfo || ''))
+const showContact = computed(() => hasContactContent(appStore.contactInfo))
 
 interface NavSection {
   id: string
@@ -863,8 +890,8 @@ function accountNavSections(): NavSection[] {
   ])
   const other = finalizeNav([
     { path: '/profile', label: t('nav.profile'), icon: UserIcon },
-    ...(contactNavHref.value
-      ? [{ path: contactNavHref.value, label: t('nav.contact'), icon: ChatIcon, href: contactNavHref.value, newTab: true }]
+    ...(showContact.value
+      ? [{ path: '/contact', label: t('nav.contact'), icon: ChatIcon, action: 'contact' as const }]
       : []),
     ...customMenuItemsForUser.value.map(customMenuNavItem),
   ])
@@ -1000,6 +1027,11 @@ function toggleTheme() {
 
 function closeMobile() {
   appStore.setMobileOpen(false)
+}
+
+function openContact() {
+  appStore.openContactDialog()
+  handleMenuItemClick('/contact')
 }
 
 function handleMenuItemClick(itemPath: string) {

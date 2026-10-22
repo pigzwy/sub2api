@@ -30,6 +30,7 @@ export const useAppStore = defineStore('app', () => {
   const siteLogo = ref<string>('')
   const siteVersion = ref<string>('')
   const contactInfo = ref<string>('')
+  const contactDialogOpen = ref(false)
   const apiBaseUrl = ref<string>('')
   const docUrl = ref<string>('')
   const cachedPublicSettings = ref<PublicSettings | null>(null)
@@ -451,6 +452,7 @@ export const useAppStore = defineStore('app', () => {
     siteLogo,
     siteVersion,
     contactInfo,
+    contactDialogOpen,
     apiBaseUrl,
     docUrl,
     cachedPublicSettings,
@@ -492,6 +494,12 @@ export const useAppStore = defineStore('app', () => {
     // Public settings actions
     fetchPublicSettings,
     clearPublicSettingsCache,
-    initFromInjectedConfig
+    initFromInjectedConfig,
+    openContactDialog: () => {
+      contactDialogOpen.value = true
+    },
+    closeContactDialog: () => {
+      contactDialogOpen.value = false
+    },
   }
 })
