@@ -56,6 +56,7 @@ FRONTEND_CRITICAL_VITEST := \
 	src/views/admin/__tests__/SettingsView.spec.ts \
 	src/views/admin/__tests__/backupObjectStorage.spec.ts \
 	src/views/admin/__tests__/groupsVoicePricing.spec.ts \
+	src/views/admin/__tests__/groupsImagePricing.spec.ts \
 	src/views/admin/ops/components/__tests__/OpsDashboardHeader.timezone.spec.ts \
 	src/views/admin/ops/components/__tests__/OpsRequestDetailsModal.spec.ts \
 	src/features/channel-monitor-v2/__tests__/MonitorSettingsPanel.spec.ts \

@@ -18,6 +18,39 @@
 上游正式实现 > 上游后续安全修复 > 本地旧二开 > 历史兼容代码
 ```
 
+## 2026-10-23：合并上游 v0.2.18
+
+从 `request-audit` 的 `e8932624a` 合并 `upstream/main` 的 `5c185c5c5`，共同祖先为
+`b0a02a330`（v0.2.17）。Git fetch 与 GitHub API SHA 一致；上游新增 45 个提交、
+114 个变更文件。合并前已快进同步远端自定义菜单位置更新，备份分支为
+`backup/request-audit-before-v0.2.18-20261023`。
+
+四处文本冲突：Chat Completions / Responses handler 采用上游 `submitForwardUsage`
+闭环，在成功或流式错误但已观测到 usage 时结算，同时保留二开的审计 request ID；
+failover 分支不重复提交。package.json 与 pnpm lock 保留双方安全约束，包括 fork
+的 nanoid 下限、follow-redirects 1.16.1 精确版本及上游新增的版本范围下限。
+
+采用上游 OpenAI overload / 断流处理、Gemini 生图开关门控、Vertex service-account
+配额、调度快照与用量性能优化、Grok Fast 定价、账号筛选持久化。快照仅复制顶层，
+复核独有 Realtime / 诊断 / 计费路径未见原地修改共享 map；能力投影仍含
+openai_capabilities。没有恢复已被上游接管的旧实现。
+
+合并前 124 个 fork 独有文件全部保留，内容未变（本次随后仅更新两份二开文档）。
+菜单分类、自定义菜单位于仪表盘下、黄/藏青主题、联系我们与品牌缓存安全修复、
+¥10 易支付、充值档位与赠送、Infini、模型广场展示、签到、媒体存储继续保留。
+请求审计/本地直答、Realtime、音频拆项计费、Gemini Images 与 Studio 装配均在。
+
+新增上游迁移 `246_enable_gemini_image_generation_groups.sql`：部署执行时，会把现有
+gemini / antigravity 分组的 allow_image_generation=false 改为 true；这是上游的
+有意配置迁移，**不包含 composite 分组**。需保持关闭的 Gemini 系分组应在升级后重新
+关闭。既有迁移、Ent schema/生成代码和 Wire 装配未改写，不引入支付 bonus_amount
+字段及迁移。Go 与三个 Dockerfile 仍为 1.27.3，保留 DOMPurify / follow-redirects
+安全升级；把本轮修改的 groupsImagePricing.spec.ts 补入前端 CI 白名单。
+
+本机只做差异、冲突标记、依赖锁元数据及二开边界静态核验；不运行应用构建、测试或
+安装前端依赖。完整 CI、安全扫描与镜像结果以本次最终提交的 GitHub Actions 为准，
+写入本记录时尚待验证。本次不部署、不重启生产、不执行数据库迁移。
+
 ## 2026-10-23：侧栏分组、联系我们和站点配色进入 request-audit
 
 从 `ec8cfffaf` 合入 `cursor/user-sidebar-groups-3558` 与 `cursor/tab-site-branding-3558`。
