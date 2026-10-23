@@ -827,7 +827,6 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
     { path: '/redeem', label: t('nav.redeem'), icon: GiftIcon, hideInSimpleMode: true },
     { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagAffiliate },
     { path: '/profile', label: t('nav.profile'), icon: UserIcon },
-    ...customMenuItemsForUser.value.map(customMenuNavItem),
   )
   return items
 }
@@ -893,7 +892,6 @@ function accountNavSections(): NavSection[] {
     ...(showContact.value
       ? [{ path: '/contact', label: t('nav.contact'), icon: ChatIcon, action: 'contact' as const }]
       : []),
-    ...customMenuItemsForUser.value.map(customMenuNavItem),
   ])
   return [
     { id: 'api', title: t('nav.sectionApi'), items: api },
@@ -902,17 +900,26 @@ function accountNavSections(): NavSection[] {
   ].filter((section) => section.items.length > 0)
 }
 
-// 普通用户侧栏：仪表盘在上，下面是 API / 账单 / 其他。
+function userCustomMenuItems(): NavItem[] {
+  return customMenuItemsForUser.value.map(customMenuNavItem)
+}
+
+// 普通用户侧栏：仪表盘和自定义菜单（工作台）在上，下面是 API / 账单 / 其他。
 const userNavSections = computed((): NavSection[] => {
-  const home = finalizeNav(
-    buildSelfNavItems(true).filter((item) => item.path === '/dashboard'),
-  )
+  const home = [
+    ...finalizeNav(buildSelfNavItems(true).filter((item) => item.path === '/dashboard')),
+    ...userCustomMenuItems(),
+  ]
   const sections = accountNavSections()
   return home.length ? [{ id: 'home', items: home }, ...sections] : sections
 })
 
-// 管理员个人区不再单列「我的账户」，直接铺开同一套三组。
-const adminAccountSections = computed((): NavSection[] => accountNavSections())
+// 管理员个人区不再单列「我的账户」。自定义菜单在三组上面，管理菜单本身不动。
+const adminAccountSections = computed((): NavSection[] => {
+  const menus = userCustomMenuItems()
+  const sections = accountNavSections()
+  return menus.length ? [{ id: 'custom', items: menus }, ...sections] : sections
+})
 
 // Custom menu items filtered by visibility
 const customMenuItemsForUser = computed(() => {
