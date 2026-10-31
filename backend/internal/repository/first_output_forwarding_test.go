@@ -45,7 +45,8 @@ func TestFirstOutputRealHTTPForwardFastRefusalResetsWindow(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.False(t, server.Exists(firstOutputKeys(42)[0]), "fast real upstream output must reset the window")
-	transport := upstream.(*httpUpstreamService)
+	transport, ok := upstream.(*httpUpstreamService)
+	require.True(t, ok)
 	requireNoUpstreamInFlight(t, transport)
 	for _, entry := range transport.clients {
 		entry.client.CloseIdleConnections()

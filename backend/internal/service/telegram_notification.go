@@ -226,7 +226,7 @@ func (s *TelegramNotificationService) sendWithRetry(ctx context.Context, token, 
 		select {
 		case <-ctx.Done():
 			timer.Stop()
-			return errors.New("Telegram notification delivery deadline exceeded")
+			return errors.New("telegram notification delivery deadline exceeded")
 		case <-timer.C:
 		}
 	}
