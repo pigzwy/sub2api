@@ -531,6 +531,9 @@ func (s *GeminiMessagesCompatService) HasAntigravityAccounts(ctx context.Context
 }
 
 func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte) (*ForwardResult, error) {
+	if s != nil {
+		defer beginFirstOutputProtectionBody(ctx, c, account, body, s.rateLimitService)()
+	}
 	beginUpstreamResponseModelObservation(c)
 	beginGeminiImageOutputObservation(c)
 	startTime := time.Now()
@@ -1093,6 +1096,9 @@ func isGeminiSignatureRelatedError(respBody []byte) bool {
 }
 
 func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.Context, account *Account, originalModel string, action string, stream bool, body []byte) (*ForwardResult, error) {
+	if s != nil {
+		defer beginFirstOutputProtection(ctx, c, account, originalModel, stream && !isGeminiImageGenerationIntent(body, originalModel, account.GetMappedModel(originalModel)), s.rateLimitService)()
+	}
 	beginUpstreamResponseModelObservation(c)
 	beginGeminiImageOutputObservation(c)
 	startTime := time.Now()
@@ -2307,6 +2313,7 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 				if firstTokenMs == nil {
 					ms := int(time.Since(startTime).Milliseconds())
 					firstTokenMs = &ms
+					observeFirstOutput(c)
 				}
 				writeSSE(c.Writer, "content_block_delta", map[string]any{
 					"type":  "content_block_delta",
@@ -2365,6 +2372,7 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 				if firstTokenMs == nil {
 					ms := int(time.Since(startTime).Milliseconds())
 					firstTokenMs = &ms
+					observeFirstOutput(c)
 				}
 				writeSSE(c.Writer, "content_block_delta", map[string]any{
 					"type":  "content_block_delta",
@@ -2956,6 +2964,7 @@ func (s *GeminiMessagesCompatService) handleNativeStreamingResponse(c *gin.Conte
 						usage = u
 					}
 					observer.ObserveGemini(rawBytes)
+					observeFirstOutputPayload(c, rawBytes)
 					observeGeminiImageOutputs(c, rawBytes)
 
 					if gjson.GetBytes(rawBytes, "candidates.0.finishReason").String() != "" {

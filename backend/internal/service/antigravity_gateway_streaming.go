@@ -289,6 +289,7 @@ func (s *AntigravityGatewayService) handleGeminiStreamingResponse(c *gin.Context
 					firstTokenMs = &ms
 				}
 
+				observeFirstOutputPayload(c, []byte(payload))
 				cw.Fprintf("data: %s\n\n", payload)
 				continue
 			}
@@ -439,6 +440,7 @@ func (s *AntigravityGatewayService) handleGeminiStreamToNonStreaming(c *gin.Cont
 				continue
 			}
 
+			observeFirstOutputPayload(c, inner)
 			// 记录首 token 时间
 			if firstTokenMs == nil {
 				ms := int(time.Since(startTime).Milliseconds())
@@ -865,6 +867,9 @@ func (s *AntigravityGatewayService) collectClaudeStreamResponse(c *gin.Context, 
 				// 收集所有 parts（text、thinking、functionCall、inlineData 等）
 				collectedParts = append(collectedParts, parts...)
 			}
+			if len(parts) > 0 {
+				observeFirstOutput(c)
+			}
 			if len(parts) > 0 || strings.TrimSpace(extractGeminiFinishReason(parsed)) != "" {
 				meaningfulResponse = true
 				if firstTokenMs == nil {
@@ -1114,6 +1119,7 @@ func (s *AntigravityGatewayService) handleClaudeStreamingResponse(c *gin.Context
 			// 处理 SSE 行，转换为 Claude 格式
 			claudeEvents := processor.ProcessLine(strings.TrimRight(ev.line, "\r\n"))
 			if len(claudeEvents) > 0 {
+				observeFirstOutputSSE(c, claudeEvents)
 				if firstTokenMs == nil {
 					ms := int(time.Since(startTime).Milliseconds())
 					firstTokenMs = &ms

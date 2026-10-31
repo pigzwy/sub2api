@@ -787,6 +787,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 			if firstTokenMs == nil {
 				ms := int(time.Since(turnStart).Milliseconds())
 				firstTokenMs = &ms
+				observeFirstOutput(c)
 			}
 		}
 		if openAIWSMessageShouldParseUsage(eventType, upstreamMessage) {

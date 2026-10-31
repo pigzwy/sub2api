@@ -309,6 +309,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 		if completedTTFTEvent && firstTokenMs == nil {
 			ms := int(time.Since(startTime).Milliseconds())
 			firstTokenMs = &ms
+			observeFirstOutput(c)
 		}
 		eventStartsClientOutput = false
 		eventStartsTTFTOutput = false
@@ -728,6 +729,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			if !guardFirstOutput && firstTokenMs == nil && startsTTFTOutput {
 				ms := int(time.Since(startTime).Milliseconds())
 				firstTokenMs = &ms
+				observeFirstOutput(c)
 				stopFirstOutputTimer()
 			}
 			s.parseSSEUsageBytesWithType(dataBytes, eventType, usage)

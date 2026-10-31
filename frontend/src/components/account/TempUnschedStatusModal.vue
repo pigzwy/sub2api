@@ -69,26 +69,26 @@
           </div>
           <div class="rounded-lg border border-gray-200 p-3 dark:border-dark-600">
             <p class="text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.accounts.tempUnschedulable.errorCode') }}
+              {{ t(isFirstOutputPause ? 'admin.accounts.tempUnschedulable.firstOutputLimit' : 'admin.accounts.tempUnschedulable.errorCode') }}
             </p>
             <p class="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">
-              {{ state?.status_code || '-' }}
+              {{ isFirstOutputPause ? '30s' : (state?.status_code || '-') }}
             </p>
           </div>
           <div class="rounded-lg border border-gray-200 p-3 dark:border-dark-600">
             <p class="text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.accounts.tempUnschedulable.matchedKeyword') }}
+              {{ t(isFirstOutputPause ? 'admin.accounts.tempUnschedulable.firstOutputReasonLabel' : 'admin.accounts.tempUnschedulable.matchedKeyword') }}
             </p>
             <p class="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">
-              {{ state?.matched_keyword || '-' }}
+              {{ isFirstOutputPause ? t('admin.accounts.tempUnschedulable.firstOutputReason') : (state?.matched_keyword || '-') }}
             </p>
           </div>
           <div class="rounded-lg border border-gray-200 p-3 dark:border-dark-600">
             <p class="text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.accounts.tempUnschedulable.ruleOrder') }}
+              {{ t(isFirstOutputPause ? 'admin.accounts.tempUnschedulable.firstOutputModel' : 'admin.accounts.tempUnschedulable.ruleOrder') }}
             </p>
             <p class="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">
-              {{ ruleIndexDisplay }}
+              {{ isFirstOutputPause ? (state?.model || '-') : ruleIndexDisplay }}
             </p>
           </div>
         </div>
@@ -98,7 +98,7 @@
             {{ t('admin.accounts.tempUnschedulable.errorMessage') }}
           </p>
           <div class="mt-2 rounded bg-gray-50 p-2 text-xs text-gray-700 dark:bg-dark-700 dark:text-gray-300">
-            {{ state?.error_message || '-' }}
+            {{ isFirstOutputPause ? t('admin.accounts.tempUnschedulable.firstOutputPaused') : (state?.error_message || '-') }}
           </div>
         </div>
 
@@ -179,6 +179,8 @@ let requestVersion = 0
 
 const state = computed(() => status.value?.state || null)
 
+const isFirstOutputPause = computed(() => state.value?.matched_keyword === 'first_output_timeout')
+
 const isActive = computed(() => {
   if (!status.value?.active || !state.value) return false
   return state.value.until_unix * 1000 > Date.now()
@@ -195,6 +197,7 @@ const triggerEvidenceText = computed(() => {
   const count = state.value?.trigger_count || 0
   const threshold = state.value?.trigger_threshold || 0
   const minutes = state.value?.trigger_window_minutes || 0
+  if (isFirstOutputPause.value) return t('admin.accounts.tempUnschedulable.firstOutputEvidence', { count, minutes })
   if (threshold > 0 && minutes > 0) {
     return t('admin.accounts.tempUnschedulable.multipleErrorTrigger', { count, threshold, minutes })
   }

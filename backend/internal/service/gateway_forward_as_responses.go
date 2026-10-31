@@ -35,6 +35,9 @@ func (s *GatewayService) ForwardAsResponses(
 	body []byte,
 	parsed *ParsedRequest,
 ) (*ForwardResult, error) {
+	if s != nil {
+		defer beginFirstOutputProtectionBody(ctx, c, account, body, s.rateLimitService)()
+	}
 	startTime := time.Now()
 
 	normalizedBody, normalized, err := normalizeOpenAIResponsesLegacyIngressWithConfig(s.cfg, body)
@@ -575,6 +578,9 @@ func (s *GatewayService) handleResponsesStreamingResponse(
 
 	// processEvent handles a single parsed Anthropic SSE event.
 	processEvent := func(event *apicompat.AnthropicStreamEvent) {
+		if isMeaningfulAntigravityCompatEvent(event) {
+			observeFirstOutput(c)
+		}
 		if firstChunk {
 			firstChunk = false
 			ms := int(time.Since(startTime).Milliseconds())

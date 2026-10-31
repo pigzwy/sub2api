@@ -635,6 +635,7 @@ readLoop:
 		if firstTokenMs == nil && isTokenEvent {
 			ms := int(time.Since(startTime).Milliseconds())
 			firstTokenMs = &ms
+			observeFirstOutput(c)
 		}
 		if debugEnabled && shouldLogOpenAIWSEvent(eventCount, eventType) {
 			logOpenAIWSModeDebug(

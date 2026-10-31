@@ -107,6 +107,7 @@ type antigravityCompatScanEvent struct {
 }
 
 type antigravityCompatStreamSession struct {
+	onFirstOutput               func()
 	processor                   *antigravity.StreamingProcessor
 	adapter                     antigravityCompatStreamAdapter
 	writer                      *antigravityClientWriter
@@ -235,6 +236,9 @@ func (s *antigravityCompatStreamSession) emitOrBuffer(event apicompat.AnthropicS
 	}
 
 	s.meaningfulData = true
+	if s.onFirstOutput != nil {
+		s.onFirstOutput()
+	}
 	ms := int(time.Since(s.startTime).Milliseconds())
 	s.firstTokenMs = &ms
 	for i := range s.pendingEvents {
@@ -303,6 +307,7 @@ func (s *AntigravityGatewayService) handleAntigravityCompatStreamWithKeepaliveIn
 		c.Status(http.StatusOK)
 	}
 	session := newAntigravityCompatStreamSession(originalModel, startTime, adapter, writer)
+	session.onFirstOutput = func() { observeFirstOutput(c) }
 	session.preContentKeepaliveInterval = interval
 	events, stopScanner, maxLineSize := s.startAntigravityCompatScanner(resp.Body)
 	defer stopScanner()

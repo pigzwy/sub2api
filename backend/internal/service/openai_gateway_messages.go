@@ -33,6 +33,9 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	promptCacheKey string,
 	defaultMappedModel string,
 ) (*OpenAIForwardResult, error) {
+	if s != nil {
+		defer beginFirstOutputProtectionBody(ctx, c, account, body, s.rateLimitService)()
+	}
 	// 工具 Schema 清洗必须先于所有分流：下游每条路径（原生 Anthropic 直通、
 	// Chat Completions 转换、Responses 转换）都会把 tools 原样带给上游，而
 	// xAI / Moonshot 等严格校验方会因 input_schema 里的 required:null 或
@@ -906,6 +909,7 @@ func (s *OpenAIGatewayService) readOpenAICompatBufferedTerminal(
 				if frame, ok := parser.Finish(); ok {
 					payload := openAICompatPayloadWithEventType(frame.Data, frame.EventType)
 					payload = string(restoreCodexToolNamesFromContext(c, []byte(payload)))
+					observeFirstOutputPayload(c, []byte(payload))
 					var event apicompat.ResponsesStreamEvent
 					if err := json.Unmarshal([]byte(payload), &event); err == nil {
 						s.parseSSEUsageBytesWithType([]byte(payload), event.Type, &usage)
@@ -947,6 +951,7 @@ func (s *OpenAIGatewayService) readOpenAICompatBufferedTerminal(
 			}
 			payload := openAICompatPayloadWithEventType(frame.Data, frame.EventType)
 			payload = string(restoreCodexToolNamesFromContext(c, []byte(payload)))
+			observeFirstOutputPayload(c, []byte(payload))
 
 			var event apicompat.ResponsesStreamEvent
 			if err := json.Unmarshal([]byte(payload), &event); err != nil {
@@ -1064,6 +1069,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 	// processDataLine handles a single "data: ..." SSE line from upstream.
 	processDataLine := func(payload string) bool {
 		payload = string(restoreCodexToolNamesFromContext(c, []byte(payload)))
+		observeFirstOutputPayload(c, []byte(payload))
 		if firstChunk {
 			firstChunk = false
 			ms := int(time.Since(startTime).Milliseconds())

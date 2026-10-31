@@ -19,6 +19,9 @@ import (
 
 // ForwardUpstream 使用 base_url + /v1/messages + 双 header 认证透传上游 Claude 请求
 func (s *AntigravityGatewayService) ForwardUpstream(ctx context.Context, c *gin.Context, account *Account, body []byte) (*ForwardResult, error) {
+	if s != nil {
+		defer beginFirstOutputProtectionBody(ctx, c, account, body, s.rateLimitService)()
+	}
 	beginUpstreamResponseModelObservation(c)
 	startTime := time.Now()
 	sessionID := getSessionID(c)
@@ -254,6 +257,7 @@ func (s *AntigravityGatewayService) streamUpstreamResponse(c *gin.Context, resp 
 			line := ev.line
 			if data, ok := extractAnthropicSSEDataLine(line); ok {
 				upstreamResponseModelObserverFromContext(c).ObserveAnthropic([]byte(strings.TrimSpace(data)))
+				observeFirstOutputPayload(c, []byte(data))
 			}
 
 			// 记录首 token 时间

@@ -393,6 +393,9 @@ func (s *OpenAIGatewayService) handleResponsesStreamingFromNativeAnthropic(
 	// output_tokens 只在末尾 message_delta 携带，提前退出会把整段生成记成 ~1
 	// token，payg 上游照常计费而平台漏记。状态机照常推进以保证 finalize 一致。
 	processAnthropicEvent := func(event *apicompat.AnthropicStreamEvent) {
+		if isMeaningfulAntigravityCompatEvent(event) {
+			observeFirstOutput(c)
+		}
 		if firstChunk {
 			firstChunk = false
 			ms := int(time.Since(startTime).Milliseconds())

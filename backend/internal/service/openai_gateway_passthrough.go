@@ -2206,6 +2206,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			if firstTokenMs == nil && openAIStreamDataStartsTTFT(trimmedData, eventType, forceFlushFailedEvent, ttftMode) {
 				ms := int(time.Since(startTime).Milliseconds())
 				firstTokenMs = &ms
+				observeFirstOutput(c)
 			}
 			s.parseSSEUsageBytesWithType(dataBytes, eventType, usage)
 		}

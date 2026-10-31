@@ -1174,24 +1174,27 @@ func (s *TokenRefreshService) postRefreshActions(ctx context.Context, account *A
 			s.notifyAccountSchedulingBlockCleared(account.ID)
 		}
 	}
-	// 刷新成功后清除临时不可调度状态（处理 OAuth 401 恢复场景）
-	if account.TempUnschedulableUntil != nil && time.Now().Before(*account.TempUnschedulableUntil) {
-		if clearErr := s.accountRepo.ClearTempUnschedulable(ctx, account.ID); clearErr != nil {
-			slog.Warn("token_refresh.clear_temp_unschedulable_failed",
-				"account_id", account.ID,
-				"error", clearErr,
-			)
+	// Credential refresh cannot demonstrate that slow first output has recovered.
+	if account.TempUnschedulableUntil != nil && time.Now().Before(*account.TempUnschedulableUntil) && !account.isFirstOutputTempUnschedulable() {
+		cleared := false
+		var clearErr error
+		if conditional, ok := s.accountRepo.(interface {
+			ClearTempUnschedulableIfReasonUnchanged(context.Context, int64, string) (bool, error)
+		}); ok {
+			cleared, clearErr = conditional.ClearTempUnschedulableIfReasonUnchanged(ctx, account.ID, account.TempUnschedulableReason)
 		} else {
+			clearErr = s.accountRepo.ClearTempUnschedulable(ctx, account.ID)
+			cleared = clearErr == nil
+		}
+		if clearErr != nil {
+			slog.Warn("token_refresh.clear_temp_unschedulable_failed", "account_id", account.ID, "error", clearErr)
+		} else if cleared {
 			slog.Info("token_refresh.cleared_temp_unschedulable", "account_id", account.ID)
 			s.notifyAccountSchedulingBlockCleared(account.ID)
-		}
-		// 同步清除 Redis 缓存，避免调度器读到过期的临时不可调度状态
-		if s.tempUnschedCache != nil {
-			if clearErr := s.tempUnschedCache.DeleteTempUnsched(ctx, account.ID); clearErr != nil {
-				slog.Warn("token_refresh.clear_temp_unsched_cache_failed",
-					"account_id", account.ID,
-					"error", clearErr,
-				)
+			if s.tempUnschedCache != nil {
+				if err := s.tempUnschedCache.DeleteTempUnsched(ctx, account.ID); err != nil {
+					slog.Warn("token_refresh.clear_temp_unsched_cache_failed", "account_id", account.ID, "error", err)
+				}
 			}
 		}
 	}

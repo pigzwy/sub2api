@@ -139,6 +139,7 @@ func (s *GatewayService) handleBedrockStreamingResponse(
 			sseData = transformBedrockInvocationMetrics(sseData)
 
 			// 解析 SSE 事件数据提取 usage
+			observeFirstOutputPayload(c, sseData)
 			parseSSEUsagePassthrough(string(sseData), usage)
 
 			// 确定 SSE event type

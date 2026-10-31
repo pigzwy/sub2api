@@ -33,6 +33,9 @@ func (s *GatewayService) ForwardAsChatCompletions(
 	body []byte,
 	parsed *ParsedRequest,
 ) (*ForwardResult, error) {
+	if s != nil {
+		defer beginFirstOutputProtectionBody(ctx, c, account, body, s.rateLimitService)()
+	}
 	startTime := time.Now()
 
 	// 1. Parse Chat Completions request
@@ -424,6 +427,9 @@ func (s *GatewayService) handleCCStreamingFromAnthropic(
 	}
 
 	processAnthropicEvent := func(event *apicompat.AnthropicStreamEvent) {
+		if isMeaningfulAntigravityCompatEvent(event) {
+			observeFirstOutput(c)
+		}
 		if event == nil {
 			return
 		}

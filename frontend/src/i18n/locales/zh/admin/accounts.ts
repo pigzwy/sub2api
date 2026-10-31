@@ -459,9 +459,21 @@ export default {
         tempUnschedulableUntil: '预计 {time} 恢复'
       },
       tempUnschedulable: {
+        firstOutputLimit: "首输出阈值",
+        firstOutputReasonLabel: "触发原因",
+        firstOutputReason: "首输出超时",
+        firstOutputModel: "触发模型",
+        firstOutputPaused: "首输出连续超标，已暂停整个账号 5 分钟；到期自动恢复，也可手动解除。",
+        firstOutputEvidence: "{minutes} 分钟计数窗口内有 {count} 次首输出超过 30 秒，期间没有低于 30 秒的首输出。",
+
+        bulkFirstOutput: '修改所选账号的首输出异常保护',
+        firstOutputTitle: "首输出异常时暂停整个账号",
+        firstOutputHint: "首输出超过 30 秒开始累计，10 分钟内达到 3 次时暂停整个账号 5 分钟；低于 30 秒立即清零计数和窗口。",
+        firstOutputBoundary: "恰好 30 秒不计数也不清零。仅监测流式文本请求；到期自动恢复，TG 通知在系统设置 → 网关中配置。",
+
         title: '临时不可调度',
         statusTitle: '临时不可调度状态',
-        hint: '当错误码与关键词同时匹配时，按规则的作用范围在指定时间内暂停整个账号，或只冷却对应模型。',
+        hint: '首输出异常可暂停整个账号；错误码与关键词规则可暂停整个账号或只冷却对应模型。',
         notice: '规则按顺序匹配，需同时满足错误码与关键词。',
         addRule: '添加规则',
         ruleOrder: '规则序号',
@@ -485,7 +497,7 @@ export default {
         scopeHint: '无法识别请求模型时，模型级规则按账户级处理。',
         description: '描述',
         descriptionPlaceholder: '可选，便于记忆规则用途',
-        rulesInvalid: '请至少填写一条包含错误码、关键词和时长的规则。',
+        rulesInvalid: '请启用首输出异常处理，或填写一条包含错误码、关键词和时长的规则。',
         viewDetails: '查看临时不可调度详情',
         accountName: '账号',
         triggeredAt: '触发时间',

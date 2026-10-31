@@ -1155,6 +1155,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			if firstTokenMs == nil && isTokenEvent {
 				ms := int(time.Since(turnStart).Milliseconds())
 				firstTokenMs = &ms
+				observeFirstOutput(c)
 			}
 			imageCounter.AddSSEData(upstreamMessage)
 

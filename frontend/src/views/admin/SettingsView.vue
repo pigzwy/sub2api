@@ -371,6 +371,8 @@
             </div>
           </div>
 
+          <TelegramNotificationSettings v-if="activeTab === 'gateway'" />
+
           <!-- Stream Timeout Settings -->
           <div class="card">
             <div
@@ -9397,6 +9399,7 @@ import {
   isStepUpBlocked,
   stepUpBlockReason,
 } from "@/composables/useStepUp";
+import TelegramNotificationSettings from "@/components/admin/settings/TelegramNotificationSettings.vue";
 import AdminAccessKeysSettings from "@/components/admin/settings/AdminAccessKeysSettings.vue";
 import TotpStepUpDialog from "@/components/auth/TotpStepUpDialog.vue";
 import { affiliatesAPI, type AffiliateAdminEntry, type SimpleUser as AffiliateSimpleUser } from "@/api/admin/affiliates";

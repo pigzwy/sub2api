@@ -31,6 +31,7 @@ type RateLimitService struct {
 	settingService        *SettingService
 	tokenCacheInvalidator TokenCacheInvalidator
 	runtimeBlocker        AccountRuntimeBlocker
+	firstOutputNotifier   FirstOutputNotifier
 	// ollamaCloudUsageProbe is the optional Ollama Cloud usage probe scheduler
 	// injected via SetOllamaCloudUsageProbeScheduler. See
 	// ratelimit_service_ollama_429.go for how real-Ollama 429s schedule an async
@@ -2181,6 +2182,11 @@ func (s *RateLimitService) samplePassiveUsageFromHeaders(ctx context.Context, ac
 
 // ClearRateLimit 清除账号的限流状态
 func (s *RateLimitService) ClearRateLimit(ctx context.Context, accountID int64) error {
+	release, err := s.lockFirstOutputRecovery(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	defer release()
 	if err := s.accountRepo.ClearRateLimit(ctx, accountID); err != nil {
 		return err
 	}
@@ -2200,6 +2206,7 @@ func (s *RateLimitService) ClearRateLimit(ctx context.Context, accountID int64) 
 		}
 	}
 	s.ResetOpenAI403Counter(ctx, accountID)
+	s.clearFirstOutputProtection(ctx, accountID)
 	s.notifyAccountSchedulingBlockCleared(accountID)
 	return nil
 }
@@ -2256,6 +2263,11 @@ func (s *RateLimitService) RecoverAccountAfterSuccessfulTest(ctx context.Context
 }
 
 func (s *RateLimitService) ClearTempUnschedulable(ctx context.Context, accountID int64) error {
+	release, err := s.lockFirstOutputRecovery(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	defer release()
 	if err := s.accountRepo.ClearTempUnschedulable(ctx, accountID); err != nil {
 		return err
 	}
@@ -2268,6 +2280,7 @@ func (s *RateLimitService) ClearTempUnschedulable(ctx context.Context, accountID
 	if err := s.accountRepo.ClearModelRateLimits(ctx, accountID); err != nil {
 		slog.Warn("clear_model_rate_limits_on_temp_unsched_reset_failed", "account_id", accountID, "error", err)
 	}
+	s.clearFirstOutputProtection(ctx, accountID)
 	s.notifyAccountSchedulingBlockCleared(accountID)
 	return nil
 }

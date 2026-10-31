@@ -1,5 +1,19 @@
 export default {
     settings: {
+      telegram: {
+        "title": "Telegram 停调通知",
+        "description": "账号因首输出连续超标进入临时不可调度后发送一次通知，包含账号、平台和恢复时间。",
+        "enabled": "启用 TG 通知",
+        "token": "Bot Token",
+        "tokenSaved": "已配置，留空保留现有令牌",
+        "chatId": "Chat ID",
+        "hint": "先向机器人发送 /start，或将它加入目标群组。Chat ID 支持数字 ID 或频道用户名。Bot Token 加密保存；保存后输入框会清空。",
+        "retry": "重新加载",
+        "saved": "通知设置已保存",
+        "loadFailed": "无法加载 TG 设置，请重试。",
+        "saveFailed": "保存 TG 设置失败，请重试。",
+        "incomplete": "请填写 Bot Token 和 Chat ID。"
+},
       title: '系统设置',
       description: '管理注册、邮箱验证、默认值和 SMTP 设置',
       tabs: {

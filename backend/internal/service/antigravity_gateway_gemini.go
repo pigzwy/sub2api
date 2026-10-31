@@ -42,6 +42,9 @@ func WithForwardGeminiSession(groupID int64, sessionHash string) ForwardGeminiOp
 }
 
 func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Context, account *Account, originalModel string, action string, stream bool, body []byte, isStickySession bool, options ...ForwardGeminiOption) (*ForwardResult, error) {
+	if s != nil {
+		defer beginFirstOutputProtection(ctx, c, account, originalModel, stream && !isGeminiImageGenerationIntent(body, originalModel, account.GetMappedModel(originalModel)), s.rateLimitService)()
+	}
 	beginUpstreamResponseModelObservation(c)
 	startTime := time.Now()
 	forwardOpts := forwardGeminiOptions{}

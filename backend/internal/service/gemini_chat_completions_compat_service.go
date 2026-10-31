@@ -28,6 +28,9 @@ func (s *GeminiMessagesCompatService) ForwardAsChatCompletions(
 	account *Account,
 	body []byte,
 ) (*ForwardResult, error) {
+	if s != nil {
+		defer beginFirstOutputProtectionBody(ctx, c, account, body, s.rateLimitService)()
+	}
 	startTime := time.Now()
 
 	var ccReq apicompat.ChatCompletionsRequest
@@ -640,6 +643,7 @@ func (s *GeminiMessagesCompatService) handleChatCompletionsStreamingResponseFrom
 
 					var geminiResp map[string]any
 					if err := json.Unmarshal(rawBytes, &geminiResp); err == nil {
+						observeFirstOutputPayload(c, rawBytes)
 						if firstChunk {
 							firstChunk = false
 							ms := int(time.Since(startTime).Milliseconds())

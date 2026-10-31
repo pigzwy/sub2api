@@ -1,5 +1,19 @@
 export default {
     settings: {
+      telegram: {
+        "title": "Telegram scheduling alerts",
+        "description": "Send one notification when slow first output temporarily pauses an account, including the account, platform and resume time.",
+        "enabled": "Enable Telegram notifications",
+        "token": "Bot token",
+        "tokenSaved": "Configured; leave blank to keep the saved token",
+        "chatId": "Chat ID",
+        "hint": "Send /start to the bot or add it to the target group first. Use a numeric chat ID or channel username. The token is encrypted and cleared from this form after saving.",
+        "retry": "Reload",
+        "saved": "Notification settings saved",
+        "loadFailed": "Could not load Telegram settings. Please retry.",
+        "saveFailed": "Could not save Telegram settings. Please retry.",
+        "incomplete": "Enter a bot token and chat ID."
+},
       title: 'System Settings',
       description: 'Manage registration, email verification, default values, and SMTP settings',
       tabs: {

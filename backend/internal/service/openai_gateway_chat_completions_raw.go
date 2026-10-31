@@ -369,6 +369,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 				if u := extractCCStreamUsage(payload); u != nil {
 					usage = *u
 				}
+				observeFirstOutputPayload(c, []byte(payload))
 				if firstTokenMs == nil && !usageOnlyChunk {
 					elapsed := int(time.Since(startTime).Milliseconds())
 					firstTokenMs = &elapsed

@@ -31,6 +31,14 @@
         </p>
       </div>
 
+      <div class="space-y-3 border-t border-gray-200 pt-4 dark:border-dark-600">
+        <label class="flex items-center gap-3 text-sm font-medium">
+          <input data-testid="bulk-first-output-protection-enabled" v-model="enableFirstOutputProtection" type="checkbox" class="h-4 w-4 rounded" />
+          {{ t('admin.accounts.tempUnschedulable.bulkFirstOutput') }}
+        </label>
+        <FirstOutputProtectionFields v-if="enableFirstOutputProtection" v-model="firstOutputProtectionEnabled" />
+      </div>
+
       <!-- OpenAI passthrough -->
       <div
         v-if="allOpenAIPassthroughCapable"
@@ -1474,6 +1482,7 @@
 </template>
 
 <script setup lang="ts">
+import FirstOutputProtectionFields from './FirstOutputProtectionFields.vue'
 import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -1646,6 +1655,8 @@ interface ModelMapping {
 }
 
 // State - field enable flags
+const enableFirstOutputProtection = ref(false)
+const firstOutputProtectionEnabled = ref(true)
 const enableBaseUrl = ref(false)
 const enableModelRestriction = ref(false)
 const enableCustomErrorCodes = ref(false)
@@ -1932,6 +1943,11 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
   const updates: Record<string, unknown> = {}
   const credentials: Record<string, unknown> = {}
   let credentialsChanged = false
+  if (enableFirstOutputProtection.value) {
+    credentials.temp_unschedulable_first_output_enabled = firstOutputProtectionEnabled.value
+    if (firstOutputProtectionEnabled.value) credentials.temp_unschedulable_enabled = true
+    credentialsChanged = true
+  }
   const applyOpenAILongContextBilling =
     enableOpenAILongContextBilling.value && allOpenAIPassthroughCapable.value
   const applyOpenAIEndpointCapabilities =
@@ -2208,6 +2224,7 @@ const handleSubmit = async () => {
   }
 
   const hasAnyFieldEnabled =
+    enableFirstOutputProtection.value ||
     enableBaseUrl.value ||
     enableOpenAIPassthrough.value ||
     enableOpenAIFlattenNamespaces.value ||
@@ -2359,6 +2376,8 @@ watch(
   (newShow) => {
     if (!newShow) {
       // Reset all enable flags
+      enableFirstOutputProtection.value = false
+      firstOutputProtectionEnabled.value = true
       enableBaseUrl.value = false
       enableModelRestriction.value = false
       enableCustomErrorCodes.value = false

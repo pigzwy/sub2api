@@ -1984,6 +1984,35 @@ describe('EditAccountModal gemini explicit cache upstream switch', () => {
 })
 
 describe('EditAccountModal temp-unschedulable rule scope', () => {
+  it('loads and saves first-output protection without HTTP error rules', async () => {
+    const account = buildAccountWithTempUnschedRules([])
+    account.credentials.temp_unschedulable_first_output_enabled = true
+    updateAccountMock.mockResolvedValue(account)
+    const wrapper = mountModal(account)
+    expect(wrapper.get<HTMLInputElement>('[data-testid="first-output-protection"]').element.checked).toBe(true)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).toMatchObject({
+      temp_unschedulable_enabled: true,
+      temp_unschedulable_rules: [],
+      temp_unschedulable_first_output_enabled: true,
+    })
+    wrapper.unmount()
+  })
+
+  it('clears first-output configuration when temporary scheduling protection is disabled', async () => {
+    const account = buildAccountWithTempUnschedRules([])
+    account.credentials.temp_unschedulable_first_output_enabled = true
+    updateAccountMock.mockResolvedValue(account)
+    const wrapper = mountModal(account)
+    await wrapper.get('[data-testid="temp-unschedulable-enabled"]').trigger('click')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    const credentials = updateAccountMock.mock.calls[0]?.[1]?.credentials
+    expect(credentials).not.toHaveProperty('temp_unschedulable_enabled')
+    expect(credentials).not.toHaveProperty('temp_unschedulable_rules')
+    expect(credentials).not.toHaveProperty('temp_unschedulable_first_output_enabled')
+    wrapper.unmount()
+  })
+
   function buildAccountWithTempUnschedRules(rules: Array<Record<string, unknown>>) {
     const account = buildAccount()
     return {

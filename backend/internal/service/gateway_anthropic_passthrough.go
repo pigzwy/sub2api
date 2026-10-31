@@ -543,6 +543,7 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 					ms := int(time.Since(startTime).Milliseconds())
 					firstTokenMs = &ms
 				}
+				observeFirstOutputPayload(c, []byte(data))
 				parseSSEUsagePassthrough(data, usage)
 			} else {
 				trimmed := strings.TrimSpace(line)

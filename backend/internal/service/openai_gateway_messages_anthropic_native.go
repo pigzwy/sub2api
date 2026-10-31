@@ -465,6 +465,7 @@ func (s *OpenAIGatewayService) handleNativeAnthropicStreamingResponse(
 					ms := int(time.Since(startTime).Milliseconds())
 					firstTokenMs = &ms
 				}
+				observeFirstOutputPayload(c, []byte(data))
 				parseSSEUsagePassthrough(data, usage)
 			} else {
 				trimmed := strings.TrimSpace(line)

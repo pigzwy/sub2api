@@ -855,6 +855,38 @@ func TestTokenRefreshService_RefreshWithRetry_ClearsTempUnschedulable(t *testing
 	require.Equal(t, 1, tempCache.deleteCalls) // Redis 缓存也应清除
 }
 
+func TestFirstOutputProtectionSurvivesSuccessfulTokenRefresh(t *testing.T) {
+	repo := &tokenRefreshAccountRepo{}
+	invalidator := &tokenCacheInvalidatorStub{}
+	tempCache := &tempUnschedCacheStub{}
+	cfg := &config.Config{
+		TokenRefresh: config.TokenRefreshConfig{
+			MaxRetries:          1,
+			RetryBackoffSeconds: 0,
+		},
+	}
+	service := NewTokenRefreshService(repo, nil, nil, nil, nil, invalidator, nil, cfg, tempCache)
+	until := time.Now().Add(10 * time.Minute)
+	account := &Account{
+		ID:                      15,
+		Platform:                PlatformGemini,
+		Type:                    AccountTypeOAuth,
+		TempUnschedulableUntil:  &until,
+		TempUnschedulableReason: `{"matched_keyword":"first_output_timeout"}`,
+	}
+	refresher := &tokenRefresherStub{
+		credentials: map[string]any{
+			"access_token": "new-token",
+		},
+	}
+
+	err := service.refreshWithRetry(context.Background(), account, refresher, refresher, time.Hour)
+	require.NoError(t, err)
+	require.Equal(t, 1, repo.updateCalls)
+	require.Equal(t, 0, repo.clearTempCalls)   // Keep the pause
+	require.Equal(t, 0, tempCache.deleteCalls) // Keep its cached state
+}
+
 // TestTokenRefreshService_RefreshWithRetry_NonRetryableErrorAllPlatforms 测试所有平台不可重试错误都 SetError
 func TestTokenRefreshService_RefreshWithRetry_NonRetryableErrorAllPlatforms(t *testing.T) {
 	tests := []struct {

@@ -398,6 +398,9 @@ func (s *OpenAIGatewayService) handleCCStreamingFromNativeAnthropic(
 	}
 
 	processAnthropicEvent := func(event *apicompat.AnthropicStreamEvent) bool {
+		if isMeaningfulAntigravityCompatEvent(event) {
+			observeFirstOutput(c)
+		}
 		if firstChunk {
 			firstChunk = false
 			ms := int(time.Since(startTime).Milliseconds())

@@ -81,6 +81,21 @@ function mountModal(extraProps: Record<string, unknown> = {}) {
 }
 
 describe('BulkEditAccountModal', () => {
+  it.each([true, false])('updates first-output protection to %s without replacing existing HTTP rules', async (enabled) => {
+    const wrapper = mountModal()
+    await wrapper.get('[data-testid="bulk-first-output-protection-enabled"]').setValue(true)
+    await wrapper.get('[data-testid="first-output-protection"]').setValue(enabled)
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      credentials: {
+        temp_unschedulable_first_output_enabled: enabled,
+        ...(enabled ? { temp_unschedulable_enabled: true } : {}),
+      },
+    })
+    wrapper.unmount()
+  })
+
   beforeEach(() => {
     vi.mocked(adminAPI.accounts.bulkUpdate).mockReset()
     vi.mocked(adminAPI.accounts.checkMixedChannelRisk).mockReset()

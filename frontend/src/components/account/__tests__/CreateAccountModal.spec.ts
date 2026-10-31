@@ -219,6 +219,25 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
 
   afterEach(() => vi.useRealTimers())
 
+  it('creates an account with first-output protection and no HTTP error rules', async () => {
+    const wrapper = mountModal()
+    await selectButtonByText(wrapper, 'OpenAI')
+    await selectButtonByText(wrapper, 'API Key')
+    await wrapper.get('form#create-account-form input[type="text"]').setValue('first output')
+    await wrapper.get('form#create-account-form input[type="password"]').setValue('test-api-key')
+    await wrapper.get('[data-testid="temp-unschedulable-enabled"]').trigger('click')
+    await wrapper.get('[data-testid="first-output-protection"]').setValue(true)
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(createAccountMock.mock.calls[0]?.[0]?.credentials).toMatchObject({
+      temp_unschedulable_enabled: true,
+      temp_unschedulable_rules: [],
+      temp_unschedulable_first_output_enabled: true,
+    })
+    wrapper.unmount()
+  })
+
+
   it('sets month and year expiry presets without submitting the account form', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-01-31T12:34:00'))
