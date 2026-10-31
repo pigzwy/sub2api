@@ -321,15 +321,16 @@ func TestCheckin_DisabledGrantsNothing(t *testing.T) {
 func TestCheckin_StatsSeparatesTodayMonthAndTotal(t *testing.T) {
 	fake := newFakeCheckinRepo()
 	svc := newEnabledCheckinService(&txFakeCheckinRepo{fakeCheckinRepo: fake})
-	now := time.Now()
+	now := svc.today()
 
 	// 今天：两个用户各签一次
 	require.NoError(t, fake.Insert(context.Background(), 1, now, 0.20))
 	require.NoError(t, fake.Insert(context.Background(), 2, now, 0.30))
-	// 本月早些时候：同一用户另一天
+	// 前一天：每月 1 日时属于上月。
 	require.NoError(t, fake.Insert(context.Background(), 1, now.AddDate(0, 0, -1), 0.10))
-	// 上个月：不应计入本月
-	require.NoError(t, fake.Insert(context.Background(), 1, now.AddDate(0, -1, 0), 1.00))
+	// 上月 1 日：从月初回退，避免 31 日减一个月后归一化回本月。
+	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	require.NoError(t, fake.Insert(context.Background(), 1, monthStart.AddDate(0, -1, 0), 1.00))
 
 	stats, err := svc.GetStats(context.Background())
 	require.NoError(t, err)

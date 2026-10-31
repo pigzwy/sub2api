@@ -62,7 +62,7 @@ describe('RechargePackageGrid', () => {
     })
 
     const card = wrapper.get('[data-testid="recharge-package-100"]')
-    expect(card.get('[data-testid="package-extra-bonus"]').text()).toContain('payment.extraBonus')
+    expect(card.get('[data-testid="package-extra-bonus"]').text()).toBe('Extra $2.99')
     expect(card.text()).toContain('$102.99')
     expect(card.text().match(/\$102\.99/g)).toHaveLength(1)
   })

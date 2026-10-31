@@ -384,6 +384,7 @@ export const useAppStore = defineStore('app', () => {
         affiliate_enabled: false,
         checkin_enabled: false,
         allow_user_view_error_requests: false,
+        mcp_enabled: false,
       })
     }
 
