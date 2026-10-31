@@ -398,7 +398,7 @@ func (s *OpenAIGatewayService) handleCCStreamingFromNativeAnthropic(
 	}
 
 	processAnthropicEvent := func(event *apicompat.AnthropicStreamEvent) bool {
-		if isMeaningfulAntigravityCompatEvent(event) {
+		if isMeaningfulFirstOutputAnthropicEvent(event) {
 			observeFirstOutput(c)
 		}
 		if firstChunk {

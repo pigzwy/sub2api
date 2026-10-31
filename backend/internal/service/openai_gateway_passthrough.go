@@ -2203,10 +2203,10 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 				openAIResponsesCompletedEventIsEmpty(dataBytes, usage) {
 				return resultWithUsage(), newOpenAIResponsesEmptyCompletedFailoverError(c, account, upstreamRequestID)
 			}
+			observeFirstOutputPayload(c, dataBytes)
 			if firstTokenMs == nil && openAIStreamDataStartsTTFT(trimmedData, eventType, forceFlushFailedEvent, ttftMode) {
 				ms := int(time.Since(startTime).Milliseconds())
 				firstTokenMs = &ms
-				observeFirstOutput(c)
 			}
 			s.parseSSEUsageBytesWithType(dataBytes, eventType, usage)
 		}

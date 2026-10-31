@@ -95,6 +95,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	}
 	if s != nil {
 		defer beginFirstOutputProtection(ctx, c, account, parsed.Model, parsed.Stream, s.rateLimitService)()
+		ctx = firstOutputProtectionContext(ctx, c)
 	}
 	// API-key mappings and OAuth native IDs are resolved before mimicry.
 	validationModel := parsed.Model

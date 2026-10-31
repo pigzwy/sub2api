@@ -75,6 +75,7 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 ) (*OpenAIForwardResult, error) {
 	if s != nil {
 		defer beginFirstOutputProtectionBody(ctx, c, account, body, s.rateLimitService)()
+		ctx = firstOutputProtectionContext(ctx, c)
 	}
 	rememberOpenCodeInboundBody(c, body)
 	beginUpstreamResponseModelObservation(c)

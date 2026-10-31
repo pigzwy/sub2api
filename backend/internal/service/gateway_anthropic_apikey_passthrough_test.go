@@ -48,6 +48,7 @@ func newAnthropicAPIKeyAccountForTest() *Account {
 }
 
 func (u *anthropicHTTPUpstreamRecorder) Do(req *http.Request, proxyURL string, accountID int64, accountConcurrency int) (*http.Response, error) {
+	StartFirstOutputProtection(req.Context())
 	u.lastReq = req
 	if req != nil && req.Body != nil {
 		b, _ := io.ReadAll(req.Body)

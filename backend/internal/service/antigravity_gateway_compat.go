@@ -61,6 +61,7 @@ func (s *AntigravityGatewayService) ForwardAsChatCompletions(
 ) (*ForwardResult, error) {
 	if s != nil {
 		defer beginFirstOutputProtectionBody(ctx, c, account, body, s.rateLimitService)()
+		ctx = firstOutputProtectionContext(ctx, c)
 	}
 	if err := s.validateAntigravityCompatAccount(c, account); err != nil {
 		return nil, err
@@ -111,6 +112,7 @@ func (s *AntigravityGatewayService) ForwardAsResponses(
 ) (*ForwardResult, error) {
 	if s != nil {
 		defer beginFirstOutputProtectionBody(ctx, c, account, body, s.rateLimitService)()
+		ctx = firstOutputProtectionContext(ctx, c)
 	}
 	if err := s.validateAntigravityCompatAccount(c, account); err != nil {
 		return nil, err

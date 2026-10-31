@@ -62,6 +62,15 @@ func (r *rateLimitClearRepoStub) ClearTempUnschedulable(ctx context.Context, id 
 	return r.clearTempUnschedulableErr
 }
 
+func (r *rateLimitClearRepoStub) ClearTempUnschedulableForRecovery(ctx context.Context, id int64, manual bool) (bool, error) {
+	account := r.getByIDAccount
+	if !manual && account.isFirstOutputTempUnschedulable() && account.TempUnschedulableUntil != nil && time.Now().Before(*account.TempUnschedulableUntil) {
+		return false, nil
+	}
+	err := r.ClearTempUnschedulable(ctx, id)
+	return err == nil, err
+}
+
 type tempUnschedCacheRecorder struct {
 	deletedIDs []int64
 	deleteErr  error

@@ -1144,6 +1144,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 					return nil, s.newOpenAIWSRateLimitFailoverError(account, lease.HandshakeHeaders(), upstreamMessage, errMsgRaw)
 				}
 			}
+			observeFirstOutputPayload(c, upstreamMessage)
 			isTokenEvent := isOpenAIWSTokenEvent(eventType)
 			if isTokenEvent {
 				tokenEventCount++
@@ -1155,7 +1156,6 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			if firstTokenMs == nil && isTokenEvent {
 				ms := int(time.Since(turnStart).Milliseconds())
 				firstTokenMs = &ms
-				observeFirstOutput(c)
 			}
 			imageCounter.AddSSEData(upstreamMessage)
 

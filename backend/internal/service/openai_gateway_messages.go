@@ -35,6 +35,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 ) (*OpenAIForwardResult, error) {
 	if s != nil {
 		defer beginFirstOutputProtectionBody(ctx, c, account, body, s.rateLimitService)()
+		ctx = firstOutputProtectionContext(ctx, c)
 	}
 	// 工具 Schema 清洗必须先于所有分流：下游每条路径（原生 Anthropic 直通、
 	// Chat Completions 转换、Responses 转换）都会把 tools 原样带给上游，而

@@ -342,6 +342,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		return nil, err
 	}
 
+	StartFirstOutputProtection(ctx)
 	if err := lease.WriteJSONWithContextTimeout(ctx, payload, s.openAIWSWriteTimeout()); err != nil {
 		lease.MarkBroken()
 		logOpenAIWSModeInfo(
@@ -624,6 +625,7 @@ readLoop:
 			responseID = eventResponseID
 		}
 
+		observeFirstOutputPayload(c, message)
 		isTokenEvent := isOpenAIWSTokenEvent(eventType)
 		if isTokenEvent {
 			tokenEventCount++
@@ -635,7 +637,6 @@ readLoop:
 		if firstTokenMs == nil && isTokenEvent {
 			ms := int(time.Since(startTime).Milliseconds())
 			firstTokenMs = &ms
-			observeFirstOutput(c)
 		}
 		if debugEnabled && shouldLogOpenAIWSEvent(eventCount, eventType) {
 			logOpenAIWSModeDebug(

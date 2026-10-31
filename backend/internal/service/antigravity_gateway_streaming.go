@@ -867,9 +867,7 @@ func (s *AntigravityGatewayService) collectClaudeStreamResponse(c *gin.Context, 
 				// 收集所有 parts（text、thinking、functionCall、inlineData 等）
 				collectedParts = append(collectedParts, parts...)
 			}
-			if len(parts) > 0 {
-				observeFirstOutput(c)
-			}
+			observeFirstOutputPayload(c, inner)
 			if len(parts) > 0 || strings.TrimSpace(extractGeminiFinishReason(parsed)) != "" {
 				meaningfulResponse = true
 				if firstTokenMs == nil {

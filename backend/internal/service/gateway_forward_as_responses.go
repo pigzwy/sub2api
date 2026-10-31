@@ -37,6 +37,7 @@ func (s *GatewayService) ForwardAsResponses(
 ) (*ForwardResult, error) {
 	if s != nil {
 		defer beginFirstOutputProtectionBody(ctx, c, account, body, s.rateLimitService)()
+		ctx = firstOutputProtectionContext(ctx, c)
 	}
 	startTime := time.Now()
 
@@ -578,7 +579,7 @@ func (s *GatewayService) handleResponsesStreamingResponse(
 
 	// processEvent handles a single parsed Anthropic SSE event.
 	processEvent := func(event *apicompat.AnthropicStreamEvent) {
-		if isMeaningfulAntigravityCompatEvent(event) {
+		if isMeaningfulFirstOutputAnthropicEvent(event) {
 			observeFirstOutput(c)
 		}
 		if firstChunk {

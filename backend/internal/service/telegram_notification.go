@@ -111,12 +111,13 @@ func (s *TelegramNotificationService) Update(ctx context.Context, in TelegramNot
 }
 
 func (s *TelegramNotificationService) NotifyFirstOutputBlocked(ctx context.Context, account *Account, model string, state *TempUnschedState) {
-	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 	select {
 	case s.slots <- struct{}{}:
 		defer func() { <-s.slots }()
 	case <-ctx.Done():
+		slog.Warn("telegram_notification_queue_timeout", "account_id", account.ID)
 		return
 	}
 	settings, err := s.load(ctx)
@@ -139,7 +140,7 @@ func (s *TelegramNotificationService) NotifyFirstOutputBlocked(ctx context.Conte
 	text := fmt.Sprintf("账号已临时不可调度\n账号：%s (#%d)\n平台：%s\n模型：%s\n原因：首输出超过 30 秒，10 分钟窗口累计 %d 次\n恢复时间：%s\n低于 30 秒的首输出会清零计数与窗口。",
 		telegramLabel(account.Name), account.ID, telegramLabel(account.Platform), telegramLabel(model), state.TriggerCount,
 		time.Unix(state.UntilUnix, 0).UTC().Format("2006-01-02 15:04:05 UTC"))
-	if err := s.send(ctx, token, settings.ChatID, text); err != nil {
+	if err := s.sendWithRetry(ctx, token, settings.ChatID, text); err != nil {
 		// Never log http.Client errors: their URL contains the bot token.
 		slog.Warn("telegram_notification_send_failed", "account_id", account.ID)
 	}
@@ -171,14 +172,62 @@ func (s *TelegramNotificationService) send(ctx context.Context, token, chatID, m
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return errors.New("Telegram request failed")
+		return &telegramDeliveryError{retryable: true}
 	}
 	defer func() { _ = resp.Body.Close() }()
 	var result struct {
-		OK bool `json:"ok"`
+		OK         bool `json:"ok"`
+		ErrorCode  int  `json:"error_code"`
+		Parameters struct {
+			RetryAfter int64 `json:"retry_after"`
+		} `json:"parameters"`
 	}
-	if resp.StatusCode != http.StatusOK || json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&result) != nil || !result.OK {
-		return errors.New("Telegram rejected notification")
+	decodeErr := json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&result)
+	if resp.StatusCode != http.StatusOK || decodeErr != nil || !result.OK {
+		retryable := resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 || result.ErrorCode == 429 || result.ErrorCode >= 500 || (resp.StatusCode == http.StatusOK && decodeErr != nil)
+		seconds := result.Parameters.RetryAfter
+		if seconds < 0 {
+			seconds = 0
+		}
+		if seconds > 86400 {
+			seconds = 86400
+		}
+		delay := time.Duration(seconds) * time.Second
+		return &telegramDeliveryError{retryable: retryable, retryAfter: delay}
 	}
 	return nil
+}
+
+// Keep errors free of the request URL, token and upstream response text.
+type telegramDeliveryError struct {
+	retryable  bool
+	retryAfter time.Duration
+}
+
+func (*telegramDeliveryError) Error() string { return "Telegram notification delivery failed" }
+
+func (s *TelegramNotificationService) sendWithRetry(ctx context.Context, token, chatID, message string) error {
+	for attempt := 0; ; attempt++ {
+		attemptCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		err := s.send(attemptCtx, token, chatID, message)
+		cancel()
+		if err == nil {
+			return nil
+		}
+		var delivery *telegramDeliveryError
+		if attempt >= 3 || !errors.As(err, &delivery) || !delivery.retryable {
+			return err
+		}
+		delay := time.Second << attempt
+		if delivery.retryAfter > delay {
+			delay = delivery.retryAfter
+		}
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return errors.New("Telegram notification delivery deadline exceeded")
+		case <-timer.C:
+		}
+	}
 }

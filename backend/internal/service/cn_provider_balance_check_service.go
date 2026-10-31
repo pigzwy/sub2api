@@ -346,7 +346,7 @@ func (s *CNProviderBalanceCheckService) applyBalanceResult(ctx context.Context, 
 
 	// 余额健康：仅清除「本服务写入」的临时停调（reason 前缀匹配），不触碰其他子系统。
 	if account.TempUnschedulableUntil != nil && strings.HasPrefix(account.TempUnschedulableReason, cnBalanceLowReasonPrefix) {
-		if err := s.accountRepo.ClearTempUnschedulable(ctx, account.ID); err != nil {
+		if cleared, err := clearObservedTempUnschedulable(ctx, s.accountRepo, account); err != nil || !cleared {
 			log.Printf("[CNBalance] clear account %d failed: %v", account.ID, err)
 			return cnBalanceNoChange
 		}

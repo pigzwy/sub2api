@@ -21,6 +21,7 @@ import (
 func (s *AntigravityGatewayService) ForwardUpstream(ctx context.Context, c *gin.Context, account *Account, body []byte) (*ForwardResult, error) {
 	if s != nil {
 		defer beginFirstOutputProtectionBody(ctx, c, account, body, s.rateLimitService)()
+		ctx = firstOutputProtectionContext(ctx, c)
 	}
 	beginUpstreamResponseModelObservation(c)
 	startTime := time.Now()

@@ -58,7 +58,8 @@ type SuccessfulTestRecoveryResult struct {
 
 // AccountRecoveryOptions 控制账号恢复时的附加行为。
 type AccountRecoveryOptions struct {
-	InvalidateToken bool
+	InvalidateToken             bool
+	PreserveFirstOutputCooldown bool
 }
 
 type geminiUsageCacheEntry struct {
@@ -2126,7 +2127,7 @@ func (s *RateLimitService) UpdateSessionWindow(ctx context.Context, account *Acc
 
 	// 如果状态为allowed且之前有限流，说明窗口已重置，清除限流状态
 	if status == "allowed" && account.IsRateLimited() {
-		if err := s.ClearRateLimit(ctx, account.ID); err != nil {
+		if _, err := s.clearRateLimit(ctx, account.ID, false); err != nil {
 			slog.Warn("rate_limit_clear_failed", "account_id", account.ID, "error", err)
 		}
 	}
@@ -2182,23 +2183,24 @@ func (s *RateLimitService) samplePassiveUsageFromHeaders(ctx context.Context, ac
 
 // ClearRateLimit 清除账号的限流状态
 func (s *RateLimitService) ClearRateLimit(ctx context.Context, accountID int64) error {
-	release, err := s.lockFirstOutputRecovery(ctx, accountID)
-	if err != nil {
-		return err
-	}
-	defer release()
+	_, err := s.clearRateLimit(ctx, accountID, true)
+	return err
+}
+
+func (s *RateLimitService) clearRateLimit(ctx context.Context, accountID int64, manual bool) (bool, error) {
 	if err := s.accountRepo.ClearRateLimit(ctx, accountID); err != nil {
-		return err
+		return false, err
 	}
 	if err := s.accountRepo.ClearAntigravityQuotaScopes(ctx, accountID); err != nil {
-		return err
+		return false, err
 	}
 	if err := s.accountRepo.ClearModelRateLimits(ctx, accountID); err != nil {
-		return err
+		return false, err
 	}
 	// 清除限流时一并清理临时不可调度状态，避免周限/窗口重置后仍被本地临时状态阻断。
-	if err := s.accountRepo.ClearTempUnschedulable(ctx, accountID); err != nil {
-		return err
+	cleared, err := clearTempUnschedulableForRecovery(ctx, s.accountRepo, accountID, manual)
+	if err != nil || !cleared {
+		return false, err
 	}
 	if s.tempUnschedCache != nil {
 		if err := s.tempUnschedCache.DeleteTempUnsched(ctx, accountID); err != nil {
@@ -2206,9 +2208,11 @@ func (s *RateLimitService) ClearRateLimit(ctx context.Context, accountID int64) 
 		}
 	}
 	s.ResetOpenAI403Counter(ctx, accountID)
-	s.clearFirstOutputProtection(ctx, accountID)
+	if manual {
+		s.clearFirstOutputProtection(ctx, accountID)
+	}
 	s.notifyAccountSchedulingBlockCleared(accountID)
-	return nil
+	return true, nil
 }
 
 func (s *RateLimitService) ResetOpenAI403Counter(ctx context.Context, accountID int64) {
@@ -2240,15 +2244,16 @@ func (s *RateLimitService) RecoverAccountState(ctx context.Context, accountID in
 		}
 	}
 
-	if hasRecoverableRuntimeState(account) {
-		if err := s.ClearRateLimit(ctx, accountID); err != nil {
+	if hasRecoverableRuntimeState(account) || (!options.PreserveFirstOutputCooldown && account.FirstOutputProtectionEnabled()) {
+		cleared, err := s.clearRateLimit(ctx, accountID, !options.PreserveFirstOutputCooldown)
+		if err != nil {
 			return nil, err
 		}
-		result.ClearedRateLimit = true
+		result.ClearedRateLimit = cleared
 	}
 	if result.ClearedError || result.ClearedRateLimit {
 		s.ResetOpenAI403Counter(ctx, accountID)
-		if result.ClearedError && !result.ClearedRateLimit {
+		if result.ClearedError && !result.ClearedRateLimit && !options.PreserveFirstOutputCooldown {
 			s.notifyAccountSchedulingBlockCleared(accountID)
 		}
 	}
@@ -2259,15 +2264,10 @@ func (s *RateLimitService) RecoverAccountState(ctx context.Context, accountID in
 // RecoverAccountAfterSuccessfulTest 将一次成功测试视为正常请求，
 // 按需恢复 error / rate-limit / overload / temp-unsched / model-rate-limit 等运行时状态。
 func (s *RateLimitService) RecoverAccountAfterSuccessfulTest(ctx context.Context, accountID int64) (*SuccessfulTestRecoveryResult, error) {
-	return s.RecoverAccountState(ctx, accountID, AccountRecoveryOptions{})
+	return s.RecoverAccountState(ctx, accountID, AccountRecoveryOptions{PreserveFirstOutputCooldown: true})
 }
 
 func (s *RateLimitService) ClearTempUnschedulable(ctx context.Context, accountID int64) error {
-	release, err := s.lockFirstOutputRecovery(ctx, accountID)
-	if err != nil {
-		return err
-	}
-	defer release()
 	if err := s.accountRepo.ClearTempUnschedulable(ctx, accountID); err != nil {
 		return err
 	}
@@ -2319,11 +2319,8 @@ func hasNonEmptyMapValue(extra map[string]any, key string) bool {
 func (s *RateLimitService) GetTempUnschedStatus(ctx context.Context, accountID int64) (*TempUnschedState, error) {
 	now := time.Now().Unix()
 	if s.tempUnschedCache != nil {
-		state, err := s.tempUnschedCache.GetTempUnsched(ctx, accountID)
-		if err != nil {
-			return nil, err
-		}
-		if state != nil && state.UntilUnix > now {
+		state, _ := s.tempUnschedCache.GetTempUnsched(ctx, accountID)
+		if state != nil && state.UntilUnix > now && state.MatchedKeyword != "first_output_timeout" {
 			return state, nil
 		}
 	}
@@ -2355,7 +2352,7 @@ func (s *RateLimitService) GetTempUnschedStatus(ctx context.Context, accountID i
 		}
 	}
 
-	if s.tempUnschedCache != nil {
+	if s.tempUnschedCache != nil && state.MatchedKeyword != "first_output_timeout" {
 		if err := s.tempUnschedCache.SetTempUnsched(ctx, accountID, state); err != nil {
 			slog.Warn("temp_unsched_cache_set_failed", "account_id", accountID, "error", err)
 		}

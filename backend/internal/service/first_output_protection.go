@@ -3,12 +3,12 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
@@ -30,11 +30,10 @@ type FirstOutputProtectionCache interface {
 	CompleteFirstOutputClaim(context.Context, int64, string, time.Time) error
 	ReleaseFirstOutputClaim(context.Context, int64, string) error
 	ClearFirstOutputProtection(context.Context, int64) error
-	AcquireFirstOutputRecovery(context.Context, int64, string) (bool, error)
 }
 
 type firstOutputAccountRepository interface {
-	SetTempUnschedulableIfUnchanged(context.Context, int64, time.Time, time.Time, string) (bool, error)
+	SetTempUnschedulableIfUnchanged(context.Context, int64, string, time.Time, string) (bool, error)
 }
 
 func (s *RateLimitService) clearFirstOutputProtection(ctx context.Context, accountID int64) {
@@ -52,34 +51,14 @@ func (a *Account) isFirstOutputTempUnschedulable() bool {
 	return gjson.Get(a.TempUnschedulableReason, "matched_keyword").String() == "first_output_timeout"
 }
 
-// Serialize manual recovery with a pending trip, so the administrator's clear
-// cannot be overwritten by a request that already claimed the third failure.
-func (s *RateLimitService) lockFirstOutputRecovery(ctx context.Context, accountID int64) (func(), error) {
-	cache, ok := s.tempUnschedCache.(FirstOutputProtectionCache)
-	if !ok {
-		return func() {}, nil
+// Recovery generations fence in-flight requests even when Redis is unavailable.
+// The marker lives in the account's existing extra JSON, so no schema is needed.
+func firstOutputGeneration(account *Account) string {
+	if account == nil {
+		return ""
 	}
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	token := uuid.NewString()
-	for {
-		acquired, err := cache.AcquireFirstOutputRecovery(ctx, accountID, token)
-		if err != nil {
-			return nil, err
-		}
-		if acquired {
-			return func() {
-				releaseCtx, releaseCancel := context.WithTimeout(context.Background(), time.Second)
-				defer releaseCancel()
-				_ = cache.ReleaseFirstOutputClaim(releaseCtx, accountID, token)
-			}, nil
-		}
-		select {
-		case <-ctx.Done():
-			return nil, fmt.Errorf("account protection is updating, retry recovery: %w", ctx.Err())
-		case <-time.After(25 * time.Millisecond):
-		}
-	}
+	value, _ := account.Extra["first_output_recovery_generation"].(string)
+	return value
 }
 
 type FirstOutputNotifier interface {
@@ -110,7 +89,7 @@ func (s *RateLimitService) RecordFirstOutputLatency(ctx context.Context, account
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
 	defer cancel()
-	token := uuid.NewString()
+	token := firstOutputGeneration(account) + "/" + uuid.NewString()
 	count, claimed, err := cache.RecordFirstOutput(ctx, account.ID, elapsed > FirstOutputLimit, token)
 	if err != nil {
 		slog.Warn("first_output_counter_failed", "account_id", account.ID)
@@ -133,7 +112,7 @@ func (s *RateLimitService) RecordFirstOutputLatency(ctx context.Context, account
 	if err != nil || current == nil {
 		return
 	}
-	if !current.FirstOutputProtectionEnabled() {
+	if !current.FirstOutputProtectionEnabled() || firstOutputGeneration(current) != firstOutputGeneration(account) {
 		return
 	}
 	now := time.Now()
@@ -154,7 +133,7 @@ func (s *RateLimitService) RecordFirstOutputLatency(ctx context.Context, account
 	if !ok {
 		return
 	}
-	applied, err := repo.SetTempUnschedulableIfUnchanged(ctx, account.ID, current.UpdatedAt, until, string(reason))
+	applied, err := repo.SetTempUnschedulableIfUnchanged(ctx, account.ID, firstOutputGeneration(account), until, string(reason))
 	if err != nil {
 		slog.Warn("first_output_temp_unsched_failed", "account_id", account.ID)
 		return
@@ -163,10 +142,8 @@ func (s *RateLimitService) RecordFirstOutputLatency(ctx context.Context, account
 		return
 	}
 	committed = true
-	s.notifyAccountSchedulingBlocked(current, until, "first_output_timeout")
-	if err := s.tempUnschedCache.SetTempUnsched(ctx, account.ID, state); err != nil {
-		slog.Warn("first_output_temp_unsched_cache_failed", "account_id", account.ID)
-	}
+	// The repository synchronously refreshes the scheduler snapshot. Do not
+	// publish an unfenced second copy of this pause after a concurrent recovery.
 	if err := cache.CompleteFirstOutputClaim(ctx, account.ID, token, until); err != nil {
 		slog.Warn("first_output_claim_complete_failed", "account_id", account.ID)
 	}
@@ -192,6 +169,7 @@ func (o *firstOutputObservation) finish(output bool) {
 		return
 	}
 	o.done = true
+	started := !o.start.IsZero()
 	elapsed := time.Since(o.start)
 	if o.timer != nil {
 		o.timer.Stop()
@@ -201,7 +179,7 @@ func (o *firstOutputObservation) finish(output bool) {
 	}
 	o.mu.Unlock()
 	// Early failures/cancellation are not successful fast output.
-	if output || elapsed > FirstOutputLimit {
+	if started && (output || elapsed > FirstOutputLimit) {
 		o.report(elapsed)
 	}
 }
@@ -224,7 +202,7 @@ func beginFirstOutputProtection(ctx context.Context, c *gin.Context, account *Ac
 		seen = &sync.Map{}
 		c.Set(firstOutputRequestKey, seen)
 	}
-	o := &firstOutputObservation{start: time.Now()}
+	o := &firstOutputObservation{}
 	o.report = func(elapsed time.Duration) {
 		// Deduplicate slow increments only. A later fast retry must still reset
 		// the account's window, and equality must not consume its slow sample.
@@ -237,10 +215,36 @@ func beginFirstOutputProtection(ctx context.Context, c *gin.Context, account *Ac
 	}
 	c.Set(firstOutputObserverKey, o)
 	o.mu.Lock()
-	o.timer = time.AfterFunc(FirstOutputLimit+time.Millisecond, func() { o.finish(false) })
 	o.stopCancel = context.AfterFunc(ctx, func() { o.finish(false) })
 	o.mu.Unlock()
 	return func() { o.finish(false); c.Set(firstOutputObserverKey, nil) }
+}
+
+type firstOutputContextKey struct{}
+
+func firstOutputProtectionContext(ctx context.Context, c *gin.Context) context.Context {
+	if c != nil {
+		if value, ok := c.Get(firstOutputObserverKey); ok && value != nil {
+			return context.WithValue(ctx, firstOutputContextKey{}, value)
+		}
+	}
+	return ctx
+}
+
+// StartFirstOutputProtection starts only when dispatching the real upstream
+// operation, after local validation, identity preparation and pool acquisition.
+func StartFirstOutputProtection(ctx context.Context) {
+	o, _ := ctx.Value(firstOutputContextKey{}).(*firstOutputObservation)
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.done || !o.start.IsZero() {
+		return
+	}
+	o.start = time.Now()
+	o.timer = time.AfterFunc(FirstOutputLimit+time.Millisecond, func() { o.finish(false) })
 }
 
 func beginFirstOutputProtectionBody(ctx context.Context, c *gin.Context, account *Account, body []byte, s *RateLimitService) func() {
@@ -284,26 +288,74 @@ func firstOutputPayloadIsMeaningful(data []byte) bool {
 	}
 	if strings.HasPrefix(kind, "response.") {
 		switch kind {
-		case "response.output_text.delta", "response.reasoning_text.delta", "response.reasoning_summary_text.delta", "response.function_call_arguments.delta":
+		case "response.output_text.delta", "response.reasoning_text.delta", "response.reasoning_summary_text.delta", "response.function_call_arguments.delta", "response.custom_tool_call_input.delta", "response.refusal.delta":
 			return v.Get("delta").String() != ""
-		case "response.output_item.added":
-			return v.Get("item.type").String() == "function_call"
+		case "response.output_item.added", "response.output_item.done":
+			item := v.Get("item")
+			if item.Get("type").String() == "function_call" || item.Get("type").String() == "custom_tool_call" {
+				return true
+			}
+			for _, part := range item.Get("content").Array() {
+				if firstOutputPartIsMeaningful(part) {
+					return true
+				}
+			}
+			for _, part := range item.Get("summary").Array() {
+				if firstOutputPartIsMeaningful(part) {
+					return true
+				}
+			}
+			return item.Get("encrypted_content").String() != ""
+		case "response.content_part.added", "response.content_part.done", "response.reasoning_summary_part.added", "response.reasoning_summary_part.done":
+			return firstOutputPartIsMeaningful(v.Get("part"))
+		case "response.output_text.done", "response.reasoning_text.done", "response.reasoning_summary_text.done":
+			return v.Get("text").String() != ""
+		case "response.refusal.done":
+			return v.Get("refusal").String() != ""
 		}
 	}
 	for _, choice := range v.Get("choices").Array() {
 		delta := choice.Get("delta")
-		if delta.Get("content").String() != "" || delta.Get("reasoning_content").String() != "" || delta.Get("reasoning").String() != "" || len(delta.Get("tool_calls").Array()) > 0 || delta.Get("function_call").Exists() {
+		if delta.Get("content").String() != "" || delta.Get("refusal").String() != "" || delta.Get("reasoning_content").String() != "" || delta.Get("reasoning").String() != "" || firstOutputToolIsMeaningful(delta.Get("function_call")) {
 			return true
+		}
+	}
+	for _, choice := range v.Get("choices").Array() {
+		for _, call := range choice.Get("delta.tool_calls").Array() {
+			if call.Get("id").String() != "" || firstOutputToolIsMeaningful(call.Get("function")) {
+				return true
+			}
 		}
 	}
 	for _, candidate := range v.Get("candidates").Array() {
 		for _, part := range candidate.Get("content.parts").Array() {
-			if part.Get("text").String() != "" || part.Get("functionCall").Exists() {
+			if part.Get("text").String() != "" || firstOutputToolIsMeaningful(part.Get("functionCall")) {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+func firstOutputToolIsMeaningful(tool gjson.Result) bool {
+	return tool.Get("name").String() != "" || tool.Get("arguments").String() != ""
+}
+
+func isMeaningfulFirstOutputAnthropicEvent(event *apicompat.AnthropicStreamEvent) bool {
+	if event == nil {
+		return false
+	}
+	if block := event.ContentBlock; block != nil {
+		return block.Type == "tool_use" || block.Text != "" || block.Thinking != ""
+	}
+	if delta := event.Delta; delta != nil {
+		return delta.Text != "" || delta.PartialJSON != "" || delta.Thinking != ""
+	}
+	return false
+}
+
+func firstOutputPartIsMeaningful(part gjson.Result) bool {
+	return part.Get("text").String() != "" || part.Get("refusal").String() != ""
 }
 
 func observeFirstOutputPayload(c *gin.Context, data []byte) {
@@ -335,4 +387,35 @@ func observeFirstOutputSSE(c *gin.Context, data []byte) {
 			observeFirstOutputPayload(c, []byte(payload))
 		}
 	}
+}
+
+// Production repositories decide atomically; the fallback supports test and
+// embedded repositories with the existing account port.
+func clearTempUnschedulableForRecovery(ctx context.Context, repo AccountRepository, id int64, manual bool) (bool, error) {
+	if conditional, ok := repo.(interface {
+		ClearTempUnschedulableForRecovery(context.Context, int64, bool) (bool, error)
+	}); ok {
+		return conditional.ClearTempUnschedulableForRecovery(ctx, id, manual)
+	}
+	if !manual {
+		account, err := repo.GetByID(ctx, id)
+		if err != nil {
+			return false, err
+		}
+		if account != nil && account.isFirstOutputTempUnschedulable() && account.TempUnschedulableUntil != nil && time.Now().Before(*account.TempUnschedulableUntil) {
+			return false, nil
+		}
+	}
+	err := repo.ClearTempUnschedulable(ctx, id)
+	return err == nil, err
+}
+
+func clearObservedTempUnschedulable(ctx context.Context, repo AccountRepository, account *Account) (bool, error) {
+	if conditional, ok := repo.(interface {
+		ClearTempUnschedulableIfReasonUnchanged(context.Context, int64, string) (bool, error)
+	}); ok {
+		return conditional.ClearTempUnschedulableIfReasonUnchanged(ctx, account.ID, account.TempUnschedulableReason)
+	}
+	err := repo.ClearTempUnschedulable(ctx, account.ID)
+	return err == nil, err
 }

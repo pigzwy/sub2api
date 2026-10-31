@@ -99,3 +99,67 @@ func TestTelegramSendFailuresDoNotExposeToken(t *testing.T) {
 	require.NotContains(t, err.Error(), "secret-test")
 	require.LessOrEqual(t, len([]rune(telegramLabel(strings.Repeat("名", 300)))), 161)
 }
+
+func TestTelegramRetriesTransientFailuresButNotPermanentRejection(t *testing.T) {
+	for _, status := range []int{429, 503, 403} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			var calls atomic.Int64
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if calls.Add(1) == 1 {
+					w.WriteHeader(status)
+					_, _ = w.Write([]byte(`{"ok":false,"parameters":{"retry_after":1}}`))
+					return
+				}
+				_, _ = w.Write([]byte(`{"ok":true}`))
+			}))
+			defer server.Close()
+			svc := NewTelegramNotificationService(nil, nil, nil)
+			svc.baseURL = server.URL
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			err := svc.sendWithRetry(ctx, "123456:secret-test", "1", "test")
+			if status == 403 {
+				require.Error(t, err)
+				require.EqualValues(t, 1, calls.Load())
+			} else {
+				require.NoError(t, err)
+				require.EqualValues(t, 2, calls.Load())
+			}
+		})
+	}
+}
+
+func TestTelegramRetryAfterHonorsCancellation(t *testing.T) {
+	var calls atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(429)
+		_, _ = w.Write([]byte(`{"ok":false,"parameters":{"retry_after":120}}`))
+	}))
+	defer server.Close()
+	svc := NewTelegramNotificationService(nil, nil, nil)
+	svc.baseURL = server.URL
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	err := svc.sendWithRetry(ctx, "123456:secret-test", "1", "test")
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "secret-test")
+	require.EqualValues(t, 1, calls.Load())
+}
+
+func TestTelegramRetriesStopAtFourAttempts(t *testing.T) {
+	var calls atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(503)
+		_, _ = w.Write([]byte(`{"ok":false}`))
+	}))
+	defer server.Close()
+	svc := NewTelegramNotificationService(nil, nil, nil)
+	svc.baseURL = server.URL
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+	defer cancel()
+	err := svc.sendWithRetry(ctx, "123456:secret-test", "1", "test")
+	require.Error(t, err)
+	require.EqualValues(t, 4, calls.Load())
+}

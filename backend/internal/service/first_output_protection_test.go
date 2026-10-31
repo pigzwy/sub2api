@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -109,11 +110,11 @@ func (r *firstOutputRepoStub) ClearTempUnschedulable(context.Context, int64) err
 	return nil
 }
 func (r *firstOutputRepoStub) ClearModelRateLimits(context.Context, int64) error { return nil }
-func (r *firstOutputRepoStub) SetTempUnschedulableIfUnchanged(_ context.Context, _ int64, _ time.Time, until time.Time, reason string) (bool, error) {
+func (r *firstOutputRepoStub) SetTempUnschedulableIfUnchanged(_ context.Context, _ int64, generation string, until time.Time, reason string) (bool, error) {
 	if r.fail {
 		return false, errors.New("database unavailable")
 	}
-	if r.skip {
+	if r.skip || generation != firstOutputGeneration(r.account) {
 		return false, nil
 	}
 	r.writes++
@@ -148,8 +149,10 @@ func TestFirstOutputProtectionResetNeutralAndTrip(t *testing.T) {
 	s.RecordFirstOutputLatency(ctx, r.account, "model", 31*time.Second)
 	require.Equal(t, 1, r.writes)
 	require.Equal(t, 1, c.completed)
-	require.Equal(t, TempUnschedScopeAccount, c.state.Scope)
-	require.EqualValues(t, 3, c.state.TriggerCount)
+	var saved TempUnschedState
+	require.NoError(t, json.Unmarshal([]byte(r.account.TempUnschedulableReason), &saved))
+	require.Equal(t, TempUnschedScopeAccount, saved.Scope)
+	require.EqualValues(t, 3, saved.TriggerCount)
 	select {
 	case state := <-n.sent:
 		require.InDelta(t, 300, state.UntilUnix-time.Now().Unix(), 1)
@@ -194,27 +197,32 @@ func TestFirstOutputObserverDeduplicatesAndIgnoresEarlyFailures(t *testing.T) {
 		o.mu.Unlock()
 	}
 	finish := beginFirstOutputProtection(context.Background(), c, r.account, "model", true, s)
+	StartFirstOutputProtection(firstOutputProtectionContext(context.Background(), c))
 	makeSlow()
 	observeFirstOutput(c)
 	observeFirstOutput(c)
 	finish()
 	finish = beginFirstOutputProtection(context.Background(), c, r.account, "model", true, s)
+	StartFirstOutputProtection(firstOutputProtectionContext(context.Background(), c))
 	makeSlow()
 	observeFirstOutput(c)
 	finish()
 	require.Equal(t, []bool{true}, cache.signals, "slow retries on the same request/account count once")
 	finish = beginFirstOutputProtection(context.Background(), c, r.account, "model", true, s)
+	StartFirstOutputProtection(firstOutputProtectionContext(context.Background(), c))
 	observeFirstOutput(c)
 	finish()
 	require.Equal(t, []bool{true, false}, cache.signals, "a fast retry still resets the window")
 	require.Zero(t, cache.count)
 	c2, _ := gin.CreateTestContext(httptest.NewRecorder())
 	finish = beginFirstOutputProtection(context.Background(), c2, r.account, "model", true, s)
+	StartFirstOutputProtection(firstOutputProtectionContext(context.Background(), c2))
 	finish()
 	require.Len(t, cache.signals, 2, "early error is not fast output")
 	c3, _ := gin.CreateTestContext(httptest.NewRecorder())
 	ctx, cancel := context.WithCancel(context.Background())
 	finish = beginFirstOutputProtection(ctx, c3, r.account, "model", true, s)
+	StartFirstOutputProtection(firstOutputProtectionContext(context.Background(), c3))
 	cancel()
 	finish()
 	require.Len(t, cache.signals, 2, "early cancellation does not reset")
@@ -224,6 +232,7 @@ func TestFirstOutputObserverDeadlineAndLateOutputReportOnce(t *testing.T) {
 	s, cache, r := firstOutputFixture()
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	finish := beginFirstOutputProtection(context.Background(), c, r.account, "model", true, s)
+	StartFirstOutputProtection(firstOutputProtectionContext(context.Background(), c))
 	defer finish()
 	value, _ := c.Get(firstOutputObserverKey)
 	o := value.(*firstOutputObservation)

@@ -309,7 +309,6 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 		if completedTTFTEvent && firstTokenMs == nil {
 			ms := int(time.Since(startTime).Milliseconds())
 			firstTokenMs = &ms
-			observeFirstOutput(c)
 		}
 		eventStartsClientOutput = false
 		eventStartsTTFTOutput = false
@@ -679,6 +678,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 				line = s.replaceModelInSSELine(line, mappedModel, originalModel)
 			}
 			startsClientOutput := forceFlushFailedEvent || openAIStreamDataStartsClientOutput(data, eventType)
+			observeFirstOutputPayload(c, dataBytes)
 			startsVisibleOutput := openAIStreamDataStartsVisibleOutput(data, eventType)
 			startsTTFTOutput := openAIStreamDataStartsTTFT(data, eventType, forceFlushFailedEvent, ttftMode)
 			if stageFirstOutput {
@@ -729,7 +729,6 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			if !guardFirstOutput && firstTokenMs == nil && startsTTFTOutput {
 				ms := int(time.Since(startTime).Milliseconds())
 				firstTokenMs = &ms
-				observeFirstOutput(c)
 				stopFirstOutputTimer()
 			}
 			s.parseSSEUsageBytesWithType(dataBytes, eventType, usage)

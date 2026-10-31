@@ -101,9 +101,6 @@ func TestFirstOutputClaimFailureRetryAndManualRecovery(t *testing.T) {
 		_, _, err := cache.RecordFirstOutput(ctx, 1, true, "failed")
 		require.NoError(t, err)
 	}
-	acquired, err := cache.AcquireFirstOutputRecovery(ctx, 1, "manual")
-	require.NoError(t, err)
-	require.False(t, acquired, "manual recovery waits for the pending DB mutation")
 	require.NoError(t, cache.ReleaseFirstOutputClaim(ctx, 1, "wrong-token"))
 	_, claimed, err := cache.RecordFirstOutput(ctx, 1, true, "retry")
 	require.NoError(t, err)
@@ -114,9 +111,6 @@ func TestFirstOutputClaimFailureRetryAndManualRecovery(t *testing.T) {
 	require.EqualValues(t, 4, count)
 	require.True(t, claimed)
 	require.NoError(t, cache.CompleteFirstOutputClaim(ctx, 1, "retry", time.Now().Add(5*time.Minute)))
-	acquired, err = cache.AcquireFirstOutputRecovery(ctx, 1, "manual")
-	require.NoError(t, err)
-	require.True(t, acquired)
 	require.NoError(t, cache.DeleteTempUnsched(ctx, 1))
 	require.NoError(t, cache.ClearFirstOutputProtection(ctx, 1))
 	count, claimed, err = cache.RecordFirstOutput(ctx, 1, true, "fresh")
@@ -128,10 +122,30 @@ func TestFirstOutputClaimFailureRetryAndManualRecovery(t *testing.T) {
 func TestFirstOutputConditionalPauseDoesNotOverwriteChangedAccount(t *testing.T) {
 	exec := &recordingSQLExecutor{result: rowsAffectedResult(0)}
 	repo := newAccountRepositoryWithSQL(nil, exec, nil)
-	applied, err := repo.SetTempUnschedulableIfUnchanged(context.Background(), 42, time.Now(), time.Now().Add(5*time.Minute), "first output")
+	applied, err := repo.SetTempUnschedulableIfUnchanged(context.Background(), 42, "generation", time.Now().Add(5*time.Minute), "first output")
 	require.NoError(t, err)
 	require.False(t, applied)
 	require.Len(t, exec.execQueries, 1)
-	require.Contains(t, exec.execQueries[0], "updated_at = $4")
+	require.Contains(t, exec.execQueries[0], "first_output_recovery_generation")
 	require.Contains(t, exec.execQueries[0], "temp_unschedulable_until <= NOW()")
+}
+
+func TestFirstOutputRecoveryGenerationIsolatesOldCountsAndClaims(t *testing.T) {
+	_, cache := firstOutputTestCache(t)
+	ctx := context.Background()
+	for i := 0; i < 3; i++ {
+		_, _, err := cache.RecordFirstOutput(ctx, 42, true, "old/claim")
+		require.NoError(t, err)
+	}
+	count, claimed, err := cache.RecordFirstOutput(ctx, 42, true, "new/claim")
+	require.NoError(t, err)
+	require.EqualValues(t, 1, count)
+	require.False(t, claimed)
+	require.NoError(t, cache.CompleteFirstOutputClaim(ctx, 42, "old/claim", time.Now().Add(5*time.Minute)))
+	_, _, err = cache.RecordFirstOutput(ctx, 42, false, "old/fast")
+	require.NoError(t, err)
+	count, claimed, err = cache.RecordFirstOutput(ctx, 42, true, "new/claim2")
+	require.NoError(t, err)
+	require.EqualValues(t, 2, count)
+	require.False(t, claimed)
 }

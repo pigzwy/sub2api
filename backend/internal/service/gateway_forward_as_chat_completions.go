@@ -35,6 +35,7 @@ func (s *GatewayService) ForwardAsChatCompletions(
 ) (*ForwardResult, error) {
 	if s != nil {
 		defer beginFirstOutputProtectionBody(ctx, c, account, body, s.rateLimitService)()
+		ctx = firstOutputProtectionContext(ctx, c)
 	}
 	startTime := time.Now()
 
@@ -427,7 +428,7 @@ func (s *GatewayService) handleCCStreamingFromAnthropic(
 	}
 
 	processAnthropicEvent := func(event *apicompat.AnthropicStreamEvent) {
-		if isMeaningfulAntigravityCompatEvent(event) {
+		if isMeaningfulFirstOutputAnthropicEvent(event) {
 			observeFirstOutput(c)
 		}
 		if event == nil {

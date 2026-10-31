@@ -94,12 +94,14 @@ func stripCodexFingerprintSeedFromExtraUpdate(extra map[string]any) map[string]a
 	if extra == nil {
 		return nil
 	}
-	if _, exists := extra["codex_fingerprint_seed"]; !exists {
+	_, hasSeed := extra["codex_fingerprint_seed"]
+	_, hasRecovery := extra["first_output_recovery_generation"]
+	if !hasSeed && !hasRecovery {
 		return extra
 	}
 	stripped := make(map[string]any, len(extra)-1)
 	for key, value := range extra {
-		if key == "codex_fingerprint_seed" {
+		if key == "codex_fingerprint_seed" || key == "first_output_recovery_generation" {
 			continue
 		}
 		stripped[key] = value
@@ -682,7 +684,8 @@ func lockAndMergeAccountProbeExtra(
 			extra -> 'opencode_go_usage_auto_refresh',
 			extra -> 'opencode_go_usage_snapshot',
 			extra -> 'grok_observed_models',
-			extra -> 'upstream_model_metadata'
+			extra -> 'upstream_model_metadata',
+			extra -> 'first_output_recovery_generation'
 		FROM accounts
 		WHERE id = $1 AND deleted_at IS NULL
 		FOR NO KEY UPDATE
@@ -713,6 +716,7 @@ func lockAndMergeAccountProbeExtra(
 		currentOpenCodeSnapshot        []byte
 		currentGrokObservedModels      []byte
 		currentUpstreamModelMetadata   []byte
+		currentRecoveryGeneration      []byte
 	)
 	if err := rows.Scan(
 		&identityUnchanged,
@@ -729,6 +733,7 @@ func lockAndMergeAccountProbeExtra(
 		&currentOpenCodeSnapshot,
 		&currentGrokObservedModels,
 		&currentUpstreamModelMetadata,
+		&currentRecoveryGeneration,
 	); err != nil {
 		return nil, err
 	}
@@ -737,6 +742,12 @@ func lockAndMergeAccountProbeExtra(
 	}
 
 	extra := copyJSONMap(normalizeJSONMap(account.Extra))
+	delete(extra, "first_output_recovery_generation")
+	if value, exists, err := decodeAccountExtraJSON(currentRecoveryGeneration); err != nil {
+		return nil, err
+	} else if exists {
+		extra["first_output_recovery_generation"] = value
+	}
 	for _, key := range []string{
 		service.UpstreamBillingProbeEnabledExtraKey,
 		service.UpstreamBillingRateSyncEnabledExtraKey,
@@ -2594,25 +2605,8 @@ func (r *accountRepository) SetGrokCredentialTempUnschedulableIfMatch(
 }
 
 func (r *accountRepository) ClearTempUnschedulable(ctx context.Context, id int64) error {
-	if scoped := r.accountTransactionScope(ctx); scoped != r {
-		return scoped.ClearTempUnschedulable(ctx, id)
-	}
-	_, err := r.sql.ExecContext(ctx, `
-		UPDATE accounts
-		SET temp_unschedulable_until = NULL,
-			temp_unschedulable_reason = NULL,
-			updated_at = NOW()
-		WHERE id = $1
-			AND deleted_at IS NULL
-	`, id)
-	if err != nil {
-		return err
-	}
-	if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventAccountChanged, &id, nil, nil); err != nil {
-		logger.LegacyPrintf("repository.account", "[SchedulerOutbox] enqueue clear temp unschedulable failed: account=%d err=%v", id, err)
-	}
-	r.syncSchedulerAccountSnapshot(ctx, id)
-	return nil
+	_, err := r.ClearTempUnschedulableForRecovery(ctx, id, true)
+	return err
 }
 
 func (r *accountRepository) ClearRateLimit(ctx context.Context, id int64) error {

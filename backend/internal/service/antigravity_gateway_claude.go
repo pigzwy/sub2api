@@ -30,6 +30,7 @@ import (
 func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte, isStickySession bool) (*ForwardResult, error) {
 	if s != nil {
 		defer beginFirstOutputProtectionBody(ctx, c, account, body, s.rateLimitService)()
+		ctx = firstOutputProtectionContext(ctx, c)
 	}
 	beginUpstreamResponseModelObservation(c)
 	// 上游透传账号直接转发，不走 OAuth token 刷新

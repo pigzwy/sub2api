@@ -30,6 +30,7 @@ func (s *GeminiMessagesCompatService) ForwardAsChatCompletions(
 ) (*ForwardResult, error) {
 	if s != nil {
 		defer beginFirstOutputProtectionBody(ctx, c, account, body, s.rateLimitService)()
+		ctx = firstOutputProtectionContext(ctx, c)
 	}
 	startTime := time.Now()
 
