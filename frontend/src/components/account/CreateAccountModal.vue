@@ -2657,7 +2657,7 @@
         </div>
 
         <div v-if="tempUnschedEnabled" class="space-y-3">
-          <FirstOutputProtectionFields v-model="firstOutputProtectionEnabled" />
+          <FirstOutputProtectionFields v-model="firstOutputProtectionEnabled" v-model:config="firstOutputProtectionConfig" />
           <div class="rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20">
               <p class="text-xs text-blue-700 dark:text-blue-400">
                 <Icon name="exclamationTriangle" size="sm" class="mr-1 inline" :stroke-width="2" />
@@ -4118,6 +4118,7 @@
 
 <script setup lang="ts">
 import FirstOutputProtectionFields from './FirstOutputProtectionFields.vue'
+import { readFirstOutputProtectionConfig, writeFirstOutputProtectionConfig, clearFirstOutputProtectionConfig } from './firstOutputProtection'
 import { ref, reactive, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -4789,6 +4790,7 @@ watch(vertexAuthMode, () => {
   vertexApiKey.value = ''
 })
 const tempUnschedEnabled = ref(false)
+const firstOutputProtectionConfig = ref(readFirstOutputProtectionConfig())
 const firstOutputProtectionEnabled = ref(false)
 const tempUnschedRules = ref<TempUnschedRuleForm[]>([])
 const getModelMappingKey = createStableObjectKeyResolver<ModelMapping>('create-model-mapping')
@@ -5470,7 +5472,7 @@ const applyTempUnschedConfig = (credentials: Record<string, unknown>) => {
   if (!tempUnschedEnabled.value) {
     delete credentials.temp_unschedulable_enabled
     delete credentials.temp_unschedulable_rules
-    delete credentials.temp_unschedulable_first_output_enabled
+    clearFirstOutputProtectionConfig(credentials)
     return true
   }
 
@@ -5482,7 +5484,10 @@ const applyTempUnschedConfig = (credentials: Record<string, unknown>) => {
 
   credentials.temp_unschedulable_enabled = true
   credentials.temp_unschedulable_rules = rules
-  credentials.temp_unschedulable_first_output_enabled = firstOutputProtectionEnabled.value
+  if (!writeFirstOutputProtectionConfig(credentials, firstOutputProtectionEnabled.value, firstOutputProtectionConfig.value)) {
+    appStore.showError(t('admin.accounts.tempUnschedulable.firstOutputConfigInvalid'))
+    return false
+  }
   return true
 }
 
@@ -5729,6 +5734,7 @@ const resetForm = () => {
   vertexApiKey.value = ''
   tempUnschedEnabled.value = false
   firstOutputProtectionEnabled.value = false
+  firstOutputProtectionConfig.value = readFirstOutputProtectionConfig()
   tempUnschedRules.value = []
   geminiOAuthType.value = 'code_assist'
   geminiTierGoogleOne.value = 'google_one_free'
@@ -7365,13 +7371,8 @@ const handleCookieAuth = async (sessionKey: string) => {
       return
     }
 
-    const tempUnschedPayload = tempUnschedEnabled.value
-      ? buildTempUnschedRules(tempUnschedRules.value)
-      : []
-    if (tempUnschedEnabled.value && tempUnschedPayload.length === 0 && !firstOutputProtectionEnabled.value) {
-      appStore.showError(t('admin.accounts.tempUnschedulable.rulesInvalid'))
-      return
-    }
+    const tempUnschedCredentials: Record<string, unknown> = {}
+    if (!applyTempUnschedConfig(tempUnschedCredentials)) return
 
     const endpoint =
       addMethod.value === 'oauth'
@@ -7452,11 +7453,7 @@ const handleCookieAuth = async (sessionKey: string) => {
 
         const credentials: Record<string, unknown> = { ...tokenInfo }
         applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
-        if (tempUnschedEnabled.value) {
-          credentials.temp_unschedulable_enabled = true
-          credentials.temp_unschedulable_rules = tempUnschedPayload
-          credentials.temp_unschedulable_first_output_enabled = firstOutputProtectionEnabled.value
-        }
+        Object.assign(credentials, tempUnschedCredentials)
 
         await adminAPI.accounts.create({
           name: accountName,

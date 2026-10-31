@@ -29,6 +29,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 
 	entsql "entgo.io/ent/dialect/sql"
@@ -685,7 +686,8 @@ func lockAndMergeAccountProbeExtra(
 			extra -> 'opencode_go_usage_snapshot',
 			extra -> 'grok_observed_models',
 			extra -> 'upstream_model_metadata',
-			extra -> 'first_output_recovery_generation'
+			extra -> 'first_output_recovery_generation',
+			`+firstOutputConfigChangedSQL("credentials", "$4::jsonb")+`
 		FROM accounts
 		WHERE id = $1 AND deleted_at IS NULL
 		FOR NO KEY UPDATE
@@ -717,6 +719,7 @@ func lockAndMergeAccountProbeExtra(
 		currentGrokObservedModels      []byte
 		currentUpstreamModelMetadata   []byte
 		currentRecoveryGeneration      []byte
+		firstOutputConfigChanged       bool
 	)
 	if err := rows.Scan(
 		&identityUnchanged,
@@ -734,6 +737,7 @@ func lockAndMergeAccountProbeExtra(
 		&currentGrokObservedModels,
 		&currentUpstreamModelMetadata,
 		&currentRecoveryGeneration,
+		&firstOutputConfigChanged,
 	); err != nil {
 		return nil, err
 	}
@@ -747,6 +751,9 @@ func lockAndMergeAccountProbeExtra(
 		return nil, err
 	} else if exists {
 		extra["first_output_recovery_generation"] = value
+	}
+	if firstOutputConfigChanged {
+		extra["first_output_recovery_generation"] = uuid.NewString()
 	}
 	for _, key := range []string{
 		service.UpstreamBillingProbeEnabledExtraKey,
@@ -3183,7 +3190,15 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 				" AND COALESCE(btrim("+credentialPlaceholder+"::jsonb ->> 'account_mode') <> 'zen', true) IS NOT TRUE")
 	}
 
-	if len(updates.Extra) > 0 || len(ollamaGroupIdentityChanges) > 0 || len(opencodeGroupIdentityChanges) > 0 || ollamaProxyIdentityChanged != "" || updates.EnsureCodexFingerprintSeed {
+	firstOutputChange := ""
+	for _, key := range []string{"temp_unschedulable_enabled", "temp_unschedulable_first_output_enabled", service.FirstOutputLimitSecondsKey, service.FirstOutputCooldownMinutesKey, service.FirstOutputWindowMinutesKey} {
+		if _, exists := updates.Credentials[key]; exists {
+			firstOutputChange = firstOutputConfigChangedSQL("credentials", "COALESCE(credentials, '{}'::jsonb) || "+credentialPlaceholder+"::jsonb")
+			break
+		}
+	}
+
+	if firstOutputChange != "" || len(updates.Extra) > 0 || len(ollamaGroupIdentityChanges) > 0 || len(opencodeGroupIdentityChanges) > 0 || ollamaProxyIdentityChanged != "" || updates.EnsureCodexFingerprintSeed {
 		extraExpression := "COALESCE(extra, '{}'::jsonb)"
 		if len(updates.Extra) > 0 {
 			payload, err := json.Marshal(updates.Extra)
@@ -3265,6 +3280,9 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 		}
 		if updates.EnsureCodexFingerprintSeed {
 			extraExpression = ensureCodexFingerprintSeedSQL(extraExpression)
+		}
+		if firstOutputChange != "" {
+			extraExpression = "CASE WHEN " + firstOutputChange + " THEN (" + extraExpression + ") || jsonb_build_object('first_output_recovery_generation', gen_random_uuid()::text) ELSE " + extraExpression + " END"
 		}
 		setClauses = append(setClauses, "extra = "+extraExpression)
 	}

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -26,14 +27,14 @@ const (
 // FirstOutputProtectionCache is an optional capability of the existing
 // temporary-unschedulable cache. Fast output clears only the counting window.
 type FirstOutputProtectionCache interface {
-	RecordFirstOutput(context.Context, int64, bool, string) (int64, bool, error)
+	RecordFirstOutput(context.Context, int64, bool, string, time.Duration) (int64, bool, error)
 	CompleteFirstOutputClaim(context.Context, int64, string, time.Time) error
 	ReleaseFirstOutputClaim(context.Context, int64, string) error
 	ClearFirstOutputProtection(context.Context, int64) error
 }
 
 type firstOutputAccountRepository interface {
-	SetTempUnschedulableIfUnchanged(context.Context, int64, string, time.Time, string) (bool, error)
+	SetTempUnschedulableIfUnchanged(context.Context, int64, string, FirstOutputProtectionConfig, time.Time, string) (bool, error)
 }
 
 func (s *RateLimitService) clearFirstOutputProtection(ctx context.Context, accountID int64) {
@@ -78,9 +79,13 @@ func (a *Account) FirstOutputProtectionEnabled() bool {
 }
 
 // RecordFirstOutputLatency is independent from stream-idle timeouts. Equality
-// is intentionally neutral: exactly 30 seconds neither increments nor resets.
+// is intentionally neutral: exactly the configured limit neither increments nor resets.
 func (s *RateLimitService) RecordFirstOutputLatency(ctx context.Context, account *Account, model string, elapsed time.Duration) {
-	if s == nil || !account.FirstOutputProtectionEnabled() || elapsed == FirstOutputLimit {
+	s.recordFirstOutputLatency(ctx, account, model, elapsed, account.FirstOutputProtectionConfig())
+}
+
+func (s *RateLimitService) recordFirstOutputLatency(ctx context.Context, account *Account, model string, elapsed time.Duration, config FirstOutputProtectionConfig) {
+	if s == nil || !account.FirstOutputProtectionEnabled() || elapsed == config.limit() {
 		return
 	}
 	cache, ok := s.tempUnschedCache.(FirstOutputProtectionCache)
@@ -89,8 +94,8 @@ func (s *RateLimitService) RecordFirstOutputLatency(ctx context.Context, account
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
 	defer cancel()
-	token := firstOutputGeneration(account) + "/" + uuid.NewString()
-	count, claimed, err := cache.RecordFirstOutput(ctx, account.ID, elapsed > FirstOutputLimit, token)
+	token := firstOutputCounterScope(firstOutputGeneration(account), config) + "/" + uuid.NewString()
+	count, claimed, err := cache.RecordFirstOutput(ctx, account.ID, elapsed > config.limit(), token, config.window())
 	if err != nil {
 		slog.Warn("first_output_counter_failed", "account_id", account.ID)
 		return
@@ -112,7 +117,7 @@ func (s *RateLimitService) RecordFirstOutputLatency(ctx context.Context, account
 	if err != nil || current == nil {
 		return
 	}
-	if !current.FirstOutputProtectionEnabled() || firstOutputGeneration(current) != firstOutputGeneration(account) {
+	if !current.FirstOutputProtectionEnabled() || firstOutputGeneration(current) != firstOutputGeneration(account) || current.FirstOutputProtectionConfig() != config {
 		return
 	}
 	now := time.Now()
@@ -121,19 +126,20 @@ func (s *RateLimitService) RecordFirstOutputLatency(ctx context.Context, account
 		_ = cache.CompleteFirstOutputClaim(ctx, account.ID, token, *current.TempUnschedulableUntil)
 		return
 	}
-	until := now.Add(FirstOutputCooldown)
+	until := now.Add(config.cooldown())
 	state := &TempUnschedState{
 		UntilUnix: until.Unix(), TriggeredAtUnix: now.Unix(), RuleIndex: -1,
 		MatchedKeyword: "first_output_timeout", Scope: TempUnschedScopeAccount, Model: model,
-		ErrorMessage: "First output exceeded 30 seconds three times within 10 minutes",
-		TriggerCount: count, TriggerThreshold: FirstOutputThreshold, TriggerWindowMinutes: 10,
+		ErrorMessage: fmt.Sprintf("First output exceeded %d seconds %d times within %d minutes", config.LimitSeconds, FirstOutputThreshold, config.WindowMinutes),
+		TriggerCount: count, TriggerThreshold: FirstOutputThreshold, TriggerWindowMinutes: config.WindowMinutes,
+		FirstOutputLimitSeconds: config.LimitSeconds, CooldownMinutes: config.CooldownMinutes,
 	}
 	reason, _ := json.Marshal(state)
 	repo, ok := s.accountRepo.(firstOutputAccountRepository)
 	if !ok {
 		return
 	}
-	applied, err := repo.SetTempUnschedulableIfUnchanged(ctx, account.ID, firstOutputGeneration(account), until, string(reason))
+	applied, err := repo.SetTempUnschedulableIfUnchanged(ctx, account.ID, firstOutputGeneration(account), config, until, string(reason))
 	if err != nil {
 		slog.Warn("first_output_temp_unsched_failed", "account_id", account.ID)
 		return
@@ -154,6 +160,7 @@ func (s *RateLimitService) RecordFirstOutputLatency(ctx context.Context, account
 }
 
 type firstOutputObservation struct {
+	config     FirstOutputProtectionConfig
 	mu         sync.Mutex
 	done       bool
 	start      time.Time
@@ -179,7 +186,7 @@ func (o *firstOutputObservation) finish(output bool) {
 	}
 	o.mu.Unlock()
 	// Early failures/cancellation are not successful fast output.
-	if started && (output || elapsed > FirstOutputLimit) {
+	if started && (output || elapsed > o.config.limit()) {
 		o.report(elapsed)
 	}
 }
@@ -202,16 +209,16 @@ func beginFirstOutputProtection(ctx context.Context, c *gin.Context, account *Ac
 		seen = &sync.Map{}
 		c.Set(firstOutputRequestKey, seen)
 	}
-	o := &firstOutputObservation{}
+	o := &firstOutputObservation{config: account.FirstOutputProtectionConfig()}
 	o.report = func(elapsed time.Duration) {
 		// Deduplicate slow increments only. A later fast retry must still reset
 		// the account's window, and equality must not consume its slow sample.
-		if elapsed > FirstOutputLimit {
+		if elapsed > o.config.limit() {
 			if _, duplicate := seen.LoadOrStore(account.ID, true); duplicate {
 				return
 			}
 		}
-		s.RecordFirstOutputLatency(ctx, account, model, elapsed)
+		s.recordFirstOutputLatency(ctx, account, model, elapsed, o.config)
 	}
 	c.Set(firstOutputObserverKey, o)
 	o.mu.Lock()
@@ -244,7 +251,7 @@ func StartFirstOutputProtection(ctx context.Context) {
 		return
 	}
 	o.start = time.Now()
-	o.timer = time.AfterFunc(FirstOutputLimit+time.Millisecond, func() { o.finish(false) })
+	o.timer = time.AfterFunc(o.config.limit()+time.Millisecond, func() { o.finish(false) })
 }
 
 func beginFirstOutputProtectionBody(ctx context.Context, c *gin.Context, account *Account, body []byte, s *RateLimitService) func() {

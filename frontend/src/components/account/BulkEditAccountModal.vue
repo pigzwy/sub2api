@@ -36,7 +36,7 @@
           <input data-testid="bulk-first-output-protection-enabled" v-model="enableFirstOutputProtection" type="checkbox" class="h-4 w-4 rounded" />
           {{ t('admin.accounts.tempUnschedulable.bulkFirstOutput') }}
         </label>
-        <FirstOutputProtectionFields v-if="enableFirstOutputProtection" v-model="firstOutputProtectionEnabled" />
+        <FirstOutputProtectionFields v-if="enableFirstOutputProtection" v-model="firstOutputProtectionEnabled" v-model:config="firstOutputProtectionConfig" />
       </div>
 
       <!-- OpenAI passthrough -->
@@ -1483,6 +1483,7 @@
 
 <script setup lang="ts">
 import FirstOutputProtectionFields from './FirstOutputProtectionFields.vue'
+import { readFirstOutputProtectionConfig, writeFirstOutputProtectionConfig } from './firstOutputProtection'
 import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -1656,6 +1657,7 @@ interface ModelMapping {
 
 // State - field enable flags
 const enableFirstOutputProtection = ref(false)
+const firstOutputProtectionConfig = ref(readFirstOutputProtectionConfig())
 const firstOutputProtectionEnabled = ref(true)
 const enableBaseUrl = ref(false)
 const enableModelRestriction = ref(false)
@@ -1939,12 +1941,15 @@ const buildOpenAICompactModelMapping = (): Record<string, string> | null => {
   return buildModelMappingPayload('mapping', [], openAICompactModelMappings.value)
 }
 
-const buildUpdatePayload = (): Record<string, unknown> | null => {
+const buildUpdatePayload = (): Record<string, unknown> | null | undefined => {
   const updates: Record<string, unknown> = {}
   const credentials: Record<string, unknown> = {}
   let credentialsChanged = false
   if (enableFirstOutputProtection.value) {
-    credentials.temp_unschedulable_first_output_enabled = firstOutputProtectionEnabled.value
+    if (!writeFirstOutputProtectionConfig(credentials, firstOutputProtectionEnabled.value, firstOutputProtectionConfig.value)) {
+      appStore.showError(t('admin.accounts.tempUnschedulable.firstOutputConfigInvalid'))
+      return undefined
+    }
     if (firstOutputProtectionEnabled.value) credentials.temp_unschedulable_enabled = true
     credentialsChanged = true
   }
@@ -2283,6 +2288,7 @@ const handleSubmit = async () => {
   }
 
   const built = buildUpdatePayload()
+  if (built === undefined) return // Validation already reported the field error.
   if (!built) {
     appStore.showError(t('admin.accounts.bulkEdit.noFieldsSelected'))
     return
@@ -2378,6 +2384,7 @@ watch(
       // Reset all enable flags
       enableFirstOutputProtection.value = false
       firstOutputProtectionEnabled.value = true
+      firstOutputProtectionConfig.value = readFirstOutputProtectionConfig()
       enableBaseUrl.value = false
       enableModelRestriction.value = false
       enableCustomErrorCodes.value = false

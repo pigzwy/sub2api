@@ -24,11 +24,13 @@ async function open() {
 describe('temporary unschedulable status requests', () => {
   it('shows first-output pauses as a reason and model instead of an internal keyword', async () => {
     const value = active('internal message')
-    mocks.getTempUnschedulableStatus.mockResolvedValue({ ...value, state: { ...value.state, matched_keyword: 'first_output_timeout', model: 'test-model', trigger_count: 3, trigger_threshold: 3, trigger_window_minutes: 10 } })
+    mocks.getTempUnschedulableStatus.mockResolvedValue({ ...value, state: { ...value.state, matched_keyword: 'first_output_timeout', model: 'test-model', trigger_count: 3, trigger_threshold: 3, trigger_window_minutes: 20, first_output_limit_seconds: 45, cooldown_minutes: 12 } })
     const w = await open()
     await flushPromises()
     expect(w.text()).toContain('admin.accounts.tempUnschedulable.firstOutputReason')
     expect(w.text()).toContain('test-model')
+    expect(w.text()).toContain('45s')
+    expect(w.text()).not.toContain('30s')
     expect(w.text()).not.toContain('first_output_timeout')
     expect(w.text()).not.toContain('internal message')
   })

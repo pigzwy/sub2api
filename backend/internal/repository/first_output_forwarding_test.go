@@ -19,7 +19,7 @@ func TestFirstOutputRealHTTPForwardFastRefusalResetsWindow(t *testing.T) {
 	server, cache := firstOutputTestCache(t)
 	ctx := t.Context()
 	for i := 0; i < 2; i++ {
-		_, _, err := cache.RecordFirstOutput(ctx, 42, true, "slow")
+		_, _, err := cache.RecordFirstOutput(ctx, 42, true, "slow", service.FirstOutputWindow)
 		require.NoError(t, err)
 	}
 	upstreamServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

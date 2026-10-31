@@ -459,17 +459,23 @@ export default {
         tempUnschedulableUntil: '预计 {time} 恢复'
       },
       tempUnschedulable: {
+        firstOutputConfigChangeHint: "参数修改对后续请求生效；已暂停账号的恢复时间保持不变。",
+        firstOutputConfigInvalid: "请检查首输出保护参数，并填写范围内的整数。",
+        firstOutputIntegerRange: "请输入 {min}–{max} 之间的整数",
+        firstOutputWindowInput: "统计窗口（分钟）",
+        firstOutputCooldownInput: "暂停调度时长（分钟）",
+        firstOutputLimitInput: "首输出超时阈值（秒）",
         firstOutputLimit: "首输出阈值",
         firstOutputReasonLabel: "触发原因",
         firstOutputReason: "首输出超时",
         firstOutputModel: "触发模型",
-        firstOutputPaused: "首输出连续超标，已暂停整个账号 5 分钟；到期自动恢复，也可手动解除。",
-        firstOutputEvidence: "{minutes} 分钟计数窗口内有 {count} 次首输出超过 30 秒，期间没有低于 30 秒的首输出。",
+        firstOutputPaused: "首输出连续超标，已暂停整个账号 {minutes} 分钟；到期自动恢复，也可手动解除。",
+        firstOutputEvidence: "{minutes} 分钟计数窗口内有 {count} 次首输出超过 {seconds} 秒，期间没有低于 {seconds} 秒的首输出。",
 
         bulkFirstOutput: '修改所选账号的首输出异常保护',
         firstOutputTitle: "首输出异常时暂停整个账号",
-        firstOutputHint: "首输出超过 30 秒开始累计，10 分钟内达到 3 次时暂停整个账号 5 分钟；低于 30 秒立即清零计数和窗口。",
-        firstOutputBoundary: "恰好 30 秒不计数也不清零。仅监测流式文本请求；到期自动恢复，TG 通知在系统设置 → 网关中配置。",
+        firstOutputHint: "首输出超过 {seconds} 秒开始累计，{window} 分钟内达到 3 次时暂停整个账号 {cooldown} 分钟；低于 {seconds} 秒立即清零计数和窗口。",
+        firstOutputBoundary: "等于阈值时不计数也不清零。仅监测流式文本请求；到期自动恢复，TG 通知在系统设置 → 网关中配置。",
 
         title: '临时不可调度',
         statusTitle: '临时不可调度状态',

@@ -52,12 +52,12 @@ func firstOutputTokenKeys(accountID int64, token string) []string {
 	return keys
 }
 
-func (c *tempUnschedCache) RecordFirstOutput(ctx context.Context, accountID int64, slow bool, token string) (int64, bool, error) {
+func (c *tempUnschedCache) RecordFirstOutput(ctx context.Context, accountID int64, slow bool, token string, window time.Duration) (int64, bool, error) {
 	signal := 0
 	if slow {
 		signal = 1
 	}
-	values, err := firstOutputRecordScript.Run(ctx, c.rdb, firstOutputTokenKeys(accountID, token), signal, int(service.FirstOutputWindow.Seconds()), service.FirstOutputThreshold, token).Int64Slice()
+	values, err := firstOutputRecordScript.Run(ctx, c.rdb, firstOutputTokenKeys(accountID, token), signal, int(window.Seconds()), service.FirstOutputThreshold, token).Int64Slice()
 	if err != nil {
 		return 0, false, err
 	}

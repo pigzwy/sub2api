@@ -137,9 +137,19 @@ func (s *TelegramNotificationService) NotifyFirstOutputBlocked(ctx context.Conte
 		slog.Warn("telegram_notification_token_unavailable")
 		return
 	}
-	text := fmt.Sprintf("账号已临时不可调度\n账号：%s (#%d)\n平台：%s\n模型：%s\n原因：首输出超过 30 秒，10 分钟窗口累计 %d 次\n恢复时间：%s\n低于 30 秒的首输出会清零计数与窗口。",
-		telegramLabel(account.Name), account.ID, telegramLabel(account.Platform), telegramLabel(model), state.TriggerCount,
-		time.Unix(state.UntilUnix, 0).UTC().Format("2006-01-02 15:04:05 UTC"))
+	config := DefaultFirstOutputProtectionConfig()
+	if state.FirstOutputLimitSeconds > 0 {
+		config.LimitSeconds = state.FirstOutputLimitSeconds
+	}
+	if state.CooldownMinutes > 0 {
+		config.CooldownMinutes = state.CooldownMinutes
+	}
+	if state.TriggerWindowMinutes > 0 {
+		config.WindowMinutes = state.TriggerWindowMinutes
+	}
+	text := fmt.Sprintf("账号已临时不可调度\n账号：%s (#%d)\n平台：%s\n模型：%s\n原因：首输出超过 %d 秒，%d 分钟窗口累计 %d 次\n暂停调度时长：%d 分钟\n恢复时间：%s\n低于 %d 秒的首输出会清零计数与窗口。",
+		telegramLabel(account.Name), account.ID, telegramLabel(account.Platform), telegramLabel(model), config.LimitSeconds, config.WindowMinutes, state.TriggerCount, config.CooldownMinutes,
+		time.Unix(state.UntilUnix, 0).UTC().Format("2006-01-02 15:04:05 UTC"), config.LimitSeconds)
 	if err := s.sendWithRetry(ctx, token, settings.ChatID, text); err != nil {
 		// Never log http.Client errors: their URL contains the bot token.
 		slog.Warn("telegram_notification_send_failed", "account_id", account.ID)

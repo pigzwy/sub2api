@@ -1987,14 +1987,24 @@ describe('EditAccountModal temp-unschedulable rule scope', () => {
   it('loads and saves first-output protection without HTTP error rules', async () => {
     const account = buildAccountWithTempUnschedRules([])
     account.credentials.temp_unschedulable_first_output_enabled = true
+    account.credentials.temp_unschedulable_first_output_limit_seconds = 45
+    account.credentials.temp_unschedulable_first_output_cooldown_minutes = 12
+    account.credentials.temp_unschedulable_first_output_window_minutes = 20
     updateAccountMock.mockResolvedValue(account)
     const wrapper = mountModal(account)
     expect(wrapper.get<HTMLInputElement>('[data-testid="first-output-protection"]').element.checked).toBe(true)
+    expect(wrapper.get<HTMLInputElement>('[data-testid="first-output-limitSeconds"]').element.value).toBe('45')
+    expect(wrapper.get<HTMLInputElement>('[data-testid="first-output-cooldownMinutes"]').element.value).toBe('12')
+    expect(wrapper.get<HTMLInputElement>('[data-testid="first-output-windowMinutes"]').element.value).toBe('20')
+    await wrapper.get('[data-testid="first-output-limitSeconds"]').setValue(60)
     await wrapper.get('form#edit-account-form').trigger('submit.prevent')
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).toMatchObject({
       temp_unschedulable_enabled: true,
       temp_unschedulable_rules: [],
       temp_unschedulable_first_output_enabled: true,
+      temp_unschedulable_first_output_limit_seconds: 60,
+      temp_unschedulable_first_output_cooldown_minutes: 12,
+      temp_unschedulable_first_output_window_minutes: 20,
     })
     wrapper.unmount()
   })
@@ -2002,6 +2012,9 @@ describe('EditAccountModal temp-unschedulable rule scope', () => {
   it('clears first-output configuration when temporary scheduling protection is disabled', async () => {
     const account = buildAccountWithTempUnschedRules([])
     account.credentials.temp_unschedulable_first_output_enabled = true
+    account.credentials.temp_unschedulable_first_output_limit_seconds = 45
+    account.credentials.temp_unschedulable_first_output_cooldown_minutes = 12
+    account.credentials.temp_unschedulable_first_output_window_minutes = 20
     updateAccountMock.mockResolvedValue(account)
     const wrapper = mountModal(account)
     await wrapper.get('[data-testid="temp-unschedulable-enabled"]').trigger('click')
@@ -2010,6 +2023,9 @@ describe('EditAccountModal temp-unschedulable rule scope', () => {
     expect(credentials).not.toHaveProperty('temp_unschedulable_enabled')
     expect(credentials).not.toHaveProperty('temp_unschedulable_rules')
     expect(credentials).not.toHaveProperty('temp_unschedulable_first_output_enabled')
+    expect(credentials).not.toHaveProperty('temp_unschedulable_first_output_limit_seconds')
+    expect(credentials).not.toHaveProperty('temp_unschedulable_first_output_cooldown_minutes')
+    expect(credentials).not.toHaveProperty('temp_unschedulable_first_output_window_minutes')
     wrapper.unmount()
   })
 

@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,9 +15,9 @@ import (
 // SetTempUnschedulableIfUnchanged uses the existing state and scheduler
 // propagation, with a recovery fence independent of last-used bookkeeping.
 // The bool distinguishes a real trip from a concurrent recovery or disabled protection.
-func (r *accountRepository) SetTempUnschedulableIfUnchanged(ctx context.Context, id int64, expectedGeneration string, until time.Time, reason string) (bool, error) {
+func (r *accountRepository) SetTempUnschedulableIfUnchanged(ctx context.Context, id int64, expectedGeneration string, config service.FirstOutputProtectionConfig, until time.Time, reason string) (bool, error) {
 	if scoped := r.accountTransactionScope(ctx); scoped != r {
-		return scoped.SetTempUnschedulableIfUnchanged(ctx, id, expectedGeneration, until, reason)
+		return scoped.SetTempUnschedulableIfUnchanged(ctx, id, expectedGeneration, config, until, reason)
 	}
 	result, err := r.sql.ExecContext(ctx, `
 		UPDATE accounts
@@ -26,7 +28,10 @@ func (r *accountRepository) SetTempUnschedulableIfUnchanged(ctx context.Context,
 		  AND credentials->'temp_unschedulable_enabled' = 'true'::jsonb
 		  AND credentials->'temp_unschedulable_first_output_enabled' = 'true'::jsonb
 		  AND (temp_unschedulable_until IS NULL OR temp_unschedulable_until <= NOW())
-	`, until, reason, id, expectedGeneration)
+ AND `+firstOutputConfigValueSQL(service.FirstOutputLimitSecondsKey, 30, service.FirstOutputMaxLimitSeconds)+` = $5
+ AND `+firstOutputConfigValueSQL(service.FirstOutputCooldownMinutesKey, 5, service.FirstOutputMaxMinutes)+` = $6
+ AND `+firstOutputConfigValueSQL(service.FirstOutputWindowMinutesKey, 10, service.FirstOutputMaxMinutes)+` = $7
+ `, until, reason, id, expectedGeneration, config.LimitSeconds, config.CooldownMinutes, config.WindowMinutes)
 	if err != nil {
 		return false, err
 	}
@@ -92,4 +97,38 @@ func (r *accountRepository) ClearTempUnschedulableForRecovery(ctx context.Contex
 	}
 	r.syncSchedulerAccountSnapshot(ctx, id)
 	return true, nil
+}
+
+// Mirror the account config reader without casting malformed legacy JSON values.
+// Key names and bounds are application constants, never request input.
+func firstOutputConfigValueSQL(key string, fallback, maximum int) string {
+	return firstOutputConfigValueFromSQL("credentials", key, fallback, maximum)
+}
+
+func firstOutputConfigValueFromSQL(source, key string, fallback, maximum int) string {
+	return fmt.Sprintf(`(CASE WHEN jsonb_typeof((%[4]s)->'%[1]s') = 'number' THEN
+  CASE WHEN ((%[4]s)->>'%[1]s')::numeric BETWEEN 1 AND %[3]d
+   AND trunc(((%[4]s)->>'%[1]s')::numeric) = ((%[4]s)->>'%[1]s')::numeric
+   THEN ((%[4]s)->>'%[1]s')::numeric ELSE %[2]d END ELSE %[2]d END)`, key, fallback, maximum, source)
+}
+
+// Relevant account edits reset the recovery fence as well. This prevents an
+// A -> B -> A settings change from reviving A's old counters or in-flight trips.
+func firstOutputConfigChangedSQL(previous, next string) string {
+	enabled := func(source string) string {
+		return fmt.Sprintf("COALESCE((%[1]s)->'temp_unschedulable_enabled' = 'true'::jsonb AND (%[1]s)->'temp_unschedulable_first_output_enabled' = 'true'::jsonb, false)", source)
+	}
+	clauses := []string{enabled(previous) + " IS DISTINCT FROM " + enabled(next)}
+	defaults := service.DefaultFirstOutputProtectionConfig()
+	for _, field := range []struct {
+		key               string
+		fallback, maximum int
+	}{
+		{service.FirstOutputLimitSecondsKey, defaults.LimitSeconds, service.FirstOutputMaxLimitSeconds},
+		{service.FirstOutputCooldownMinutesKey, defaults.CooldownMinutes, service.FirstOutputMaxMinutes},
+		{service.FirstOutputWindowMinutesKey, defaults.WindowMinutes, service.FirstOutputMaxMinutes},
+	} {
+		clauses = append(clauses, firstOutputConfigValueFromSQL(previous, field.key, field.fallback, field.maximum)+" IS DISTINCT FROM "+firstOutputConfigValueFromSQL(next, field.key, field.fallback, field.maximum))
+	}
+	return "(" + strings.Join(clauses, " OR ") + ")"
 }

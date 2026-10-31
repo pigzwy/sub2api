@@ -85,12 +85,27 @@ describe('BulkEditAccountModal', () => {
     const wrapper = mountModal()
     await wrapper.get('[data-testid="bulk-first-output-protection-enabled"]').setValue(true)
     await wrapper.get('[data-testid="first-output-protection"]').setValue(enabled)
+    if (enabled) {
+      await wrapper.get('[data-testid="first-output-windowMinutes"]').setValue(0)
+      await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+      expect(adminAPI.accounts.bulkUpdate).not.toHaveBeenCalled()
+      expect(showError).toHaveBeenCalledTimes(1)
+      expect(showError).toHaveBeenCalledWith('admin.accounts.tempUnschedulable.firstOutputConfigInvalid')
+      await wrapper.get('[data-testid="first-output-limitSeconds"]').setValue(45)
+      await wrapper.get('[data-testid="first-output-cooldownMinutes"]').setValue(12)
+      await wrapper.get('[data-testid="first-output-windowMinutes"]').setValue(20)
+    }
     await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
     await flushPromises()
     expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
       credentials: {
         temp_unschedulable_first_output_enabled: enabled,
-        ...(enabled ? { temp_unschedulable_enabled: true } : {}),
+        ...(enabled ? {
+          temp_unschedulable_enabled: true,
+          temp_unschedulable_first_output_limit_seconds: 45,
+          temp_unschedulable_first_output_cooldown_minutes: 12,
+          temp_unschedulable_first_output_window_minutes: 20,
+        } : {}),
       },
     })
     wrapper.unmount()

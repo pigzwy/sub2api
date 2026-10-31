@@ -1697,7 +1697,7 @@
         </div>
 
         <div v-if="tempUnschedEnabled" class="space-y-3">
-          <FirstOutputProtectionFields v-model="firstOutputProtectionEnabled" />
+          <FirstOutputProtectionFields v-model="firstOutputProtectionEnabled" v-model:config="firstOutputProtectionConfig" />
           <div class="rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20">
             <p class="text-xs text-blue-700 dark:text-blue-400">
               <Icon name="exclamationTriangle" size="sm" class="mr-1 inline" :stroke-width="2" />
@@ -3385,6 +3385,7 @@
 
 <script setup lang="ts">
 import FirstOutputProtectionFields from './FirstOutputProtectionFields.vue'
+import { readFirstOutputProtectionConfig, writeFirstOutputProtectionConfig, clearFirstOutputProtectionConfig } from './firstOutputProtection'
 import { ref, reactive, computed, watch, nextTick, onBeforeUnmount, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -4102,6 +4103,7 @@ const antigravityWhitelistModels = ref<string[]>([])
 const antigravityModelMappings = ref<ModelMapping[]>([])
 const isSyncingAntigravityUpstream = ref(false)
 const tempUnschedEnabled = ref(false)
+const firstOutputProtectionConfig = ref(readFirstOutputProtectionConfig())
 const firstOutputProtectionEnabled = ref(false)
 const accountSchedulingThresholdOverrideEnabled = ref(false)
 const accountSchedulingThresholdOverrideValue = ref(100)
@@ -5269,7 +5271,7 @@ const applyTempUnschedConfig = (credentials: Record<string, unknown>) => {
   if (!tempUnschedEnabled.value) {
     delete credentials.temp_unschedulable_enabled
     delete credentials.temp_unschedulable_rules
-    delete credentials.temp_unschedulable_first_output_enabled
+    clearFirstOutputProtectionConfig(credentials)
     return true
   }
 
@@ -5281,7 +5283,10 @@ const applyTempUnschedConfig = (credentials: Record<string, unknown>) => {
 
   credentials.temp_unschedulable_enabled = true
   credentials.temp_unschedulable_rules = rules
-  credentials.temp_unschedulable_first_output_enabled = firstOutputProtectionEnabled.value
+  if (!writeFirstOutputProtectionConfig(credentials, firstOutputProtectionEnabled.value, firstOutputProtectionConfig.value)) {
+    appStore.showError(t('admin.accounts.tempUnschedulable.firstOutputConfigInvalid'))
+    return false
+  }
   return true
 }
 
@@ -5351,6 +5356,7 @@ const applyAccountSchedulingThresholdOverridePatch = (
 function loadTempUnschedRules(credentials?: Record<string, unknown>) {
   tempUnschedEnabled.value = credentials?.temp_unschedulable_enabled === true
   firstOutputProtectionEnabled.value = credentials?.temp_unschedulable_first_output_enabled === true
+  firstOutputProtectionConfig.value = readFirstOutputProtectionConfig(credentials)
   const rawRules = credentials?.temp_unschedulable_rules
   if (!Array.isArray(rawRules)) {
     tempUnschedRules.value = []

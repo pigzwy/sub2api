@@ -219,7 +219,7 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
 
   afterEach(() => vi.useRealTimers())
 
-  it('creates an account with first-output protection and no HTTP error rules', async () => {
+  it.each([[30, 5, 10], [45, 12, 20]])('creates first-output protection with %i seconds, %i minute pause and %i minute window', async (seconds, cooldown, window) => {
     const wrapper = mountModal()
     await selectButtonByText(wrapper, 'OpenAI')
     await selectButtonByText(wrapper, 'API Key')
@@ -227,12 +227,22 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     await wrapper.get('form#create-account-form input[type="password"]').setValue('test-api-key')
     await wrapper.get('[data-testid="temp-unschedulable-enabled"]').trigger('click')
     await wrapper.get('[data-testid="first-output-protection"]').setValue(true)
+    expect(wrapper.get<HTMLInputElement>('[data-testid="first-output-limitSeconds"]').element.value).toBe('30')
+    await wrapper.get('[data-testid="first-output-limitSeconds"]').setValue('')
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    expect(createAccountMock).not.toHaveBeenCalled()
+    await wrapper.get('[data-testid="first-output-limitSeconds"]').setValue(seconds)
+    await wrapper.get('[data-testid="first-output-cooldownMinutes"]').setValue(cooldown)
+    await wrapper.get('[data-testid="first-output-windowMinutes"]').setValue(window)
     await wrapper.get('form#create-account-form').trigger('submit.prevent')
     await flushPromises()
     expect(createAccountMock.mock.calls[0]?.[0]?.credentials).toMatchObject({
       temp_unschedulable_enabled: true,
       temp_unschedulable_rules: [],
       temp_unschedulable_first_output_enabled: true,
+      temp_unschedulable_first_output_limit_seconds: seconds,
+      temp_unschedulable_first_output_cooldown_minutes: cooldown,
+      temp_unschedulable_first_output_window_minutes: window,
     })
     wrapper.unmount()
   })

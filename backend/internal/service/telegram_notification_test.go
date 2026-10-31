@@ -54,6 +54,9 @@ func TestTelegramNotificationPlainTextAndDisabled(t *testing.T) {
 		require.NotContains(t, body, "parse_mode")
 		require.Contains(t, body["text"], "#42")
 		require.Contains(t, body["text"], "3 次")
+		require.Contains(t, body["text"], "45 秒")
+		require.Contains(t, body["text"], "20 分钟窗口")
+		require.Contains(t, body["text"], "暂停调度时长：12 分钟")
 		require.Contains(t, body["text"], "UTC")
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	}))
@@ -66,7 +69,7 @@ func TestTelegramNotificationPlainTextAndDisabled(t *testing.T) {
 	_, err := s.Update(context.Background(), TelegramNotificationSettings{Enabled: true, ChatID: "-10012345", BotToken: "123456:secret-test"})
 	require.NoError(t, err)
 	a := &Account{ID: 42, Name: "<test>", Platform: "openai"}
-	state := &TempUnschedState{UntilUnix: time.Now().Add(5 * time.Minute).Unix(), TriggerCount: 3}
+	state := &TempUnschedState{UntilUnix: time.Now().Add(5 * time.Minute).Unix(), TriggerCount: 3, FirstOutputLimitSeconds: 45, TriggerWindowMinutes: 20, CooldownMinutes: 12}
 	s.NotifyFirstOutputBlocked(context.Background(), a, "model", state)
 	require.EqualValues(t, 1, calls.Load())
 	_, err = s.Update(context.Background(), TelegramNotificationSettings{Enabled: false, ChatID: "-10012345"})

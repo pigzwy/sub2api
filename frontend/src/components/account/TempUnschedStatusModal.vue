@@ -72,7 +72,7 @@
               {{ t(isFirstOutputPause ? 'admin.accounts.tempUnschedulable.firstOutputLimit' : 'admin.accounts.tempUnschedulable.errorCode') }}
             </p>
             <p class="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">
-              {{ isFirstOutputPause ? '30s' : (state?.status_code || '-') }}
+              {{ isFirstOutputPause ? `${state?.first_output_limit_seconds || 30}s` : (state?.status_code || '-') }}
             </p>
           </div>
           <div class="rounded-lg border border-gray-200 p-3 dark:border-dark-600">
@@ -98,7 +98,7 @@
             {{ t('admin.accounts.tempUnschedulable.errorMessage') }}
           </p>
           <div class="mt-2 rounded bg-gray-50 p-2 text-xs text-gray-700 dark:bg-dark-700 dark:text-gray-300">
-            {{ isFirstOutputPause ? t('admin.accounts.tempUnschedulable.firstOutputPaused') : (state?.error_message || '-') }}
+            {{ isFirstOutputPause ? t('admin.accounts.tempUnschedulable.firstOutputPaused', { minutes: state?.cooldown_minutes || 5 }) : (state?.error_message || '-') }}
           </div>
         </div>
 
@@ -197,7 +197,7 @@ const triggerEvidenceText = computed(() => {
   const count = state.value?.trigger_count || 0
   const threshold = state.value?.trigger_threshold || 0
   const minutes = state.value?.trigger_window_minutes || 0
-  if (isFirstOutputPause.value) return t('admin.accounts.tempUnschedulable.firstOutputEvidence', { count, minutes })
+  if (isFirstOutputPause.value) return t('admin.accounts.tempUnschedulable.firstOutputEvidence', { count, minutes, seconds: state.value?.first_output_limit_seconds || 30 })
   if (threshold > 0 && minutes > 0) {
     return t('admin.accounts.tempUnschedulable.multipleErrorTrigger', { count, threshold, minutes })
   }

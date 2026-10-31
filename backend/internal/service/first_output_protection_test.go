@@ -25,14 +25,16 @@ type firstOutputCacheStub struct {
 	count     int64
 	claim     string
 	signals   []bool
+	windows   []time.Duration
 	completed int
 	state     *TempUnschedState
 }
 
-func (c *firstOutputCacheStub) RecordFirstOutput(_ context.Context, _ int64, slow bool, token string) (int64, bool, error) {
+func (c *firstOutputCacheStub) RecordFirstOutput(_ context.Context, _ int64, slow bool, token string, window time.Duration) (int64, bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.signals = append(c.signals, slow)
+	c.windows = append(c.windows, window)
 	if !slow {
 		c.count = 0
 		return 0, false, nil
@@ -110,11 +112,11 @@ func (r *firstOutputRepoStub) ClearTempUnschedulable(context.Context, int64) err
 	return nil
 }
 func (r *firstOutputRepoStub) ClearModelRateLimits(context.Context, int64) error { return nil }
-func (r *firstOutputRepoStub) SetTempUnschedulableIfUnchanged(_ context.Context, _ int64, generation string, until time.Time, reason string) (bool, error) {
+func (r *firstOutputRepoStub) SetTempUnschedulableIfUnchanged(_ context.Context, _ int64, generation string, config FirstOutputProtectionConfig, until time.Time, reason string) (bool, error) {
 	if r.fail {
 		return false, errors.New("database unavailable")
 	}
-	if r.skip || generation != firstOutputGeneration(r.account) {
+	if r.skip || generation != firstOutputGeneration(r.account) || config != r.account.FirstOutputProtectionConfig() {
 		return false, nil
 	}
 	r.writes++
