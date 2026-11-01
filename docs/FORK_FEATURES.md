@@ -8,15 +8,16 @@
 
 | 项 | 值 |
 |---|---|
-| 统计日期 | 2026-10-23 |
-| 上游基线 | `5c185c5c5`（`v0.2.18`，已合并入本分支） |
-| 分支共同祖先 | `5c185c5c5`（本次合并后） |
+| 最近补录日期 | 2026-11-01（补录 10-31 上游合并与首输出保护；其余章节未作全量重审） |
+| 上游基线 | `d851a3847`（版本文件 `0.2.19`，含该版本之后的修复，已合并入本分支） |
+| 与上述上游基线的共同祖先 | `d851a3847` |
 | 差异规模 | 以以下重新核对命令为准 |
 
-合并 `v0.2.18` 后，本分支不再落后本次拉取的上游；`VERSION` 为 `0.2.18`。
+2026-10-31 通过 `8be4a2174` 合并上游至 `d851a3847`；`VERSION` 为 `0.2.19`。
+这里记录已合并基线，不表示当前远端上游没有更新。
 
-本次生产源码复核以合并后的 `request-audit` 为基线；该提交包含上游
-`v0.2.18` 及本文件列出的独有功能。仓库没有可访问的 GitHub Wiki remote，
+本文件以 `request-audit` 为记录对象；最近一次功能发布为 `e58fc4116`，
+包含上述上游基线及首输出保护参数配置。仓库没有可访问的 GitHub Wiki remote，
 因此本文件和 [MERGE_RECORDS.md](./MERGE_RECORDS.md) 是当前可发布的二开记录。
 
 重新核对清单：
@@ -42,6 +43,11 @@ v0.2.3 采用上游 `236_group_model_allowlist_repair.sql` 修复旧列残留或
 独有 Realtime 账号测试和 GPT Image 测试兼容逻辑继续保留。
 
 ## 功能一览
+
+2026-10-31 合并上游至 `d851a3847`（版本 `0.2.19`），并增加账号首输出异常保护与
+Telegram 通知；随后完成并发恢复加固及三项时间参数可配置。复用已有临时不可调度，
+不增加数据库迁移。默认 30 秒 / 暂停 5 分钟 / 10 分钟窗口，累计 3 次触发，低于
+阈值清零。配置、覆盖边界与合并注意见第 19 节；发布验证见合并记录同日条目。
 
 2026-10-23 同步上游 v0.2.18：采用流式中断后的已观测用量结算、OpenAI overload
 处理、Vertex service-account 配额、调度快照优化、Grok Fast 定价及账号筛选持久化。
@@ -116,6 +122,7 @@ PR #8 的空通道标识隐藏同步纳入，既有 Stripe 六标及 USDT 网络
 | 可配置充值档位与到账公式（含可选百分比赠送） | ✅ | ✅ | — | — | 4 项 |
 | 模型广场侧栏与分类目录 | ✅ | ✅ | — | — | 复用上游模型广场开关 |
 | Infini USDT / 稳定币托管收银台 | ✅ | ✅ | — | — | 支付类型 `infini` + 服务商实例 |
+| 首输出异常保护与 Telegram 通知 | ✅ | ✅ | — | — | 账号 credentials + `telegram_notification` |
 
 ---
 
@@ -947,6 +954,89 @@ frontend/src/components/payment/RechargeCheckoutDialog.vue
 
 - 后端：`infini_test.go` 覆盖签名、late_payment、过期查询、重放/篡改；履约测试覆盖金额精确比对、重复 event_id、并发回调与快照不一致。
 - 前端：确认框展示后端 quote 的实付/到账/汇率；下单仍只传套餐金额。
+
+## 19. 首输出异常保护与 Telegram 通知（2026-10-31）
+
+复用账号已有的「临时不可调度」，达到条件后暂停该账号参与新请求调度，到期恢复。
+保护按账号统计，不是按渠道汇总，也不把账号改成永久禁用。
+
+**入口与参数**
+
+管理后台账号的新增、编辑、批量编辑弹窗，在「临时不可调度」中启用首输出保护。
+账号 `credentials` 必须同时启用 `temp_unschedulable_enabled` 和
+`temp_unschedulable_first_output_enabled`；未启用时不生效。
+
+| 输入项 | credentials 字段 | 默认值 | 可填范围 |
+|---|---|---|---|
+| 首输出超时阈值 | `temp_unschedulable_first_output_limit_seconds` | 30 秒 | 1–3600 整数秒 |
+| 临时不可调度时长 | `temp_unschedulable_first_output_cooldown_minutes` | 5 分钟 | 1–1440 整数分钟 |
+| 统计时间窗口 | `temp_unschedulable_first_output_window_minutes` | 10 分钟 | 1–1440 整数分钟 |
+
+触发次数固定为 **3 次**。旧账号缺少时间字段时沿用默认值；新提交的非法字段由服务端
+拒绝，历史异常值读取时回退默认。新增、更新、批量更新、复制与导入复用参数校验。
+仅关闭首输出保护会保留填写的时间值；关闭整个临时不可调度配置时清除对应配置字段。
+
+**计时与计数规则**
+
+- 用户所称的“首字节”在此指首个**有意义的流式模型输出事件**，包括文本、思考、
+  拒答和有效工具调用；角色元数据、keepalive、空事件和纯 usage 不算首输出。
+- 从实际上游发送开始观察；首输出未到且等待超过阈值也会计慢样本，不必等流结束。
+  观察接在已接入的 OpenAI / Anthropic / Gemini 兼容转发路径；非流式与图像生成
+  intent 不参与，不能把这项能力描述成所有 HTTP、媒体和 Realtime 请求的通用监控。
+- 超过阈值累计一次；低于阈值清除计数和窗口；恰好等于阈值不累计也不清零。
+- Redis 窗口从首次慢样本开始固定计时，后续慢样本不延长窗口；窗口过期重新统计。
+  同一请求同一账号的慢重试只累计一次，快重试仍可清零。
+- 达到 3 次后写入既有临时不可调度状态，记录触发时阈值、次数、窗口、暂停时长和
+  恢复时间。低于阈值只清统计，不提前解除已经生效的暂停。
+
+**修改配置与恢复**
+
+参数修改对后续请求生效，已暂停账号保持原恢复时间。有效参数或保护启用状态变化会
+更新 `extra.first_output_recovery_generation`，新统计与旧请求隔离；A→B→A 也不会
+复活旧计数。仅修改账号名、缺省值改为显式默认值不会重置统计。
+手动清除临时不可调度同时更换恢复代次，旧在途请求不能再次写回暂停。
+自动恢复或成功的账号连通性测试保留首输出冷却，避免保护被测试结果提前解除。
+
+**Telegram 通知**
+
+在 `系统设置 → 网关` 的 Telegram 通知配置中启用，填写 Bot Token 和 Chat ID。
+使用 `GET/PUT /api/v1/admin/settings/telegram-notification`，保存在既有 settings
+的 `telegram_notification` 项，Bot Token 加密存储。本通知发送账号首输出触发的
+暂停告警，不代表所有邮件事件都已接入 Telegram。
+暂停成功后异步发送账号、平台、模型、实际阈值、窗口、次数、暂停时长及恢复时间；
+通知失败不阻塞响应。账号停调详情与通知都读取触发时快照，旧记录兼容默认值。
+
+**关键文件与合并注意**
+
+- `backend/internal/service/first_output_config.go`、`first_output_protection.go`：
+  参数校验、观察器、计数与条件写入；`telegram_notification.go`：通知设置和发送。
+- `backend/internal/repository/first_output_protection_cache.go`：Redis 原子计数及领取；
+  `account_repo_first_output.go`、`account_repo.go`：配置比较、恢复代次及数据库条件更新。
+- `backend/internal/repository/http_upstream.go`、各协议流式转发：必须保留实际发送时
+  开始计时与有效输出事件回调；不能用任意 SSE 帧替代有效输出，也不能把本地排队计入。
+- `backend/internal/service/ratelimit_service.go`、账号管理服务和 Wire 装配：保留手动
+  恢复隔离、测试恢复保护、配置校验和通知注入，不能只保留前端开关。
+- `frontend/src/components/account/FirstOutputProtectionFields.vue`、
+  `firstOutputProtection.ts`、三个账号弹窗及 `TempUnschedStatusModal.vue`：共同维护
+  新增/回填/批量保存/重置/详情展示；中英文文案随实际参数变化。
+- `frontend/src/components/admin/settings/TelegramNotificationSettings.vue`、
+  `SettingsView.vue` 及管理端设置路由：保留独立的 TG 设置入口和令牌保护。
+
+无需新表、Ent schema 或数据库迁移；复用账号 credentials / extra JSON、既有暂停
+字段、settings 和 Redis。上游改动账号保存或恢复逻辑时，必须保留条件写入及代次
+语义，防止已关闭保护、已恢复账号被旧请求再次暂停。
+
+**回归测试**
+
+后端：`service/first_output_config_test.go`、`first_output_protection_test.go`、
+`first_output_protection_regression_test.go`、`telegram_notification_test.go`；
+`repository/first_output_protection_cache_test.go`、`first_output_forwarding_test.go`、
+`account_repo_first_output_integration_test.go` 及账号仓储测试。
+前端：共享字段、创建/编辑/批量编辑、停调详情和 TG 配置的组件测试。
+重点覆盖自定义时间、低于/等于边界、重试去重、计时起点、并发触发、手动恢复、
+A→B→A、默认兼容、非法输入和批量更新。已发布提交的验证证据见合并记录。
+
+---
 
 ## 媒体转存与异步图片对象存储的补充说明
 
