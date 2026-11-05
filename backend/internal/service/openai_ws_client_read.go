@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/requestmodel"
 	coderws "github.com/coder/websocket"
 )
 
@@ -97,6 +98,11 @@ func readOpenAIWSClientMessageWithTimeoutStart(
 	for {
 		select {
 		case result := <-readDone:
+			if result.err == nil && requestmodel.HasAmbiguousJSON(result.payload) {
+				_ = conn.Close(coderws.StatusPolicyViolation, requestmodel.AmbiguousModelMessage)
+				_ = conn.CloseNow()
+				return 0, nil, NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, requestmodel.AmbiguousModelMessage, nil)
+			}
 			return result.messageType, result.payload, result.err
 		case <-timeoutStart:
 			startTimeout()

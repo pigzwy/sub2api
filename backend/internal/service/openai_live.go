@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/requestmodel"
 	coderws "github.com/coder/websocket"
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
@@ -529,6 +530,11 @@ func (s *OpenAIGatewayService) ProxyLiveSideband(
 			messageType, payload, readErr := downstream.Read(proxyCtx)
 			if readErr != nil {
 				errCh <- readErr
+				return
+			}
+			if requestmodel.HasAmbiguousJSON(payload) {
+				_ = downstream.Close(coderws.StatusPolicyViolation, requestmodel.AmbiguousModelMessage)
+				errCh <- NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, requestmodel.AmbiguousModelMessage, nil)
 				return
 			}
 			if writeErr := upstream.WriteFrame(proxyCtx, messageType, payload); writeErr != nil {

@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/requestmodel"
 	coderws "github.com/coder/websocket"
 	"github.com/tidwall/gjson"
 )
@@ -335,6 +336,11 @@ func (s *OpenAIGatewayService) ProxyOpenAIRealtime(
 			}
 			if kind != coderws.MessageText && kind != coderws.MessageBinary {
 				continue
+			}
+			if requestmodel.HasAmbiguousJSON(msg) {
+				_ = client.Close(coderws.StatusPolicyViolation, requestmodel.AmbiguousModelMessage)
+				errCh <- NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, requestmodel.AmbiguousModelMessage, nil)
+				return
 			}
 			var raw json.RawMessage
 			if unmarshalErr := json.Unmarshal(msg, &raw); unmarshalErr != nil {
