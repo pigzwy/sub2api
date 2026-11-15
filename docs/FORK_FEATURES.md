@@ -8,12 +8,12 @@
 
 | 项 | 值 |
 |---|---|
-| 最近补录日期 | 2026-11-01（补录 10-31 上游合并与首输出保护；其余章节未作全量重审） |
-| 上游基线 | `d851a3847`（版本文件 `0.2.19`，含该版本之后的修复，已合并入本分支） |
-| 与上述上游基线的共同祖先 | `d851a3847` |
+| 最近补录日期 | 2026-11-15（合并上游 v0.2.21，仅更新基线与 usage_logs 列布局；其余章节未作全量重审） |
+| 上游基线 | `530c5e3a4`（版本文件 `0.2.21`，含该版本之后的赞助商更新，已合并入本分支） |
+| 与上述上游基线的共同祖先 | `530c5e3a4` |
 | 差异规模 | 以以下重新核对命令为准 |
 
-2026-10-31 通过 `8be4a2174` 合并上游至 `d851a3847`；`VERSION` 为 `0.2.19`。
+2026-11-15 从 `82a938f46` 合并上游至 `530c5e3a4`；`VERSION` 为 `0.2.21`。
 这里记录已合并基线，不表示当前远端上游没有更新。
 
 本文件以 `request-audit` 为记录对象；最近一次功能发布为 `e58fc4116`，
@@ -545,8 +545,8 @@ Authorization: Bearer sk-...                 # 仅支持请求头；不支持 WS
 - Grok 语音计费不变：按连接分钟 × 分组 `audio_realtime_price_per_min`（默认 $0.05）× 倍率，观察到音频事件才计费。
 
 **迁移**：`227_add_group_allow_realtime.sql`、`228_usage_log_audio_tokens.sql`。
-usage_logs 的 INSERT/SELECT 使用统一列布局，目前为 66 列，固定尾序为
-`upstream_request_id, session_id, native_compaction_v2, audio_input_tokens, audio_input_cost, audio_output_tokens, audio_output_cost, created_at`。
+usage_logs 的 INSERT/SELECT 使用统一列布局，目前为 68 列（v0.2.21 起含上游缓存写入 TTL 两列），固定尾序为
+`upstream_request_id, session_id, native_compaction_v2, cache_creation_30m_tokens, cache_creation_12h_tokens, audio_input_tokens, audio_input_cost, audio_output_tokens, audio_output_cost, created_at`。
 `usage_log_session_id_unit_test.go` 守护测试锁定列数、参数类型与尾序；后续加列必须同步
 该测试与 `usage_log_repo_insert.go` 顶部注释列出的全部调用点。此处指读写语句列序，
 不是数据库表的物理列序。

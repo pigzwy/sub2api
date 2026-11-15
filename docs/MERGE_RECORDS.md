@@ -18,6 +18,52 @@
 上游正式实现 > 上游后续安全修复 > 本地旧二开 > 历史兼容代码
 ```
 
+## 2026-11-15：合并上游 v0.2.21（最小合并）
+
+从 `request-audit` 的 `82a938f46` 合并 `upstream/main` 的 `530c5e3a4`，共同祖先为
+`d851a3847`。上游新增 105 个非合并提交、538 个变更文件，版本文件为 `0.2.21`。
+备份分支为 `backup/request-audit-before-v0.2.21-20261115`。本次按最小合并处理：
+只解决冲突和编译适配，不改动任何二开独有文件的行为，也不移植上游可选功能到二开组件。
+
+19 个冲突文件的处理：
+
+| 范围 | 处理 |
+|---|---|
+| usage_logs 读写（`usage_log_repo_insert.go`、`usage_log_repo_query.go`、三个守护测试） | 两侧加列都保留：上游 `cache_creation_30m_tokens`、`cache_creation_12h_tokens` 在前，二开四个 audio 列在后，`created_at` 仍为末列；共 68 列，占位符到 `$68`，测试尾部下标同步 |
+| `billing_service.go`、`openai_gateway_service.go`、`openai_gateway_usage.go` | 上游缓存写入 TTL 字段与二开音频字段并存 |
+| `http_upstream.go` | 采用上游 `NewUpstreamAttemptContext` 与 drain 超时签名，保留 `StartFirstOutputProtection` 一行 |
+| `constants.go`、`setting_service.go`、`account_test_service.go` | 两侧并存：Realtime 模型与 GPT Image 2.6、公开设置缓存与注册邮箱黑名单缓存、非 GPT 图片模型的 `response_format` 与上游测试尺寸 |
+| `image_task_handler_test.go` | 二开 composite / Gemini 用例与上游请求体内存预留用例全部保留 |
+| `PaymentView.vue`、中英文 `settings.ts` 的倍率提示 | 保留二开充值档位页面与文案 |
+| `SettingsView.vue` | 不恢复上游充值赠送阶梯导入，保留上游新增的 `RegistrationEmailBlacklistEditor` |
+| `utils/rechargeBonus.ts` 及其测试（二开已删除、上游修改） | 不恢复上游赠送阶梯工具；因自动合并的设置页引用上游新增的 `formatBalanceRechargeMultiplier`，该路径保留仅含此函数的精简文件和对应用例 |
+
+无文本冲突但需要适配的三处：
+
+- `gemini_images.go`（二开独有）：上游删除了 `extractMaxBytesError`，改用上游
+  `requestBodyReadFailure`；413 文案不变，读取超时等按上游分类返回。
+- 上游新增的 `openai_images_native_route_test.go`、`openai_images_size_routing_test.go`
+  按二开 `NewOpenAIGatewayHandler` 签名补两个 `nil`（请求审计与设置服务）。
+- `usage_log_session_id_unit_test.go` 中未进入冲突块的列数与尾序断言同步为 68 列。
+
+Ent 与 Wire 重新生成后无差异；`pnpm install --frozen-lockfile` 通过，依赖文件无需手工处理。
+合并前相对上游基线新增的二开文件，除 `gemini_images.go` 的上述编译适配和两份二开文档外零改动。
+
+**已知留待后续**
+
+- 上游充值倍率支持 6 位小数：后端校验和管理端设置页已随上游生效；用户端
+  `RechargeCheckoutDialog.vue`（二开组件）的倍率预览仍按 2 位小数显示，本次未改。
+- 部署时会执行上游迁移 `249_add_usage_logs_api_key_cost_index_notx.sql`（非事务方式在
+  usage_logs 上建覆盖索引，大表耗时较长）与 `250_openai_cache_write_ttl.sql`。
+
+**本地验证（合并提交前）**
+
+- 后端：`go build ./...`、`go vet -tags=unit ./...`、`go test -tags=unit ./...`（61 个包）、
+  `go test -tags=integration ./...`（55 个包，含真实 Postgres / Redis 容器）全部通过。
+- 前端：`vue-tsc --noEmit`、`eslint`、`vitest run`（400 个文件、3233 个用例）、`pnpm run build` 全部通过。
+- 未在本地运行：golangci-lint（本机二进制由 Go 1.26 构建，无法加载 Go 1.27.3 目标）、
+  镜像构建与 e2e；未推送、未发布镜像、未操作生产部署。
+
 ## 2026-10-31：合并上游 v0.2.19 基线并发布首输出保护（2026-11-01 补录）
 
 上游合并提交 `8be4a2174` 的两侧父提交为 fork `acda2e793` 和上游 `d851a3847`。

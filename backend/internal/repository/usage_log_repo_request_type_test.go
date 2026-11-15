@@ -102,6 +102,8 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			sqlmock.AnyArg(), // upstream_request_id
 			sqlmock.AnyArg(), // session_id
 			log.NativeCompactionV2,
+			log.CacheCreation30mTokens,
+			log.CacheCreation12hTokens,
 			sqlmock.AnyArg(), // audio_input_tokens
 			sqlmock.AnyArg(), // audio_input_cost
 			sqlmock.AnyArg(), // audio_output_tokens
@@ -201,6 +203,8 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(), // upstream_request_id
 			sqlmock.AnyArg(), // session_id
 			log.NativeCompactionV2,
+			log.CacheCreation30mTokens,
+			log.CacheCreation12hTokens,
 			sqlmock.AnyArg(), // audio_input_tokens
 			sqlmock.AnyArg(), // audio_input_cost
 			sqlmock.AnyArg(), // audio_output_tokens
@@ -286,7 +290,7 @@ func TestPrepareUsageLogInsert_PersistsNativeCompactionV2WithoutChangingRequestT
 	prepared := prepareUsageLogInsert(log)
 
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
-	nativeCompactionIndex := len(usageLogInsertArgTypes) - 6
+	nativeCompactionIndex := len(usageLogInsertArgTypes) - 8
 	require.Equal(t, "boolean", usageLogInsertArgTypes[nativeCompactionIndex])
 	require.Equal(t, true, prepared.args[nativeCompactionIndex])
 	require.Equal(t, int16(service.RequestTypeStream), prepared.args[30])
@@ -969,6 +973,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{}, // upstream_request_id
 			sql.NullString{},
 			false, // native_compaction_v2
+			0,     // cache_creation_30m_tokens
+			0,     // cache_creation_12h_tokens
 			0,     // audio_input_tokens
 			0.0,   // audio_input_cost
 			0,     // audio_output_tokens
@@ -1053,6 +1059,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},  // upstream_request_id
 			sql.NullString{},  // session_id
 			false,             // native_compaction_v2
+			0,                 // cache_creation_30m_tokens
+			0,                 // cache_creation_12h_tokens
 			0,                 // audio_input_tokens
 			0.0,               // audio_input_cost
 			0,                 // audio_output_tokens
@@ -1120,6 +1128,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},  // upstream_request_id
 			sql.NullString{},  // session_id
 			true,              // native_compaction_v2
+			0,                 // cache_creation_30m_tokens
+			0,                 // cache_creation_12h_tokens
 			0,                 // audio_input_tokens
 			0.0,               // audio_input_cost
 			0,                 // audio_output_tokens
@@ -1188,6 +1198,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},  // upstream_request_id
 			sql.NullString{},  // session_id
 			false,             // native_compaction_v2
+			0,                 // cache_creation_30m_tokens
+			0,                 // cache_creation_12h_tokens
 			0,                 // audio_input_tokens
 			0.0,               // audio_input_cost
 			0,                 // audio_output_tokens

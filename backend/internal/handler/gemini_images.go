@@ -47,11 +47,10 @@ func (h *GatewayHandler) GeminiImages(c *gin.Context) {
 
 	body, err := pkghttputil.ReadRequestBodyWithPrealloc(c.Request)
 	if err != nil {
-		if maxErr, ok := extractMaxBytesError(err); ok {
-			geminiImagesError(c, http.StatusRequestEntityTooLarge, "invalid_request_error", buildBodyTooLargeMessage(maxErr.Limit))
-			return
-		}
-		geminiImagesError(c, http.StatusBadRequest, "invalid_request_error", "Failed to read request body")
+		// Upstream replaced extractMaxBytesError with the shared read-failure mapper:
+		// 413 keeps the same size-limit message, other failures keep the generic text.
+		status, message := requestBodyReadFailure(nil, c.Request, err)
+		geminiImagesError(c, status, "invalid_request_error", message)
 		return
 	}
 	if len(body) == 0 {
