@@ -142,8 +142,8 @@ func TestLockAndMergeAccountProbeExtraKeepsLatestGrokManagedKeys(t *testing.T) {
 					"enabled", "rate_sync_enabled", "snapshot",
 					"ollama_session", "ollama_auto", "ollama_snapshot",
 					"opencode_group_unchanged", "opencode_auto", "opencode_snapshot",
-					"grok_observed_models", "upstream_model_metadata", "first_output_recovery_generation", "first_output_config_changed",
-				}).AddRow(false, false, true, nil, nil, nil, nil, nil, nil, false, nil, nil, tt.databaseModels, tt.databaseMetadata, nil, false))
+					"grok_observed_models", "upstream_model_metadata", "group_sync_enabled", "first_output_recovery_generation", "first_output_config_changed",
+				}).AddRow(false, false, true, nil, nil, nil, nil, nil, nil, false, nil, nil, tt.databaseModels, tt.databaseMetadata, nil, nil, false))
 
 			account := &service.Account{
 				ID:          41,
@@ -152,7 +152,7 @@ func TestLockAndMergeAccountProbeExtraKeepsLatestGrokManagedKeys(t *testing.T) {
 				Credentials: tt.credentials,
 				Extra:       tt.inputExtra,
 			}
-			got, err := lockAndMergeAccountProbeExtra(context.Background(), client, account, nil, nil)
+			got, err := lockAndMergeAccountProbeExtra(context.Background(), client, account, service.AccountBillingSettingsUpdate{})
 			require.NoError(t, err)
 			require.Equal(t, "from-form", got["note"])
 			if tt.wantModels == nil {

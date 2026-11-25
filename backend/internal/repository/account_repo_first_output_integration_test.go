@@ -30,7 +30,7 @@ func (s *AccountRepoSuite) TestFirstOutputRecoveryFenceAndAutomaticCooldown() {
 	s.Require().NoError(err)
 	s.Require().NotNil(current.TempUnschedulableUntil)
 	// The legacy admin single/bulk clear path advances the same recovery fence.
-	admin := service.NewAdminService(nil, nil, nil, s.repo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	admin := service.NewAdminService(nil, nil, nil, s.repo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	recovered, err := admin.ClearAccountError(s.ctx, account.ID)
 	s.Require().NoError(err)
 	s.Require().Nil(recovered.TempUnschedulableUntil)
@@ -64,7 +64,7 @@ func TestFirstOutputLegacyManualRecoveryStartsNewRedisWindow(t *testing.T) {
 	svc := service.NewRateLimitService(repo, nil, nil, nil, cache)
 	svc.RecordFirstOutputLatency(ctx, account, "model", 31*time.Second)
 	svc.RecordFirstOutputLatency(ctx, account, "model", 31*time.Second)
-	admin := service.NewAdminService(nil, nil, nil, repo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	admin := service.NewAdminService(nil, nil, nil, repo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	fresh, err := admin.ClearAccountError(ctx, account.ID)
 	require.NoError(t, err)
 	// The stale third sample does not stop the account.

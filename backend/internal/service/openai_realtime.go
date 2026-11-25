@@ -288,7 +288,7 @@ func (s *OpenAIGatewayService) ProxyOpenAIRealtime(
 			headers.Set("OpenAI-Beta", beta)
 		}
 	}
-	account.ApplyHeaderOverrides(headers)
+	account.ApplyHeaderOverrides(ctx, headers)
 
 	dialer := s.getOpenAIWSPassthroughDialer()
 	proxyURL := ""

@@ -723,6 +723,7 @@ export default {
       officialLine: 'Official {amount}',
       copyModel: 'Copy model ID',
       unitPerMillionShort: '/ 1M tokens',
+      copyModelId: 'Copy model ID {model}',
       input: 'Input',
       output: 'Output',
       cache: 'Cache',

@@ -728,6 +728,7 @@ export default {
       officialLine: '官方价格 {amount}',
       copyModel: '复制模型名',
       unitPerMillionShort: '/ 1M tokens',
+      copyModelId: '复制模型 ID {model}',
       input: '输入',
       output: '输出',
       cache: '缓存',
