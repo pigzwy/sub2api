@@ -2,15 +2,50 @@ import { describe, expect, it } from 'vitest'
 import {
   comparePlazaModelNames,
   formatCatalogZhe,
+  formatPlazaTimeWindow,
+  formatYuan,
   formatZhe,
   groupYuan,
   officialYuan,
   plazaTabLabel,
+  plazaTierLabel,
   savingsPercent,
+  sortPlazaIntervals,
   sortPlazaPlatforms,
 } from '../plazaCatalog'
 
 describe('plazaCatalog', () => {
+  it('keeps sub-cent prices visible instead of rounding them to zero', () => {
+    expect(groupYuan(4e-8, 0.1)).toBe(0.004)
+    expect(formatYuan(groupYuan(4e-8, 0.1))).toBe('¥0.004')
+    expect(formatYuan(officialYuan(2.8e-9))).toBe('¥0.003')
+    expect(formatYuan(0.0004)).toBe('¥0.0004')
+    // 1 分及以上、以及真正的 0，仍是两位小数。
+    expect(formatYuan(groupYuan(5e-6, 0.8))).toBe('¥4.00')
+    expect(formatYuan(0.01)).toBe('¥0.01')
+    expect(formatYuan(0)).toBe('¥0.00')
+    expect(formatYuan(null)).toBe('-')
+  })
+
+  it('labels context tiers by their upper bound and the last one by its lower bound', () => {
+    expect(plazaTierLabel({ min_tokens: 0, max_tokens: 272000 })).toBe('≤272K')
+    expect(plazaTierLabel({ min_tokens: 272000, max_tokens: null })).toBe('>272K')
+    expect(plazaTierLabel({ min_tokens: 0, max_tokens: 1_000_000 })).toBe('≤1M')
+    expect(plazaTierLabel({ min_tokens: 0, max_tokens: 500 })).toBe('≤500')
+    expect(plazaTierLabel({ tier_label: '2K', min_tokens: 0, max_tokens: null })).toBe('2K')
+  })
+
+  it('sorts tiers by lower bound without mutating the input', () => {
+    const tiers = [{ min_tokens: 272000 }, { min_tokens: 0 }]
+    expect(sortPlazaIntervals(tiers).map((tier) => tier.min_tokens)).toEqual([0, 272000])
+    expect(tiers[0].min_tokens).toBe(272000)
+  })
+
+  it('formats time windows and drops zero seconds', () => {
+    expect(formatPlazaTimeWindow({ start_time: '00:30:00', end_time: '08:30:00' })).toBe('00:30–08:30')
+    expect(formatPlazaTimeWindow({ start_time: '00:30:15', end_time: '08:30' })).toBe('00:30:15–08:30')
+  })
+
   it('formats group rates as 折', () => {
     expect(formatZhe(0.8)).toBe('8')
     expect(formatZhe(0.11)).toBe('1.1')

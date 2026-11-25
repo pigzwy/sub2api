@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import PlazaGroupSection from '../PlazaGroupSection.vue'
 import PlazaModelPricingTable from '../PlazaModelPricingTable.vue'
+import PlazaPriceSheet from '../PlazaPriceSheet.vue'
 import type { ModelPlazaGroup, PlazaModel } from '@/api/modelPlaza'
 
 vi.mock('vue-i18n', async () => {
@@ -145,5 +146,39 @@ describe('PlazaGroupSection 高峰配置传递', () => {
   it('分组未启用高峰时窗口描述为空串', () => {
     const wrapper = mountSection(group())
     expect(wrapper.findComponent(PlazaModelPricingTable).props('peakWindow')).toBe('')
+  })
+})
+
+describe('PlazaGroupSection 目录(sheet)布局', () => {
+  function mountSheetSection(g: ModelPlazaGroup) {
+    return mount(PlazaGroupSection, {
+      props: { group: g, layout: 'sheet' as const, priceMode: 'group' as const },
+      global: {
+        stubs: { GroupBadge: { template: '<span class="group-badge-stub" />' }, Icon: true, PlazaPriceSheet: true }
+      }
+    })
+  }
+
+  it('分组名、描述和高峰说明都交给目录卡片，这里不再渲染头部', () => {
+    const wrapper = mountSheetSection(
+      group({ description: '分组描述', peak_rate_enabled: true, peak_start: '14:00', peak_end: '18:00', peak_rate_multiplier: 1.5 })
+    )
+    expect(wrapper.find('header').exists()).toBe(false)
+    expect(wrapper.find('.group-badge-stub').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('分组描述')
+  })
+
+  it('启用高峰时把窗口描述与倍率传给价格表', () => {
+    const sheet = mountSheetSection(
+      group({ peak_rate_enabled: true, peak_start: '14:00', peak_end: '18:00', peak_rate_multiplier: 1.5 })
+    ).findComponent(PlazaPriceSheet)
+    expect(sheet.props('peakWindow')).toBe('14:00-18:00 ×1.5')
+    expect(sheet.props('peakRateMultiplier')).toBe(1.5)
+  })
+
+  it('未启用高峰时不传高峰倍率，即使倍率字段不是 1', () => {
+    const sheet = mountSheetSection(group({ peak_rate_enabled: false, peak_rate_multiplier: 2 })).findComponent(PlazaPriceSheet)
+    expect(sheet.props('peakWindow')).toBe('')
+    expect(sheet.props('peakRateMultiplier')).toBeNull()
   })
 })

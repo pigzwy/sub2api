@@ -12,7 +12,13 @@ export function formatCatalogZhe(rate: number, fx = PLAZA_USD_TO_CNY): string {
   return formatZhe(rate / fx)
 }
 
+/**
+ * 金额保留 2 位小数。不足 1 分的非零金额保留 1 位有效数字（0.0042 → 0.004），
+ * 否则极低的单价（如低倍率分组的缓存读取）会被显示成 ¥0.00，看起来像免费。
+ */
 function round2(value: number): number {
+  const magnitude = Math.abs(value)
+  if (magnitude > 0 && magnitude < 0.01) return Number(value.toPrecision(1))
   return Math.round(value * 100) / 100
 }
 
@@ -50,6 +56,12 @@ export function savingsPercent(group: number | null, official: number | null): n
 
 export function formatYuan(amount: number | null): string {
   if (amount == null) return '-'
+  const magnitude = Math.abs(amount)
+  if (magnitude > 0 && magnitude < 0.01) {
+    // 小数位数刚好够显示第一位有效数字，最多 8 位。
+    const digits = Math.min(8, Math.ceil(-Math.log10(magnitude)))
+    return `¥${amount.toFixed(digits)}`
+  }
   return `¥${amount.toFixed(2)}`
 }
 
@@ -125,4 +137,37 @@ export function comparePlazaModels(
   const byName = comparePlazaModelNames(left.name, right.name)
   if (byName !== 0) return byName
   return (left.platform ?? '').localeCompare(right.platform ?? '')
+}
+
+/** 上下文档位按下限升序（后端已升序，这里兜底）。 */
+export function sortPlazaIntervals<T extends { min_tokens: number }>(intervals: T[]): T[] {
+  return [...intervals].sort((left, right) => left.min_tokens - right.min_tokens)
+}
+
+function formatPlazaTokenCount(count: number): string {
+  const trim = (value: number) => String(Math.round(value * 100) / 100)
+  if (count >= 1_000_000) return `${trim(count / 1_000_000)}M`
+  if (count >= 1_000) return `${trim(count / 1_000)}K`
+  return String(count)
+}
+
+/**
+ * 档位标签：优先用后端/管理员给的 tier_label；否则有上限为「≤上限」，末档为「>下限」。
+ * 与独立页价格表的写法一致，相邻的 ≤100K / ≤200K 即表示 (100K, 200K]。
+ */
+export function plazaTierLabel(interval: {
+  tier_label?: string
+  min_tokens: number
+  max_tokens: number | null
+}): string {
+  if (interval.tier_label) return interval.tier_label
+  return interval.max_tokens == null
+    ? `>${formatPlazaTokenCount(interval.min_tokens)}`
+    : `≤${formatPlazaTokenCount(interval.max_tokens)}`
+}
+
+/** 「00:30–08:30」；整分钟的 HH:mm:ss 省略秒。 */
+export function formatPlazaTimeWindow(period: { start_time: string; end_time: string }): string {
+  const clock = (value: string) => value.replace(/^(\d{2}:\d{2}):00$/, '$1')
+  return `${clock(period.start_time)}–${clock(period.end_time)}`
 }

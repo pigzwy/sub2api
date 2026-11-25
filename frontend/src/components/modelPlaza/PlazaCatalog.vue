@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-4">
+  <div class="plaza-catalog space-y-4">
     <nav
       class="rounded-xl border border-gray-200 bg-white p-2 shadow-sm dark:border-dark-700 dark:bg-dark-800"
       :aria-label="t('modelPlaza.catalog.products')"
@@ -26,8 +26,8 @@
       class="flex flex-wrap items-center justify-between gap-x-6 gap-y-1.5 rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm shadow-sm dark:border-dark-700 dark:bg-dark-800"
     >
       <p class="inline-flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 leading-6 text-gray-600 dark:text-dark-300">
-        <span class="inline-flex items-center gap-1.5 font-semibold text-gray-900 dark:text-white">
-          <Icon name="document" size="sm" class="h-4 w-4 text-orange-600 dark:text-orange-300" />
+        <span class="inline-flex items-center gap-1.5 font-semibold text-gray-800 dark:text-white">
+          <Icon name="document" size="sm" class="h-4 w-4 text-orange-700 dark:text-orange-300" />
           {{ t('modelPlaza.catalog.ruleTitle') }}
         </span>
         <span>{{ t('modelPlaza.catalog.ruleFx') }}</span>
@@ -43,8 +43,8 @@
       <header
         class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-gray-100 px-5 py-4 dark:border-dark-700"
       >
-        <h2 class="inline-flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
-          <Icon name="checkCircle" size="md" class="h-5 w-5 text-gray-700 dark:text-dark-200" />
+        <h2 class="inline-flex items-center gap-2 text-lg font-semibold tracking-tight text-gray-800 dark:text-white">
+          <Icon name="checkCircle" size="md" class="h-5 w-5 text-gray-500 dark:text-dark-300" />
           {{ t('modelPlaza.catalog.priceList') }}
         </h2>
         <div class="flex flex-wrap items-center gap-3">
@@ -90,7 +90,7 @@
           >
             <span class="flex items-center gap-2">
               <span
-                class="min-w-0 text-[15px] font-semibold leading-6 text-gray-900 dark:text-white"
+                class="min-w-0 text-[15px] font-medium leading-6 text-gray-800 dark:text-white"
                 :data-testid="groupId === g.id ? 'plaza-group-name' : undefined"
               >
                 {{ g.name }}
@@ -104,7 +104,7 @@
               <Icon
                 name="checkCircle"
                 size="sm"
-                class="ml-auto h-4 w-4 shrink-0 text-orange-600 dark:text-orange-300"
+                class="ml-auto h-4 w-4 shrink-0 text-orange-700 dark:text-orange-300"
                 :class="groupId === g.id ? '' : 'invisible'"
               />
             </span>
@@ -119,9 +119,28 @@
           class="flex flex-wrap items-baseline gap-x-2 rounded-lg border border-orange-100 bg-orange-50/60 px-4 py-2.5 text-sm leading-6 text-gray-700 dark:border-orange-400/20 dark:bg-orange-500/5 dark:text-dark-200"
           data-testid="plaza-group-intro"
         >
-          <span class="shrink-0 font-semibold text-orange-800 dark:text-orange-200">{{ t('modelPlaza.catalog.groupIntro') }}：</span>
+          <span class="shrink-0 font-medium text-orange-800 dark:text-orange-200">{{ t('modelPlaza.catalog.groupIntro') }}：</span>
           <span class="min-w-0">{{ selectedGroup.description?.trim() || selectedGroup.name }}</span>
         </p>
+
+        <!-- 分组计费信息：专属/订阅、专属倍率、高峰时段、图片视频独立倍率、长上下文阶梯开关 -->
+        <ul
+          v-if="groupFacts.length"
+          class="flex flex-wrap gap-2"
+          :aria-label="t('modelPlaza.catalog.groupFacts')"
+          data-testid="plaza-group-facts"
+        >
+          <li
+            v-for="fact in groupFacts"
+            :key="fact.key"
+            :title="fact.title"
+            :data-testid="`plaza-group-fact-${fact.key}`"
+            class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium leading-5 text-gray-600 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-200"
+          >
+            <Icon :name="fact.icon" size="xs" class="h-3.5 w-3.5 text-orange-700 dark:text-orange-300" aria-hidden="true" />
+            {{ fact.label }}
+          </li>
+        </ul>
 
         <!-- 当前分组的价格表 -->
         <slot />
@@ -137,7 +156,11 @@ import Icon from '@/components/icons/Icon.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import type { GroupPlatform } from '@/types'
 import type { ModelPlazaGroup } from '@/api/modelPlaza'
-import { BILLING_MODE_TOKEN } from '@/constants/channel'
+import { BILLING_MODE_IMAGE, BILLING_MODE_TOKEN, BILLING_MODE_VIDEO } from '@/constants/channel'
+import { useAppStore } from '@/stores/app'
+import { formatPeakRateWindow, hasPeakRate, serverTimezoneLabel } from '@/utils/peak-rate'
+// 数字和拉丁字符用网页字体，中文仍回落到系统字体；只随模型广场加载。
+import '@fontsource-variable/plus-jakarta-sans'
 import { platformAccentColor, platformIconClass } from '@/utils/platformColors'
 import {
   formatCatalogZhe,
@@ -163,6 +186,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const appStore = useAppStore()
 
 const selectedGroup = computed(
   () => props.groups.find((g) => g.id === props.groupId) ?? props.groups[0] ?? null,
@@ -189,6 +213,66 @@ const ruleExample = computed(() => {
 function effectiveRate(g: ModelPlazaGroup): number {
   return g.user_rate_multiplier ?? g.rate_multiplier
 }
+
+interface GroupFact {
+  key: string
+  label: string
+  title?: string
+  icon: 'shield' | 'badge' | 'sparkles' | 'clock' | 'bolt' | 'infoCircle'
+}
+
+/** 选中分组里影响计费、但分组卡片上放不下的信息，逐条列成标签。 */
+const groupFacts = computed<GroupFact[]>(() => {
+  const g = selectedGroup.value
+  if (!g) return []
+  const facts: GroupFact[] = []
+  if (g.is_exclusive) {
+    facts.push({ key: 'exclusive', label: t('modelPlaza.badges.exclusive'), icon: 'shield' })
+  }
+  if (g.subscription_type === 'subscription') {
+    facts.push({ key: 'subscription', label: t('modelPlaza.badges.subscription'), icon: 'badge' })
+  }
+  if (g.user_rate_multiplier != null && g.user_rate_multiplier !== g.rate_multiplier) {
+    facts.push({
+      key: 'user-rate',
+      label: t('modelPlaza.catalog.userRateChip', { rate: g.user_rate_multiplier, base: g.rate_multiplier }),
+      icon: 'sparkles',
+    })
+  }
+  if (hasPeakRate(g)) {
+    const window = formatPeakRateWindow(g, serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset))
+    facts.push({ key: 'peak', label: t('modelPlaza.catalog.peakChip', { window }), icon: 'clock' })
+  }
+  // 独立倍率只作用于按张/按秒计费的模型，分组里没有这类模型就不提。
+  const modes = new Set(g.models.map((m) => m.pricing?.billing_mode || BILLING_MODE_TOKEN))
+  if (g.image_rate_independent && modes.has(BILLING_MODE_IMAGE)) {
+    facts.push({
+      key: 'image-rate',
+      label: t('modelPlaza.catalog.imageRateChip', { rate: g.image_rate_multiplier }),
+      icon: 'bolt',
+    })
+  }
+  if (g.video_rate_independent && modes.has(BILLING_MODE_VIDEO)) {
+    facts.push({
+      key: 'video-rate',
+      label: t('modelPlaza.catalog.videoRateChip', { rate: g.video_rate_multiplier }),
+      icon: 'bolt',
+    })
+  }
+  // 字段缺失（旧后端）不提示；只有组内确有官方阶梯模型时才值得说明。
+  if (
+    g.long_context_pricing_enabled === false &&
+    g.models.some((m) => (m.official_pricing?.intervals?.length ?? 0) > 1)
+  ) {
+    facts.push({
+      key: 'long-context-off',
+      label: t('modelPlaza.catalog.longContextOffChip'),
+      title: t('modelPlaza.detail.longContextDisabledNote'),
+      icon: 'infoCircle',
+    })
+  }
+  return facts
+})
 
 function rateCaption(g: ModelPlazaGroup): string {
   const rate = effectiveRate(g)
@@ -218,8 +302,28 @@ function priceModeClass(mode: 'group' | 'official'): string {
   return [
     'rounded-full px-3.5 py-1 font-semibold transition-colors',
     props.priceMode === mode
-      ? 'bg-orange-700 text-white shadow-sm dark:bg-orange-500'
+      ? 'bg-orange-800 text-white shadow-sm dark:bg-orange-500'
       : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white',
   ].join(' ')
 }
 </script>
+
+<style scoped>
+/* 数字、货币符号和英文用 Plus Jakarta Sans，中文回落到站点原有的系统字体栈。
+   字体是继承属性，放进默认插槽的价格表也会跟着生效。 */
+.plaza-catalog {
+  font-family:
+    'Plus Jakarta Sans Variable',
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    'PingFang SC',
+    'Hiragino Sans GB',
+    'Microsoft YaHei',
+    sans-serif;
+}
+</style>

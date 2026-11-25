@@ -18,64 +18,141 @@
           </tr>
         </thead>
         <tbody>
-          <tr
-            v-for="row in rows"
-            :key="row.name"
-            class="border-b border-gray-100 transition-colors last:border-b-0 hover:bg-gray-50/70 dark:border-dark-700/60 dark:hover:bg-dark-700/30"
-          >
-            <td class="px-5 py-[1.125rem] align-middle">
-              <div class="flex items-center gap-1">
-                <span class="whitespace-nowrap text-[15px] font-medium text-gray-900 dark:text-white">{{ row.name }}</span>
-                <button
-                  type="button"
-                  class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 dark:text-dark-400 dark:hover:bg-dark-700 dark:hover:text-white"
-                  :title="t('modelPlaza.table.copyModel')"
-                  :aria-label="t('modelPlaza.table.copyModel')"
-                  data-testid="plaza-copy-model"
-                  @click="copyToClipboard(row.name)"
-                >
-                  <Icon name="copy" size="sm" aria-hidden="true" />
-                </button>
-              </div>
-            </td>
-            <template v-if="row.kind === 'token'">
-              <td class="px-4 py-[1.125rem] align-middle">
-                <PriceStack v-bind="row.input" :unit="row.unit" />
+          <template v-for="row in rows" :key="row.name">
+            <tr
+              class="border-b border-gray-100 transition-colors last:border-b-0 hover:bg-gray-50/70 dark:border-dark-700/60 dark:hover:bg-dark-700/30"
+              data-testid="plaza-model-row"
+            >
+              <td class="px-5 py-[1.125rem] align-middle">
+                <div class="flex flex-wrap items-center gap-x-1.5 gap-y-1.5">
+                  <span class="inline-flex items-center gap-1">
+                    <span class="whitespace-nowrap text-[15px] font-medium text-gray-800 dark:text-gray-100">{{ row.name }}</span>
+                    <button
+                      type="button"
+                      class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 dark:text-dark-400 dark:hover:bg-dark-700 dark:hover:text-white"
+                      :title="t('modelPlaza.table.copyModel')"
+                      :aria-label="t('modelPlaza.table.copyModel')"
+                      data-testid="plaza-copy-model"
+                      @click="copyToClipboard(row.name)"
+                    >
+                      <Icon name="copy" size="sm" aria-hidden="true" />
+                    </button>
+                  </span>
+                  <template v-if="row.kind === 'token'">
+                    <!-- 阶梯价 / 分时价：点开在下方逐档列出 -->
+                    <button
+                      v-if="row.details.length"
+                      type="button"
+                      class="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-[11px] font-medium leading-4 text-orange-800 transition-colors hover:border-orange-300 hover:bg-orange-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 dark:border-orange-400/30 dark:bg-orange-500/10 dark:text-orange-200 dark:hover:bg-orange-500/20"
+                      :aria-expanded="isExpanded(row.name)"
+                      :aria-label="t('modelPlaza.table.detailToggle', { model: row.name })"
+                      data-testid="plaza-detail-toggle"
+                      @click="toggle(row.name)"
+                    >
+                      <span v-if="row.tierCount">{{ t('modelPlaza.table.tierToggle', { count: row.tierCount }) }}</span>
+                      <span v-if="row.tierCount && row.periodCount" aria-hidden="true">·</span>
+                      <span v-if="row.periodCount">{{ t('modelPlaza.table.timeToggle', { count: row.periodCount }) }}</span>
+                      <Icon
+                        name="chevronDown"
+                        size="xs"
+                        class="h-3 w-3 transition-transform"
+                        :class="isExpanded(row.name) ? 'rotate-180' : ''"
+                        aria-hidden="true"
+                      />
+                    </button>
+                    <span
+                      v-for="badge in row.badges"
+                      :key="badge.label"
+                      class="whitespace-nowrap rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium leading-4 text-gray-500 dark:bg-dark-700/70 dark:text-dark-300"
+                      :title="badge.title"
+                    >
+                      {{ badge.label }}
+                    </span>
+                  </template>
+                </div>
               </td>
-              <td class="px-4 py-[1.125rem] align-middle">
-                <PriceStack v-bind="row.output" :unit="row.unit" />
-              </td>
-              <td class="px-4 py-[1.125rem] align-middle">
-                <PriceStack v-bind="row.cacheWrite" :unit="row.unit" />
-              </td>
-              <td class="px-4 py-[1.125rem] align-middle">
-                <PriceStack v-bind="row.cacheRead" :unit="row.unit" />
-              </td>
-              <td v-if="showSavings" class="px-4 py-[1.125rem] pr-5 align-middle">
-                <span
-                  v-if="row.savings != null"
-                  class="inline-flex whitespace-nowrap rounded-full bg-emerald-50 px-2.5 py-1 text-[13px] font-semibold leading-4 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
-                >
-                  {{ t('modelPlaza.table.savePercent', { percent: row.savings }) }}
-                </span>
+              <template v-if="row.kind === 'token'">
+                <td class="px-4 py-[1.125rem] align-middle">
+                  <PriceStack v-bind="row.input" :unit="row.unit" />
+                </td>
+                <td class="px-4 py-[1.125rem] align-middle">
+                  <PriceStack v-bind="row.output" :unit="row.unit" />
+                </td>
+                <td class="px-4 py-[1.125rem] align-middle">
+                  <PriceStack v-bind="row.cacheWrite" :unit="row.unit" />
+                </td>
+                <td class="px-4 py-[1.125rem] align-middle">
+                  <PriceStack v-bind="row.cacheRead" :unit="row.unit" />
+                </td>
+                <td v-if="showSavings" class="px-4 py-[1.125rem] pr-5 align-middle">
+                  <span
+                    v-if="row.savings != null"
+                    class="inline-flex whitespace-nowrap rounded-full bg-emerald-50 px-2.5 py-1 text-[13px] font-semibold leading-4 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
+                  >
+                    {{ t('modelPlaza.table.savePercent', { percent: row.savings }) }}
+                  </span>
+                  <span v-else class="text-gray-300 dark:text-dark-500">-</span>
+                </td>
+              </template>
+              <td v-else :colspan="priceColumnCount" class="px-4 py-[1.125rem] align-middle" data-testid="plaza-media-price">
+                <div v-if="row.prices.length" class="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+                  <span
+                    v-for="(price, index) in row.prices"
+                    :key="`${row.name}-${index}`"
+                    class="inline-flex items-baseline gap-1"
+                  >
+                    <span v-if="price.label" class="text-xs text-gray-500 dark:text-dark-400">{{ price.label }}</span>
+                    <span class="text-[17px] font-semibold tabular-nums text-orange-800 dark:text-orange-300">{{ price.amount }}</span>
+                    <span class="text-xs text-gray-400 dark:text-dark-500">{{ row.unit }}</span>
+                  </span>
+                </div>
                 <span v-else class="text-gray-300 dark:text-dark-500">-</span>
               </td>
-            </template>
-            <td v-else :colspan="priceColumnCount" class="px-4 py-[1.125rem] align-middle" data-testid="plaza-media-price">
-              <div v-if="row.prices.length" class="flex flex-wrap items-center gap-x-5 gap-y-1.5">
-                <span
-                  v-for="(price, index) in row.prices"
-                  :key="`${row.name}-${index}`"
-                  class="inline-flex items-baseline gap-1"
+            </tr>
+
+            <template v-if="row.kind === 'token' && isExpanded(row.name)">
+              <tr
+                v-for="detail in row.details"
+                :key="`${row.name}:${detail.key}`"
+                class="border-b border-gray-100 bg-gray-50/70 last:border-b-0 dark:border-dark-700/60 dark:bg-dark-700/20"
+                data-testid="plaza-detail-row"
+              >
+                <td class="py-2.5 pl-9 pr-4 align-middle">
+                  <span
+                    class="inline-flex items-center whitespace-nowrap rounded-md bg-white px-2 py-0.5 text-xs font-medium tabular-nums text-gray-600 ring-1 ring-inset ring-gray-200 dark:bg-dark-800 dark:text-dark-200 dark:ring-dark-600"
+                    :title="detail.hint"
+                  >
+                    {{ detail.label }}
+                  </span>
+                </td>
+                <td class="px-4 py-2.5 align-middle">
+                  <PriceStack v-bind="detail.input" :unit="row.unit" compact />
+                </td>
+                <td class="px-4 py-2.5 align-middle">
+                  <PriceStack v-bind="detail.output" :unit="row.unit" compact />
+                </td>
+                <td class="px-4 py-2.5 align-middle">
+                  <PriceStack v-bind="detail.cacheWrite" :unit="row.unit" compact />
+                </td>
+                <td class="px-4 py-2.5 align-middle">
+                  <PriceStack v-bind="detail.cacheRead" :unit="row.unit" compact />
+                </td>
+                <td v-if="showSavings" class="px-4 py-2.5 pr-5"></td>
+              </tr>
+              <tr
+                v-if="row.detailHint"
+                class="border-b border-gray-100 bg-gray-50/70 last:border-b-0 dark:border-dark-700/60 dark:bg-dark-700/20"
+              >
+                <td
+                  :colspan="priceColumnCount + 1"
+                  class="pb-3 pl-9 pr-5 pt-0.5 text-xs leading-5 text-gray-400 dark:text-dark-400"
+                  data-testid="plaza-detail-hint"
                 >
-                  <span v-if="price.label" class="text-xs text-gray-500 dark:text-dark-400">{{ price.label }}</span>
-                  <span class="text-[17px] font-semibold tabular-nums text-orange-700 dark:text-orange-300">{{ price.amount }}</span>
-                  <span class="text-xs text-gray-400 dark:text-dark-500">{{ row.unit }}</span>
-                </span>
-              </div>
-              <span v-else class="text-gray-300 dark:text-dark-500">-</span>
-            </td>
-          </tr>
+                  {{ row.detailHint }}
+                </td>
+              </tr>
+            </template>
+          </template>
         </tbody>
       </table>
     </div>
@@ -89,24 +166,30 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h } from 'vue'
+import { computed, defineComponent, h, ref, type PropType } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import { useClipboard } from '@/composables/useClipboard'
 import type { PlazaModel } from '@/api/modelPlaza'
+import type { UserPricingInterval } from '@/api/channels'
 import {
   BILLING_MODE_IMAGE,
   BILLING_MODE_TOKEN,
   BILLING_MODE_VIDEO,
+  REASONING_EFFORT_LEVELS,
   type BillingMode,
 } from '@/constants/channel'
+import { resolveIntervalPrices } from '@/utils/pricing'
 import {
   comparePlazaModels,
+  formatPlazaTimeWindow,
   formatYuan,
   groupYuan,
   officialYuan,
+  plazaTierLabel,
   requestGroupYuan,
   savingsPercent,
+  sortPlazaIntervals,
 } from './plazaCatalog'
 
 const props = defineProps<{
@@ -118,6 +201,10 @@ const props = defineProps<{
   videoRateIndependent?: boolean
   videoRateMultiplier?: number | null
   priceMode?: 'group' | 'official'
+  /** 分组启用高峰时的倍率；token 价格下额外标出高峰价。缺省或为 1 时不显示。 */
+  peakRateMultiplier?: number | null
+  /** 高峰窗口描述，用于分时价说明里披露“与高峰重叠的部分再乘高峰倍率”。 */
+  peakWindow?: string
 }>()
 
 const { t } = useI18n()
@@ -125,6 +212,12 @@ const { copyToClipboard } = useClipboard()
 
 const effectiveRate = computed(() => props.userRateMultiplier ?? props.rateMultiplier)
 const mode = computed(() => props.priceMode ?? 'group')
+
+/** 高峰因子只叠加在 token 倍率上（与后端计费一致），按张/按次价不受影响。 */
+const peakFactor = computed(() => {
+  const factor = props.peakRateMultiplier
+  return factor != null && factor > 0 && factor !== 1 ? factor : null
+})
 
 const PriceStack = defineComponent({
   name: 'PriceStack',
@@ -134,17 +227,30 @@ const PriceStack = defineComponent({
     unit: { type: String, required: true },
     /** 分组价低于官方价时，官方价加删除线，突出折后价。 */
     discounted: { type: Boolean, default: false },
+    /** 价格下方的补充行：1 小时缓存写入价、高峰价。 */
+    notes: { type: Array as PropType<string[]>, default: () => [] },
+    /** 展开的分档行用小一号的字。 */
+    compact: { type: Boolean, default: false },
   },
   setup(stackProps) {
     return () => {
       if (stackProps.primary === '-' && stackProps.official === '-') {
-        return h('span', { class: 'text-gray-400 dark:text-dark-500' }, '-')
+        return h('span', { class: 'text-gray-300 dark:text-dark-500' }, '-')
       }
       return h('div', { class: 'min-w-[7.5rem]' }, [
-        h('p', { class: 'whitespace-nowrap text-[17px] font-semibold leading-6 tabular-nums text-orange-700 dark:text-orange-300' }, [
-          stackProps.primary === '-' ? '-' : `${stackProps.primary} `,
-          h('span', { class: 'text-xs font-normal text-gray-400 dark:text-dark-500' }, stackProps.unit),
-        ]),
+        h(
+          'p',
+          {
+            class: [
+              'whitespace-nowrap font-semibold tabular-nums text-orange-800 dark:text-orange-300',
+              stackProps.compact ? 'text-sm leading-5' : 'text-[17px] leading-6',
+            ],
+          },
+          [
+            stackProps.primary === '-' ? '-' : `${stackProps.primary} `,
+            h('span', { class: 'text-xs font-normal text-gray-400 dark:text-dark-500' }, stackProps.unit),
+          ],
+        ),
         stackProps.official !== '-'
           ? h(
               'p',
@@ -157,6 +263,9 @@ const PriceStack = defineComponent({
               t('modelPlaza.table.officialLine', { amount: stackProps.official }),
             )
           : null,
+        ...stackProps.notes.map((note) =>
+          h('p', { class: 'mt-0.5 whitespace-nowrap text-xs tabular-nums text-gray-500 dark:text-dark-300' }, note),
+        ),
       ])
     }
   },
@@ -166,17 +275,38 @@ interface PricePair {
   primary: string
   official: string
   discounted: boolean
+  notes: string[]
 }
 
-interface TokenSheetRow {
-  kind: 'token'
-  name: string
-  unit: string
+interface TokenPairs {
   input: PricePair
   output: PricePair
   cacheWrite: PricePair
   cacheRead: PricePair
+}
+
+/** 展开后的一行：一个上下文档位，或一个分时时段。 */
+interface DetailRow extends TokenPairs {
+  key: string
+  label: string
+  hint: string
+}
+
+interface RowBadge {
+  label: string
+  title: string
+}
+
+interface TokenSheetRow extends TokenPairs {
+  kind: 'token'
+  name: string
+  unit: string
   savings: number | null
+  tierCount: number
+  periodCount: number
+  details: DetailRow[]
+  detailHint: string
+  badges: RowBadge[]
 }
 
 interface MediaPrice {
@@ -192,6 +322,12 @@ interface MediaSheetRow {
 }
 
 type SheetRow = TokenSheetRow | MediaSheetRow
+
+/** token 价格的来源：模型基础价、某个上下文档位，或官方参考价。 */
+type TokenPriceSource = Pick<
+  UserPricingInterval,
+  'input_price' | 'output_price' | 'cache_write_price' | 'cache_write_1h_price' | 'cache_read_price'
+>
 
 function billingMode(m: PlazaModel): BillingMode {
   return (m.pricing?.billing_mode || BILLING_MODE_TOKEN) as BillingMode
@@ -231,17 +367,158 @@ function mediaPrices(m: PlazaModel, rate: number): MediaPrice[] {
   return [{ label: '', amount: formatYuan(requestGroupYuan(m.pricing.per_request_price, rate)) }]
 }
 
-function pair(group: number | null, official: number | null): PricePair {
+function pair(group: number | null, official: number | null, notes: string[] = []): PricePair {
   const groupText = formatYuan(group)
   const officialText = formatYuan(official)
   if (mode.value === 'official') {
-    return { primary: officialText, official: '-', discounted: false }
+    return { primary: officialText, official: '-', discounted: false, notes }
   }
   return {
     primary: groupText,
     official: officialText,
     discounted: group != null && official != null && group < official,
+    notes,
   }
+}
+
+/** 分组启用高峰时，在分组价下补一行高峰价。 */
+function peakNotes(perToken: number | null | undefined, rate: number): string[] {
+  if (mode.value !== 'group' || peakFactor.value == null) return []
+  const amount = groupYuan(perToken, rate * peakFactor.value)
+  return amount == null ? [] : [t('modelPlaza.table.peakLine', { amount: formatYuan(amount) })]
+}
+
+/** 1 小时缓存写入价与默认写入价不同才单列一行，相同就不重复。 */
+function cacheWrite1hNotes(
+  group: TokenPriceSource | null | undefined,
+  official: TokenPriceSource | null | undefined,
+  rate: number,
+): string[] {
+  const [base, oneHour] =
+    mode.value === 'official'
+      ? [officialYuan(official?.cache_write_price), officialYuan(official?.cache_write_1h_price)]
+      : [groupYuan(group?.cache_write_price, rate), groupYuan(group?.cache_write_1h_price, rate)]
+  if (oneHour == null || oneHour === base) return []
+  return [t('modelPlaza.table.cacheWrite1hLine', { amount: formatYuan(oneHour) })]
+}
+
+function tokenPairs(
+  group: TokenPriceSource | null | undefined,
+  official: TokenPriceSource | null | undefined,
+  rate: number,
+  withPeak: boolean,
+): TokenPairs {
+  const peak = (perToken: number | null | undefined) => (withPeak ? peakNotes(perToken, rate) : [])
+  return {
+    input: pair(groupYuan(group?.input_price, rate), officialYuan(official?.input_price), peak(group?.input_price)),
+    output: pair(groupYuan(group?.output_price, rate), officialYuan(official?.output_price), peak(group?.output_price)),
+    cacheWrite: pair(
+      groupYuan(group?.cache_write_price, rate),
+      officialYuan(official?.cache_write_price),
+      [...cacheWrite1hNotes(group, official, rate), ...peak(group?.cache_write_price)],
+    ),
+    cacheRead: pair(
+      groupYuan(group?.cache_read_price, rate),
+      officialYuan(official?.cache_read_price),
+      peak(group?.cache_read_price),
+    ),
+  }
+}
+
+/** 分组实付的上下文阶梯；分组关闭阶梯时后端不下发，这里自然为空。 */
+function groupTiers(m: PlazaModel): UserPricingInterval[] {
+  if (!m.pricing) return []
+  return sortPlazaIntervals(m.pricing.intervals ?? []).map((interval) => resolveIntervalPrices(interval, m.pricing!))
+}
+
+function officialTiers(m: PlazaModel): UserPricingInterval[] {
+  return sortPlazaIntervals(m.official_pricing?.intervals ?? [])
+}
+
+/** 档位说明：整单按档计价，或仅超出部分按档计价。 */
+function tierHint(m: PlazaModel): string {
+  return m.long_context_basis === 'marginal'
+    ? t('modelPlaza.table.tierHintMarginal')
+    : t('modelPlaza.table.tierHint')
+}
+
+/** 只有一档时与基础价相同，不必展开；两档起才列出。 */
+function tierDetails(m: PlazaModel, rate: number): DetailRow[] {
+  const groupSide = groupTiers(m)
+  const officialSide = officialTiers(m)
+  const official = mode.value === 'official'
+  const source = official ? officialSide : groupSide
+  if (source.length < 2) return []
+  const hint = tierHint(m)
+  return source.map((interval, index) => {
+    // 两边档数一致才逐档对照官方价，否则官方参考留空，避免错位对比。
+    const officialTier = official
+      ? interval
+      : officialSide.length === groupSide.length
+        ? officialSide[index]
+        : null
+    return {
+      key: `tier-${index}`,
+      label: plazaTierLabel(interval),
+      hint,
+      ...tokenPairs(official ? null : interval, officialTier, rate, true),
+    }
+  })
+}
+
+function timeHint(m: PlazaModel): string {
+  const key = m.time_pricing?.weekdays_only
+    ? 'modelPlaza.table.timePricingRowHintWeekdays'
+    : 'modelPlaza.table.timePricingRowHint'
+  let hint = t(key, { timezone: m.time_pricing?.timezone })
+  if (props.peakWindow) {
+    hint += t('modelPlaza.table.timePricingRowHintPeak', {
+      window: props.peakWindow,
+      multiplier: props.peakRateMultiplier ?? 1,
+    })
+  }
+  return hint
+}
+
+/** 分时价 = 基础价 × 生效倍率 × 时段倍率；官方价没有分时，官方价模式下不列。 */
+function timeDetails(m: PlazaModel, rate: number): DetailRow[] {
+  if (mode.value === 'official' || !m.pricing) return []
+  const periods = m.time_pricing?.periods ?? []
+  if (periods.length === 0) return []
+  const hint = timeHint(m)
+  const prefix = m.time_pricing?.weekdays_only ? `${t('modelPlaza.table.timePricingWeekdays')} ` : ''
+  return periods.map((period, index) => ({
+    key: `time-${index}`,
+    label:
+      prefix +
+      t('modelPlaza.table.timePeriodLabel', {
+        window: formatPlazaTimeWindow(period),
+        multiplier: period.multiplier,
+      }),
+    hint,
+    ...tokenPairs(m.pricing, m.official_pricing, rate * period.multiplier, false),
+  }))
+}
+
+function rowBadges(m: PlazaModel, hasTiers: boolean): RowBadge[] {
+  const badges: RowBadge[] = []
+  if (hasTiers && m.long_context_basis === 'marginal') {
+    badges.push({
+      label: t('modelPlaza.table.marginalBadge'),
+      title: t('modelPlaza.table.tierHintMarginal'),
+    })
+  }
+  const multipliers = m.pricing?.reasoning_effort_multipliers
+  for (const effort of REASONING_EFFORT_LEVELS) {
+    const multiplier = multipliers?.[effort]
+    if (typeof multiplier === 'number' && Number.isFinite(multiplier) && multiplier > 0) {
+      badges.push({
+        label: t('modelPlaza.table.reasoningMultiplierBadge', { effort, multiplier }),
+        title: t('modelPlaza.table.reasoningMultiplierHint', { effort, multiplier }),
+      })
+    }
+  }
+  return badges
 }
 
 const rows = computed<SheetRow[]>(() =>
@@ -253,25 +530,24 @@ const rows = computed<SheetRow[]>(() =>
       if (!token) {
         return { kind: 'media', name: m.name, unit: mediaUnit(m), prices: mediaPrices(m, rate) }
       }
-      const unit = t('modelPlaza.table.unitPerMillionShort')
-      const gIn = groupYuan(m.pricing?.input_price, rate)
       // Official prices are per token, never comparable to per-image/request prices.
-      const oIn = officialYuan(m.official_pricing?.input_price)
-      const gOut = groupYuan(m.pricing?.output_price, rate)
-      const oOut = officialYuan(m.official_pricing?.output_price)
-      const gCw = groupYuan(m.pricing?.cache_write_price, rate)
-      const oCw = officialYuan(m.official_pricing?.cache_write_price)
-      const gCr = groupYuan(m.pricing?.cache_read_price, rate)
-      const oCr = officialYuan(m.official_pricing?.cache_read_price)
+      const tiers = tierDetails(m, rate)
+      const periods = timeDetails(m, rate)
+      const hints = [tiers[0]?.hint, periods[0]?.hint].filter((hint): hint is string => Boolean(hint))
       return {
         kind: 'token',
         name: m.name,
-        unit,
-        input: pair(gIn, oIn),
-        output: pair(gOut, oOut),
-        cacheWrite: pair(gCw, oCw),
-        cacheRead: pair(gCr, oCr),
-        savings: mode.value === 'group' ? savingsPercent(gIn, oIn) : null,
+        unit: t('modelPlaza.table.unitPerMillionShort'),
+        ...tokenPairs(m.pricing, m.official_pricing, rate, true),
+        savings:
+          mode.value === 'group'
+            ? savingsPercent(groupYuan(m.pricing?.input_price, rate), officialYuan(m.official_pricing?.input_price))
+            : null,
+        tierCount: tiers.length,
+        periodCount: periods.length,
+        details: [...tiers, ...periods],
+        detailHint: hints.join(' '),
+        badges: rowBadges(m, tiers.length > 0),
       }
     }),
 )
@@ -290,4 +566,17 @@ const mediaColumnLabel = computed(() => {
   if (modes.size === 1 && modes.has(BILLING_MODE_VIDEO)) return t('modelPlaza.table.videoPrice')
   return t('modelPlaza.table.mediaPrice')
 })
+
+/** 已展开分档价格的模型名。切换分组时组件按分组重建，展开状态随之清空。 */
+const expanded = ref<Set<string>>(new Set())
+
+function isExpanded(name: string): boolean {
+  return expanded.value.has(name)
+}
+
+function toggle(name: string) {
+  const next = new Set(expanded.value)
+  if (!next.delete(name)) next.add(name)
+  expanded.value = next
+}
 </script>

@@ -110,6 +110,12 @@ const i18n = createI18n({
           priceModeHint: 'hint',
           selectGroupHint: '选择分组后，直接查看每个模型的人民币价格。',
           groupIntro: '分组介绍',
+          groupFacts: '分组计费信息',
+          peakChip: '高峰时段 {window}',
+          userRateChip: '专属倍率 {rate}x（默认 {base}x）',
+          imageRateChip: '图片独立倍率 {rate}x',
+          videoRateChip: '视频独立倍率 {rate}x',
+          longContextOffChip: '未启用长上下文阶梯',
           rateLine: '{rate}x 倍率',
           discountLine: '相当于约 {zhe} 折',
           markupLine: '高于官方参考价',
@@ -193,6 +199,81 @@ describe('ModelPlazaContent catalog', () => {
     // 分组名和介绍已在卡片与介绍条里，价格表上方不再重复渲染分组徽章/描述。
     expect(wrapper.findAll('.group-badge-stub')).toHaveLength(0)
     expect(wrapper.findAll('[data-testid="plaza-group-intro"]')).toHaveLength(1)
+  })
+
+  it('shows no billing-detail chips for a plain group', () => {
+    expect(mountContent(true).find('[data-testid="plaza-group-facts"]').exists()).toBe(false)
+  })
+
+  it('lists every billing detail of the selected group as chips', () => {
+    const imageModel = {
+      ...response.groups[0].models[0],
+      name: 'image-model',
+      pricing: { ...response.groups[0].models[0].pricing!, billing_mode: 'image' as const, per_request_price: 0.2 },
+    }
+    const laddered = {
+      ...response.groups[0].models[0],
+      name: 'laddered',
+      official_pricing: {
+        ...response.groups[0].models[0].official_pricing!,
+        intervals: [
+          { min_tokens: 0, max_tokens: 200000, input_price: 3e-6, output_price: 1.5e-5, cache_write_price: null, cache_read_price: null, per_request_price: null },
+          { min_tokens: 200000, max_tokens: null, input_price: 6e-6, output_price: 2e-5, cache_write_price: null, cache_read_price: null, per_request_price: null },
+        ],
+      },
+    }
+    const wrapper = mount(ModelPlazaContent, {
+      props: {
+        loading: false,
+        embedded: true,
+        response: {
+          description: '',
+          groups: [
+            group({
+              id: 9,
+              name: 'full',
+              platform: 'anthropic',
+              rate_multiplier: 0.8,
+              user_rate_multiplier: 0.5,
+              is_exclusive: true,
+              subscription_type: 'subscription',
+              peak_rate_enabled: true,
+              peak_start: '09:00',
+              peak_end: '18:00',
+              peak_rate_multiplier: 2,
+              image_rate_independent: true,
+              image_rate_multiplier: 1.2,
+              // 开了视频独立倍率，但组内没有按秒计费的模型：不该出现视频标签。
+              video_rate_independent: true,
+              video_rate_multiplier: 3,
+              long_context_pricing_enabled: false,
+              models: [imageModel, laddered],
+            }),
+          ],
+        },
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          PlazaPriceSheet: { template: '<div class="price-sheet-stub" />' },
+          Icon: true,
+          PlatformIcon: true,
+        },
+      },
+    })
+    const facts = wrapper.get('[data-testid="plaza-group-facts"]')
+    const keys = facts.findAll('li').map((item) => item.attributes('data-testid'))
+    expect(keys).toEqual([
+      'plaza-group-fact-exclusive',
+      'plaza-group-fact-subscription',
+      'plaza-group-fact-user-rate',
+      'plaza-group-fact-peak',
+      'plaza-group-fact-image-rate',
+      'plaza-group-fact-long-context-off',
+    ])
+    expect(facts.text()).toContain('专属倍率 0.5x（默认 0.8x）')
+    expect(facts.text()).toContain('高峰时段 09:00-18:00 ×2')
+    expect(facts.text()).toContain('图片独立倍率 1.2x')
   })
 
   it('switches category to the matching groups', async () => {

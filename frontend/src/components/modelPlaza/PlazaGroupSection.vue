@@ -6,18 +6,8 @@
       : `rounded-xl bg-white shadow-card dark:bg-dark-800/40 ${platformBorderStrongClass(group.platform)}`"
     :data-testid="`plaza-group-section-${group.id}`"
   >
-    <!-- 目录页的分组名和介绍已在分组卡片与介绍条里，这里只保留高峰说明 -->
-    <header
-      v-if="layout === 'sheet' && peakNote"
-      class="border-b border-gray-100 px-5 py-2.5 dark:border-dark-700"
-    >
-      <p class="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
-        <Icon name="clock" size="xs" class="h-3 w-3" />
-        {{ peakNote }}
-      </p>
-    </header>
-    <!-- 分组头部:名称/平台/倍率徽章/专属/订阅徽章 + 描述 -->
-    <header v-else-if="layout !== 'sheet'" class="border-b border-gray-100 px-5 py-4 dark:border-dark-700/60">
+    <!-- 分组头部:名称/平台/倍率徽章/专属/订阅徽章 + 描述。目录页(sheet)这些信息在分组卡片、介绍条和信息标签里,不再重复 -->
+    <header v-if="layout !== 'sheet'" class="border-b border-gray-100 px-5 py-4 dark:border-dark-700/60">
       <div class="flex flex-wrap items-center gap-2">
         <GroupBadge
           :name="group.name"
@@ -76,6 +66,8 @@
         :video-rate-independent="group.video_rate_independent"
         :video-rate-multiplier="group.video_rate_multiplier"
         :price-mode="priceMode"
+        :peak-window="peakWindow"
+        :peak-rate-multiplier="peakWindow ? group.peak_rate_multiplier : null"
       />
       <PlazaModelPricingTable
         v-else-if="group.models.length > 0"
