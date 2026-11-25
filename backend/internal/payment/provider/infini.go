@@ -3,15 +3,20 @@ package provider
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -40,21 +45,54 @@ const (
 	infiniStatusPartialPaid = "partial_paid"
 	infiniStatusPending     = "pending"
 	infiniStatusProcessing  = "processing"
+
+	// Legacy HMAC (v1) endpoints. Infini keeps them alive only during the
+	// migration window; they are used when no Ed25519 private key is configured.
+	infiniV1OrderPath   = "/v1/acquiring/order"
+	infiniV1ReissuePath = "/v1/acquiring/token/reissue"
+	// Ed25519 (v2) endpoints.
+	infiniV2OrderPath   = "/v2/acquiring/order"
+	infiniV2ReissuePath = "/v2/acquiring/order/token/reissue"
+	// First line of the v2 signing string; must be sent exactly as documented.
+	infiniV2SigningDomain = "INFINI-OPENAPI-V2"
+	infiniV2NonceBytes    = 16
 )
 
 // Infini implements hosted-checkout USDT/stablecoin payments.
+//
+// Two request-signing schemes are supported:
+//   - v2 (current): Ed25519. Selected when config "privateKey" is set; "keyId"
+//     must then be the Key ID Infini returned for the uploaded public key.
+//   - v1 (deprecated by Infini): HMAC-SHA256 with "secretKey". Kept so an
+//     instance keeps working until its v2 credential is configured.
+//
+// Webhook verification is a separate protocol and is identical for both.
 type Infini struct {
 	instanceID string
 	config     map[string]string
 	httpClient *http.Client
 	now        func() time.Time
+	// privateKey is non-nil when the instance signs with Ed25519 (v2).
+	privateKey ed25519.PrivateKey
+	// nonceSource supplies v2 nonce bytes; crypto/rand outside tests.
+	nonceSource io.Reader
 }
 
 func NewInfini(instanceID string, config map[string]string) (*Infini, error) {
-	for _, k := range []string{"keyId", "secretKey", "webhookSecret", "apiBase"} {
+	for _, k := range []string{"keyId", "webhookSecret", "apiBase"} {
 		if strings.TrimSpace(config[k]) == "" {
 			return nil, fmt.Errorf("infini config missing required key: %s", k)
 		}
+	}
+	var privateKey ed25519.PrivateKey
+	if strings.TrimSpace(config["privateKey"]) != "" {
+		parsed, err := parseInfiniPrivateKey(config["privateKey"])
+		if err != nil {
+			return nil, err
+		}
+		privateKey = parsed
+	} else if strings.TrimSpace(config["secretKey"]) == "" {
+		return nil, fmt.Errorf("infini config missing required key: privateKey (Ed25519, v2) or secretKey (legacy HMAC, v1)")
 	}
 	cfg := cloneStringMap(config)
 	apiBase, err := normalizeInfiniAPIBase(cfg["apiBase"])
@@ -67,11 +105,86 @@ func NewInfini(instanceID string, config map[string]string) (*Infini, error) {
 		return nil, err
 	}
 	return &Infini{
-		instanceID: instanceID,
-		config:     cfg,
-		httpClient: &http.Client{Timeout: infiniHTTPTimeout},
-		now:        time.Now,
+		instanceID:  instanceID,
+		config:      cfg,
+		httpClient:  &http.Client{Timeout: infiniHTTPTimeout},
+		now:         time.Now,
+		privateKey:  privateKey,
+		nonceSource: rand.Reader,
 	}, nil
+}
+
+var infiniPEMBlockPattern = regexp.MustCompile(`(?s)-----BEGIN ([A-Z0-9 ]+)-----(.*?)-----END ([A-Z0-9 ]+)-----`)
+
+// parseInfiniPrivateKey reads the merchant's Ed25519 private key. Infini's v2
+// docs generate it as unencrypted PKCS#8 PEM ("-----BEGIN PRIVATE KEY-----").
+// Admin forms tend to mangle PEM, so line breaks turned into spaces or literal
+// "\n", and a bare base64 body without the armor, are accepted as well.
+// Errors never include key material.
+func parseInfiniPrivateKey(raw string) (ed25519.PrivateKey, error) {
+	text := strings.TrimSpace(raw)
+	text = strings.ReplaceAll(text, `\r`, "")
+	text = strings.ReplaceAll(text, `\n`, "\n")
+	text = strings.ReplaceAll(text, "\r", "")
+
+	var der []byte
+	if strings.Contains(text, "-----BEGIN") {
+		match := infiniPEMBlockPattern.FindStringSubmatch(text)
+		if match == nil || match[1] != match[3] {
+			return nil, fmt.Errorf("infini privateKey is not a valid PEM block")
+		}
+		switch match[1] {
+		case "PRIVATE KEY":
+		case "PUBLIC KEY":
+			return nil, fmt.Errorf("infini privateKey holds a public key; paste the private key and upload the public key to Infini")
+		case "ENCRYPTED PRIVATE KEY":
+			return nil, fmt.Errorf("infini privateKey must not be passphrase-protected")
+		default:
+			return nil, fmt.Errorf("infini privateKey must be a PKCS#8 \"PRIVATE KEY\" PEM block, got %q", match[1])
+		}
+		// Rebuild the armor so keys whose newlines were lost still decode.
+		body := strings.Join(strings.Fields(match[2]), "")
+		block, _ := pem.Decode([]byte("-----BEGIN PRIVATE KEY-----\n" + body + "\n-----END PRIVATE KEY-----\n"))
+		if block == nil {
+			return nil, fmt.Errorf("infini privateKey is not a valid PEM block")
+		}
+		der = block.Bytes
+	} else {
+		decoded, err := base64.StdEncoding.DecodeString(strings.Join(strings.Fields(text), ""))
+		if err != nil {
+			return nil, fmt.Errorf("infini privateKey must be a PKCS#8 PEM private key")
+		}
+		der = decoded
+	}
+
+	key, err := x509.ParsePKCS8PrivateKey(der)
+	if err != nil {
+		return nil, fmt.Errorf("infini privateKey must be an unencrypted PKCS#8 Ed25519 private key")
+	}
+	privateKey, ok := key.(ed25519.PrivateKey)
+	if !ok {
+		return nil, fmt.Errorf("infini privateKey must be an Ed25519 key, got %T", key)
+	}
+	return privateKey, nil
+}
+
+// usesEd25519 reports whether requests are signed with the v2 scheme.
+func (i *Infini) usesEd25519() bool {
+	return i != nil && len(i.privateKey) == ed25519.PrivateKeySize
+}
+
+func (i *Infini) orderPath() string {
+	if i.usesEd25519() {
+		return infiniV2OrderPath
+	}
+	return infiniV1OrderPath
+}
+
+func (i *Infini) reissuePath() string {
+	if i.usesEd25519() {
+		return infiniV2ReissuePath
+	}
+	return infiniV1ReissuePath
 }
 
 func normalizeInfiniAPIBase(raw string) (string, error) {
@@ -167,7 +280,7 @@ func (i *Infini) CreatePayment(ctx context.Context, req payment.CreatePaymentReq
 		Currency:        currency,
 	}
 
-	raw, err := i.doJSONBytes(ctx, http.MethodPost, "/v1/acquiring/order", payload)
+	raw, err := i.doJSONBytes(ctx, http.MethodPost, i.orderPath(), payload)
 	if err != nil {
 		return nil, fmt.Errorf("infini create payment: %w", err)
 	}
@@ -195,7 +308,7 @@ func (i *Infini) CreatePayment(ctx context.Context, req payment.CreatePaymentReq
 }
 
 func (i *Infini) reissueCheckoutURL(ctx context.Context, orderID string) (string, error) {
-	raw, err := i.doJSONBytes(ctx, http.MethodPost, "/v1/acquiring/token/reissue", map[string]string{"order_id": orderID})
+	raw, err := i.doJSONBytes(ctx, http.MethodPost, i.reissuePath(), map[string]string{"order_id": orderID})
 	if err != nil {
 		return "", err
 	}
@@ -214,7 +327,7 @@ func (i *Infini) QueryOrder(ctx context.Context, tradeNo string) (*payment.Query
 	if orderID == "" {
 		return nil, fmt.Errorf("infini query order: missing order id")
 	}
-	path := "/v1/acquiring/order?order_id=" + url.QueryEscape(orderID)
+	path := i.orderPath() + "?order_id=" + url.QueryEscape(orderID)
 	var resp infiniOrder
 	if err := i.doJSON(ctx, http.MethodGet, path, nil, &resp); err != nil {
 		return nil, fmt.Errorf("infini query order: %w", err)
@@ -222,6 +335,7 @@ func (i *Infini) QueryOrder(ctx context.Context, tradeNo string) (*payment.Query
 	if strings.TrimSpace(resp.OrderID) == "" {
 		resp.OrderID = orderID
 	}
+	resp.normalize()
 	confirmedExact, confirmed, confirmedErr := parseInfiniAmount(resp.AmountConfirmed)
 	listedExact, listed, listedErr := parseInfiniAmount(resp.Amount)
 	status, amountExact, amount, err := infiniQueryDecision(resp.Status, confirmedExact, confirmed, confirmedErr, listedExact, listed, listedErr)
@@ -348,19 +462,29 @@ func (i *Infini) doJSONBytes(ctx context.Context, method, path string, payload a
 		}
 		bodyBytes = b
 	}
-	headers, err := infiniSignRequest(i.config["keyId"], i.config["secretKey"], method, path, bodyBytes, i.now)
-	if err != nil {
-		return nil, err
-	}
 
 	var body io.Reader
 	if len(bodyBytes) > 0 {
 		body = bytes.NewReader(bodyBytes)
-		headers["Content-Type"] = "application/json"
 	}
 	req, err := http.NewRequestWithContext(ctx, method, i.config["apiBase"]+path, body)
 	if err != nil {
 		return nil, err
+	}
+
+	var headers map[string]string
+	if i.usesEd25519() {
+		// Sign the request target exactly as it goes on the wire: Infini
+		// verifies against the escaped path and raw query it receives.
+		headers, err = infiniSignRequestV2(i.config["keyId"], i.privateKey, method, infiniRequestTarget(req.URL), bodyBytes, i.now, i.nonceSource)
+	} else {
+		headers, err = infiniSignRequest(i.config["keyId"], i.config["secretKey"], method, path, bodyBytes, i.now)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if len(bodyBytes) > 0 {
+		headers["Content-Type"] = "application/json"
 	}
 	req.Header.Set("Accept", "application/json")
 	for k, v := range headers {
@@ -415,6 +539,73 @@ func infiniSignRequest(keyID, secretKey, method, path string, body []byte, now f
 		headers["Digest"] = "SHA-256=" + base64.StdEncoding.EncodeToString(sum[:])
 	}
 	return headers, nil
+}
+
+// infiniRequestTarget is the escaped path plus raw query, without scheme or host.
+func infiniRequestTarget(u *url.URL) string {
+	target := u.EscapedPath()
+	if u.RawQuery != "" {
+		target += "?" + u.RawQuery
+	}
+	return target
+}
+
+// infiniSignRequestV2 builds the Ed25519 (v2) authentication headers.
+//
+// Signing string: seven lines, LF-separated, with a trailing LF:
+//
+//	INFINI-OPENAPI-V2
+//	<key id>
+//	<UPPERCASE METHOD>
+//	<escaped path>[?<raw query>]
+//	<unix seconds>
+//	<nonce: 16 random bytes, base64url without padding>
+//	SHA-256=<base64 of sha256(exact body bytes)>
+//
+// The digest covers the exact bytes sent; an empty body (GET) hashes the empty
+// string. Timestamp tolerance on Infini's side is ±300s and every attempt needs
+// a fresh nonce, so headers must not be reused across retries.
+func infiniSignRequestV2(keyID string, privateKey ed25519.PrivateKey, method, target string, body []byte, now func() time.Time, nonceSource io.Reader) (map[string]string, error) {
+	keyID = strings.TrimSpace(keyID)
+	if keyID == "" {
+		return nil, fmt.Errorf("infini keyId is required")
+	}
+	if len(privateKey) != ed25519.PrivateKeySize {
+		return nil, fmt.Errorf("infini privateKey is not configured")
+	}
+	if now == nil {
+		now = time.Now
+	}
+	if nonceSource == nil {
+		nonceSource = rand.Reader
+	}
+	nonceBytes := make([]byte, infiniV2NonceBytes)
+	if _, err := io.ReadFull(nonceSource, nonceBytes); err != nil {
+		return nil, fmt.Errorf("infini generate nonce: %w", err)
+	}
+	nonce := base64.RawURLEncoding.EncodeToString(nonceBytes)
+	timestamp := strconv.FormatInt(now().Unix(), 10)
+	sum := sha256.Sum256(body)
+	digest := "SHA-256=" + base64.StdEncoding.EncodeToString(sum[:])
+
+	signingString := strings.Join([]string{
+		infiniV2SigningDomain,
+		keyID,
+		strings.ToUpper(method),
+		target,
+		timestamp,
+		nonce,
+		digest,
+	}, "\n") + "\n"
+	signature := ed25519.Sign(privateKey, []byte(signingString))
+
+	return map[string]string{
+		"X-API-Key-ID":    keyID,
+		"X-API-Timestamp": timestamp,
+		"X-API-Nonce":     nonce,
+		"Digest":          digest,
+		"Authorization":   `Ed25519 signature="` + base64.StdEncoding.EncodeToString(signature) + `"`,
+	}, nil
 }
 
 func verifyInfiniWebhookSignature(rawBody string, headers map[string]string, secret string, now time.Time) error {
@@ -811,6 +1002,54 @@ type infiniOrder struct {
 	Currency        string `json:"currency"`
 	AmountConfirmed string `json:"amount_confirmed"`
 	ClientReference string `json:"client_reference"`
+
+	// Infini's v2 docs describe the query response twice: the guide shows the
+	// flat fields above, the OpenAPI reference shows order_currency and an
+	// order_amount object instead. Accept both; the confirmed amount is only
+	// ever taken from amount_confirmed.
+	OrderCurrency string          `json:"order_currency"`
+	OrderAmount   json.RawMessage `json:"order_amount"`
+}
+
+// normalize folds the reference-style fields into the flat ones.
+func (o *infiniOrder) normalize() {
+	if strings.TrimSpace(o.Currency) == "" {
+		o.Currency = o.OrderCurrency
+	}
+	if strings.TrimSpace(o.Amount) == "" {
+		o.Amount = infiniAmountFromRaw(o.OrderAmount)
+	}
+}
+
+// infiniAmountFromRaw reads an amount given as a string, a number, or an
+// object carrying it under a conventional key. Unknown shapes yield "".
+func infiniAmountFromRaw(raw json.RawMessage) string {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || string(raw) == "null" {
+		return ""
+	}
+	switch raw[0] {
+	case '"':
+		var text string
+		if err := json.Unmarshal(raw, &text); err == nil {
+			return strings.TrimSpace(text)
+		}
+	case '{':
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err == nil {
+			for _, key := range []string{"amount", "value", "total"} {
+				if amount := infiniAmountFromRaw(fields[key]); amount != "" {
+					return amount
+				}
+			}
+		}
+	default:
+		var number json.Number
+		if err := json.Unmarshal(raw, &number); err == nil {
+			return number.String()
+		}
+	}
+	return ""
 }
 
 type infiniWebhookEvent struct {

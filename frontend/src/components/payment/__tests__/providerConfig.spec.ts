@@ -60,6 +60,24 @@ describe('PROVIDER_CONFIG_FIELDS.infini', () => {
     expect(findField('infini', 'secretKey')?.sensitive).toBe(true)
     expect(findField('infini', 'webhookSecret')?.sensitive).toBe(true)
   })
+
+  it('offers the Ed25519 private key for V2 auth and keeps the legacy secret optional', () => {
+    // 两种凭据二选一，由后端校验至少填一个；表单层面都不强制必填，
+    // 否则已迁移到 V2 的实例会被要求再填一个已停用的 HMAC 密钥。
+    const privateKey = findField('infini', 'privateKey')
+    expect(privateKey?.sensitive).toBe(true)
+    expect(privateKey?.optional).toBe(true)
+    expect(privateKey?.hintKey).toBe('admin.settings.payment.field_infiniPrivateKeyHint')
+    const secretKey = findField('infini', 'secretKey')
+    expect(secretKey?.optional).toBe(true)
+    expect(secretKey?.hintKey).toBe('admin.settings.payment.field_infiniSecretKeyHint')
+    // Key ID 和 Webhook Secret 两种认证都需要，仍是必填。
+    expect(findField('infini', 'keyId')?.optional).toBeFalsy()
+    expect(findField('infini', 'webhookSecret')?.optional).toBeFalsy()
+    // 私钥排在旧密钥前面，表单里先看到推荐的填法。
+    const keys = (PROVIDER_CONFIG_FIELDS.infini || []).map((field) => field.key)
+    expect(keys.indexOf('privateKey')).toBeLessThan(keys.indexOf('secretKey'))
+  })
 })
 
 describe('PROVIDER_CONFIG_FIELDS.stripe', () => {

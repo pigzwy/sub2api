@@ -164,8 +164,11 @@ export const PROVIDER_CONFIG_FIELDS: Record<string, ConfigFieldDef[]> = {
     { key: 'currency', label: '', sensitive: false, defaultValue: 'CNY', hintKey: 'admin.settings.payment.field_paymentCurrencyHint', options: PAYMENT_CURRENCY_OPTIONS },
   ],
   infini: [
-    { key: 'keyId', label: '', sensitive: false },
-    { key: 'secretKey', label: '', sensitive: true },
+    { key: 'keyId', label: '', sensitive: false, hintKey: 'admin.settings.payment.field_infiniKeyIdHint' },
+    // V2 认证用 Ed25519 私钥；旧版 HMAC 的 secretKey 仅在迁移期保留。二者至少填一个，
+    // 填了私钥就走 V2（后端 NewInfini 校验）。
+    { key: 'privateKey', label: '', sensitive: true, optional: true, hintKey: 'admin.settings.payment.field_infiniPrivateKeyHint' },
+    { key: 'secretKey', label: '', sensitive: true, optional: true, hintKey: 'admin.settings.payment.field_infiniSecretKeyHint' },
     { key: 'webhookSecret', label: '', sensitive: true },
     { key: 'apiBase', label: '', sensitive: false, defaultValue: 'https://openapi.infini.money', hintKey: 'admin.settings.payment.field_infiniApiBaseHint' },
     { key: 'currency', label: '', sensitive: false, defaultValue: 'USD', hintKey: 'admin.settings.payment.field_infiniCurrencyHint', options: INFINI_CURRENCY_OPTIONS },
