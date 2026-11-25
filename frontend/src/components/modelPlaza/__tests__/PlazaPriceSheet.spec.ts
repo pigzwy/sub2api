@@ -3,6 +3,12 @@ import { mount } from '@vue/test-utils'
 import PlazaPriceSheet from '../PlazaPriceSheet.vue'
 import type { PlazaModel } from '@/api/modelPlaza'
 
+const { copyToClipboard } = vi.hoisted(() => ({ copyToClipboard: vi.fn() }))
+
+vi.mock('@/composables/useClipboard', () => ({
+  useClipboard: () => ({ copyToClipboard }),
+}))
+
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
   return {
@@ -40,11 +46,15 @@ const model: PlazaModel = {
   },
 }
 
-function mountSheet(priceMode: 'group' | 'official' = 'group', models: PlazaModel[] = [model]) {
+function mountSheet(
+  priceMode: 'group' | 'official' = 'group',
+  models: PlazaModel[] = [model],
+  rateMultiplier = 0.8,
+) {
   return mount(PlazaPriceSheet, {
     props: {
       models,
-      rateMultiplier: 0.8,
+      rateMultiplier,
       priceMode,
     },
     global: { stubs: { Icon: true } },
@@ -79,7 +89,7 @@ describe('PlazaPriceSheet', () => {
     }
     const wrapper = mountSheet('group', [media])
     expect(wrapper.text()).toContain('¥0.16')
-    expect(wrapper.get('[data-testid="plaza-media-price"]').attributes('colspan')).toBe('5')
+    expect(wrapper.get('[data-testid="plaza-media-price"]').attributes('colspan')).toBe('4')
     expect(wrapper.text()).not.toContain('官方价格 ¥')
     expect(wrapper.text()).not.toContain('省 ')
     await wrapper.setProps({ priceMode: 'official' })
@@ -113,7 +123,7 @@ describe('PlazaPriceSheet', () => {
     expect(text).toContain('4K')
     expect(text).toContain('¥0.20')
     expect(text).not.toContain('¥0.00')
-    expect(wrapper.get('[data-testid="plaza-media-price"]').attributes('colspan')).toBe('5')
+    expect(wrapper.get('[data-testid="plaza-media-price"]').attributes('colspan')).toBe('4')
     expect(wrapper.text()).toContain('modelPlaza.table.imagePrice')
     expect(wrapper.text()).not.toContain('modelPlaza.table.inputPrice')
   })
@@ -148,6 +158,46 @@ describe('PlazaPriceSheet', () => {
       official_pricing: { ...model.official_pricing!, input_price: null },
     }])
     expect(wrapper.text()).not.toContain('省 ')
+  })
+
+  it('strikes through the official price only when the group price is lower', () => {
+    const discounted = mountSheet('group', [model], 0.8)
+    const struck = discounted.findAll('p.line-through').map((node) => node.text())
+    expect(struck).toContain('官方价格 ¥5.00')
+    expect(struck).toHaveLength(4)
+
+    expect(mountSheet('group', [model], 1).find('p.line-through').exists()).toBe(false)
+    expect(mountSheet('group', [model], 3).find('p.line-through').exists()).toBe(false)
+  })
+
+  it('drops the comparison column when no model is cheaper than official', () => {
+    const cheaper = mountSheet('group', [model], 0.8)
+    expect(cheaper.findAll('thead th')).toHaveLength(6)
+    expect(cheaper.text()).toContain('modelPlaza.catalog.inputSavings')
+
+    for (const wrapper of [mountSheet('group', [model], 1.5), mountSheet('official', [model], 0.8)]) {
+      expect(wrapper.findAll('thead th')).toHaveLength(5)
+      expect(wrapper.findAll('tbody tr td')).toHaveLength(5)
+      expect(wrapper.text()).not.toContain('modelPlaza.catalog.inputSavings')
+    }
+  })
+
+  it('keeps the comparison column for the whole table when only some models are cheaper', () => {
+    const wrapper = mountSheet('group', [
+      model,
+      { ...model, name: 'claude-opus-3', official_pricing: { ...model.official_pricing!, input_price: 1e-6 } },
+    ])
+    expect(wrapper.findAll('thead th')).toHaveLength(6)
+    const rows = wrapper.findAll('tbody tr')
+    expect(rows).toHaveLength(2)
+    for (const row of rows) expect(row.findAll('td')).toHaveLength(6)
+  })
+
+  it('copies the model id through the shared clipboard helper', async () => {
+    copyToClipboard.mockClear()
+    const wrapper = mountSheet()
+    await wrapper.get('[data-testid="plaza-copy-model"]').trigger('click')
+    expect(copyToClipboard).toHaveBeenCalledWith('claude-opus-4')
   })
 
   it('always discloses the simplified pricing scope', () => {

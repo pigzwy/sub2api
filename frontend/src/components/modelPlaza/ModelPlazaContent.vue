@@ -33,7 +33,7 @@
       {{ t('modelPlaza.loadFailed') }}
     </div>
     <template v-else>
-      <!-- 后台:分类 Tab + 分组卡片,只展开当前选中分组 -->
+      <!-- 后台:分类 Tab + 分组卡片 + 当前选中分组的价格表,收在同一张卡片里 -->
       <PlazaCatalog
         v-if="embedded"
         :platforms="platforms"
@@ -45,39 +45,54 @@
         @update:platform="selectedPlatform = $event"
         @update:group-id="selectedGroupId = $event"
         @update:price-mode="priceMode = $event"
-      />
-      <!-- 独立页仍用筛选芯片,可一次看多个分组 -->
-      <PlazaFilterBar
-        v-else
-        :platforms="platforms"
-        :groups="groupOptions"
-        :rates="rates"
-        :platform="selectedPlatform"
-        :group-id="selectedGroupId"
-        :rate="selectedRate"
-        :search="searchQuery"
-        @update:platform="selectedPlatform = $event"
-        @update:group-id="selectedGroupId = $event"
-        @update:rate="selectedRate = $event"
-        @update:search="searchQuery = $event"
-      />
-
-      <!-- 分组分节的模型清单(默认按生效倍率升序) -->
-      <div v-if="filteredGroups.length > 0" class="space-y-5">
+      >
         <PlazaGroupSection
           v-for="g in filteredGroups"
           :key="g.id"
           :group="g"
-          :layout="embedded ? 'sheet' : 'legacy'"
+          layout="sheet"
           :price-mode="priceMode"
         />
-      </div>
-      <div
-        v-else
-        class="rounded-2xl border border-dashed border-gray-300 px-5 py-12 text-center text-sm text-gray-500 dark:border-dark-600 dark:text-dark-400"
-      >
-        {{ searchActive ? t('modelPlaza.noSearchResult') : t('modelPlaza.empty') }}
-      </div>
+        <p
+          v-if="filteredGroups.length === 0"
+          class="rounded-lg border border-dashed border-gray-300 px-5 py-10 text-center text-sm text-gray-500 dark:border-dark-600 dark:text-dark-400"
+        >
+          {{ t('modelPlaza.empty') }}
+        </p>
+      </PlazaCatalog>
+
+      <!-- 独立页仍用筛选芯片,可一次看多个分组 -->
+      <template v-else>
+        <PlazaFilterBar
+          :platforms="platforms"
+          :groups="groupOptions"
+          :rates="rates"
+          :platform="selectedPlatform"
+          :group-id="selectedGroupId"
+          :rate="selectedRate"
+          :search="searchQuery"
+          @update:platform="selectedPlatform = $event"
+          @update:group-id="selectedGroupId = $event"
+          @update:rate="selectedRate = $event"
+          @update:search="searchQuery = $event"
+        />
+
+        <!-- 分组分节的模型清单(默认按生效倍率升序) -->
+        <div v-if="filteredGroups.length > 0" class="space-y-5">
+          <PlazaGroupSection
+            v-for="g in filteredGroups"
+            :key="g.id"
+            :group="g"
+            layout="legacy"
+          />
+        </div>
+        <div
+          v-else
+          class="rounded-2xl border border-dashed border-gray-300 px-5 py-12 text-center text-sm text-gray-500 dark:border-dark-600 dark:text-dark-400"
+        >
+          {{ searchActive ? t('modelPlaza.noSearchResult') : t('modelPlaza.empty') }}
+        </div>
+      </template>
     </template>
   </div>
 </template>

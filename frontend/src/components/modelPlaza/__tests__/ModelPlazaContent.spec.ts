@@ -184,6 +184,17 @@ describe('ModelPlazaContent catalog', () => {
     expect(wrapper.get('[data-testid="plaza-group-name"]').text()).toBe('精品线路')
   })
 
+  it('keeps the selected group price sheet inside the catalog card without repeating the group header', () => {
+    const wrapper = mountContent(true)
+    const sheet = wrapper.get('.price-sheet-stub')
+    const card = wrapper.get('[data-testid="plaza-group-cards"]').element.closest('section')
+    expect(card).not.toBeNull()
+    expect(card!.contains(sheet.element)).toBe(true)
+    // 分组名和介绍已在卡片与介绍条里，价格表上方不再重复渲染分组徽章/描述。
+    expect(wrapper.findAll('.group-badge-stub')).toHaveLength(0)
+    expect(wrapper.findAll('[data-testid="plaza-group-intro"]')).toHaveLength(1)
+  })
+
   it('switches category to the matching groups', async () => {
     const wrapper = mountContent(true)
     const categories = wrapper.findAll('[data-testid="plaza-platform-tabs"] button')
