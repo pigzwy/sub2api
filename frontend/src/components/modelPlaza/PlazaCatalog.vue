@@ -1,5 +1,5 @@
 <template>
-  <div class="plaza-catalog space-y-4">
+  <div class="space-y-4">
     <nav
       class="rounded-xl border border-gray-200 bg-white p-2 shadow-sm dark:border-dark-700 dark:bg-dark-800"
       :aria-label="t('modelPlaza.catalog.products')"
@@ -159,8 +159,6 @@ import type { ModelPlazaGroup } from '@/api/modelPlaza'
 import { BILLING_MODE_IMAGE, BILLING_MODE_TOKEN, BILLING_MODE_VIDEO } from '@/constants/channel'
 import { useAppStore } from '@/stores/app'
 import { formatPeakRateWindow, hasPeakRate, serverTimezoneLabel } from '@/utils/peak-rate'
-// 数字和拉丁字符用网页字体，中文仍回落到系统字体；只随模型广场加载。
-import '@fontsource-variable/plus-jakarta-sans'
 import { platformAccentColor, platformIconClass } from '@/utils/platformColors'
 import {
   formatCatalogZhe,
@@ -307,23 +305,3 @@ function priceModeClass(mode: 'group' | 'official'): string {
   ].join(' ')
 }
 </script>
-
-<style scoped>
-/* 数字、货币符号和英文用 Plus Jakarta Sans，中文回落到站点原有的系统字体栈。
-   字体是继承属性，放进默认插槽的价格表也会跟着生效。 */
-.plaza-catalog {
-  font-family:
-    'Plus Jakarta Sans Variable',
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    Roboto,
-    'Helvetica Neue',
-    Arial,
-    'PingFang SC',
-    'Hiragino Sans GB',
-    'Microsoft YaHei',
-    sans-serif;
-}
-</style>

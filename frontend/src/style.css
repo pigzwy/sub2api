@@ -21,6 +21,12 @@
     @apply min-h-screen;
   }
 
+  /* Plus Jakarta Sans 的数字默认不等宽（1 比 0 窄一半）。表格里的金额、用量需要纵向对齐，
+     统一启用字体自带的等宽数字；标题和卡片上的数字保持默认字形。 */
+  table {
+    font-variant-numeric: tabular-nums;
+  }
+
   /* 自定义滚动条 - 仅针对 Firefox，避免 Chrome 取消 webkit 的全局定制 */
   @supports (-moz-appearance:none) {
     * {

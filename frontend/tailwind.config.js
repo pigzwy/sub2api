@@ -50,6 +50,7 @@ export default {
       },
       fontFamily: {
         sans: [
+          'Plus Jakarta Sans Variable',
           'system-ui',
           '-apple-system',
           'BlinkMacSystemFont',

@@ -8,7 +8,7 @@
 
 | 项 | 值 |
 |---|---|
-| 最近补录日期 | 2026-11-26（合并上游 v0.2.23、v0.2.25；更新第 17、18 节并新增第 20 节；其余章节未作全量重审） |
+| 最近补录日期 | 2026-11-26（合并上游 v0.2.23、v0.2.25；更新第 17、18 节并新增第 20、21 节；其余章节未作全量重审） |
 | 上游基线 | `0f6671457`（版本文件 `0.2.25`，已合并入本分支） |
 | 与上述上游基线的共同祖先 | `0f6671457` |
 | 差异规模 | 以以下重新核对命令为准 |
@@ -44,6 +44,9 @@ v0.2.3 采用上游 `236_group_model_allowlist_repair.sql` 修复旧列残留或
 独有 Realtime 账号测试和 GPT Image 测试兼容逻辑继续保留。
 
 ## 功能一览
+
+2026-11-26 全站的数字、货币符号和拉丁字符改用 Plus Jakarta Sans，中文仍用系统字体；
+表格统一启用等宽数字。纯展示改动，见第 21 节。
 
 2026-11-26 新增 OpenAI API Key 账号的「允许同步（非流式）请求」开关：上游拒绝同步请求的
 账号取消勾选后，非流式 `/v1/responses` 与 `/v1/alpha/search` 不再调度到该账号，流式请求
@@ -137,6 +140,7 @@ PR #8 的空通道标识隐藏同步纳入，既有 Stripe 六标及 USDT 网络
 | Infini USDT / 稳定币托管收银台 | ✅ | ✅ | — | — | 支付类型 `infini` + 服务商实例 |
 | 首输出异常保护与 Telegram 通知 | ✅ | ✅ | — | — | 账号 credentials + `telegram_notification` |
 | OpenAI API Key 账号同步请求开关 | ✅ | ✅ | — | — | 账号 extra `openai_sync_upstream_disabled` |
+| 全站数字与拉丁字体 | — | ✅ | — | — | — |
 
 ---
 
@@ -932,9 +936,9 @@ frontend/src/components/payment/RechargePackageSettingsEditor.vue
 
 - **版式**：价格列表标题、分组卡片、分组介绍和当前分组价表收在同一张卡片里；分组卡片按
   内容宽度排成一行，折扣徽章紧跟分组名，窄屏占满整行。价表模型名不换行，表格横向滚动。
-- **字体与配色**：目录范围内的数字、货币符号和拉丁字符使用 Plus Jakarta Sans
-  （`@fontsource-variable/plus-jakarta-sans`，OFL，随模型广场分包按需加载），中文沿用
-  站点系统字体栈；强调色由琥珀改为深橙。站点其它页面的字体不变。
+- **字体与配色**：数字、货币符号和拉丁字符使用 Plus Jakarta Sans，中文沿用站点系统
+  字体栈；强调色由琥珀改为深橙。该字体最初只在目录范围内加载，2026-11-26 起改为全站
+  使用（第 21 节），目录组件不再单独引入。
 - **分组计费信息标签**：分组介绍下列出专属分组、订阅、专属倍率（并标默认倍率）、
   高峰时段与倍率、图片/视频独立倍率（仅当组内有对应计费方式的模型）、未启用长上下文
   阶梯。分组启用高峰倍率时，每个 token 价格下加一行高峰价；按张、按次价格不叠加高峰
@@ -1161,6 +1165,30 @@ frontend/src/components/account/EditAccountModal.vue
 
 上游若重构 OpenAI 选号的候选检查或 `previous_response_id` 复用路径，需保留这三处否决；
 上游若新增会以同步方式转给上游的 OpenAI 入口，需在其 handler 选号前补上标记。
+
+---
+
+## 21. 全站数字与拉丁字体（2026-11-26）
+
+全站的数字、货币符号和拉丁字符使用 Plus Jakarta Sans（`@fontsource-variable/plus-jakarta-sans`，
+可变字重 200–800，OFL）。该字体不含任何中日韩字符（也不含全角 `￥`），中文由浏览器回落到
+原有的系统字体栈，所以中文观感不变；等宽字体（代码、密钥）不受影响。
+
+- `frontend/src/main.ts` 在全局样式之前引入字体。字体按 unicode-range 分子集，浏览器只
+  下载用到的子集，常用的 latin 子集约 27 KB；`font-display: swap`，首次访问会先用系统
+  字体显示再切换。字体文件与站点同源，现有 CSP 的 `font-src 'self'` 已覆盖。
+- `frontend/tailwind.config.js` 的 `fontFamily.sans` 把 `Plus Jakarta Sans Variable` 排在
+  系统字体之前。
+- `frontend/src/style.css` 对 `table` 统一设置 `font-variant-numeric: tabular-nums`：该字体
+  的数字默认不等宽（`1` 的字宽约为 `0` 的一半），不处理的话用量、账单等表格里的数字无法
+  纵向对齐。标题和卡片上的数字保持默认字形。表格之外需要对齐数字的地方继续用 Tailwind 的
+  `tabular-nums` 类。
+
+该字体的拉丁字符和数字比系统字体略宽，极窄的按钮或表格列可能多出换行或省略号；全站页面
+未逐页核对，发现后按页面单独调整。回退只需撤掉上述三处。
+
+**合并注意**：三个文件都是上游文件。上游若调整 `fontFamily.sans` 或入口的样式引入顺序，
+保留字体在字体栈首位、且在 `style.css` 之前引入即可。
 
 ---
 

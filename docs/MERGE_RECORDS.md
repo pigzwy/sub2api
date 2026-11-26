@@ -18,6 +18,16 @@
 上游正式实现 > 上游后续安全修复 > 本地旧二开 > 历史兼容代码
 ```
 
+## 2026-11-26：全站字体改为 Plus Jakarta Sans
+
+模型广场引入 Plus Jakarta Sans 后，按要求推广到全站：`main.ts` 全局引入、
+`tailwind.config.js` 的 `fontFamily.sans` 置于首位、`style.css` 为 `table` 启用等宽数字，
+`PlazaCatalog.vue` 去掉原先的局部引入与 scoped 字体声明。说明见 FORK_FEATURES.md 第 21 节。
+
+- 该字体不含中文，中文仍是系统字体；只改变数字、货币符号和拉丁字符的字形。
+- 验证：`vue-tsc --noEmit`、`vite build` 通过；构建产物的全局样式中 `html` 字体栈以该字体
+  开头并包含表格等宽数字规则；模型广场与布局组件用例（122 个）通过。未逐页做视觉核对。
+
 ## 2026-11-26：OpenAI API Key 账号同步请求开关
 
 独立功能提交 `9ffc80e8b`（及测试注解 `628a9cf4d`），不涉及上游合并，无数据库迁移。
