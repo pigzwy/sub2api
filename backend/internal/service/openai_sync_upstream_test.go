@@ -76,6 +76,7 @@ func TestOpenAISyncUpstreamVetoReason(t *testing.T) {
 	}
 
 	require.False(t, isOpenAISyncUpstreamRequest(context.Background()))
+	//nolint:staticcheck // Exercises the defensive nil-context fallback.
 	require.True(t, isOpenAISyncUpstreamRequest(WithOpenAISyncUpstreamRequest(nil)))
 }
 
