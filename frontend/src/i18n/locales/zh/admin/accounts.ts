@@ -800,6 +800,9 @@ export default {
         oauthPassthrough: '自动透传（仅替换认证）',
         oauthPassthroughDesc:
           '开启后，该 OpenAI 账号将自动透传请求与响应，仅替换认证并保留计费/并发/审计及必要安全过滤；如遇兼容性问题可随时关闭回滚。',
+        syncUpstreamAllowed: '允许同步（非流式）请求',
+        syncUpstreamAllowedDesc:
+          '默认勾选。上游不接受同步请求时取消勾选：非流式的 /v1/responses 和 /v1/alpha/search 请求将不再派给该账号，改由同分组其他账号处理；流式请求，以及由网关转成流式的 /v1/chat/completions、/v1/messages 同步请求不受影响。',
         passthroughModelFilter: '透传时按账号模型筛选',
         passthroughModelFilterDesc:
           '使用账号模型白名单与映射的来源模型名筛选候选账号，映射目标不会改写透传请求的模型名。列表为空时允许所有模型。默认关闭。',

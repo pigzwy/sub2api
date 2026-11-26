@@ -1565,6 +1565,9 @@ func filterSchedulerExtra(extra map[string]any) map[string]any {
 		"openai_passthrough_model_filter",
 		// 生图尺寸档位在候选过滤阶段按本投影判定，裁掉后受限账号会接到不允许的档位。
 		service.AccountExtraOpenAIImageSizeTiers,
+		// “上游不接受同步请求”开关同样在候选过滤阶段读本投影；裁掉后开关形同未设置，
+		// 同步请求照旧派给该账号并被上游以 400 拒绝。
+		service.AccountExtraOpenAISyncUpstreamDisabled,
 		"codex_fingerprint_mode",
 		"codex_fingerprint_seed",
 		"codex_5h_used_percent",

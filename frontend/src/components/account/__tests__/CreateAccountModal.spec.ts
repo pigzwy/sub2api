@@ -289,6 +289,30 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     wrapper.unmount()
   })
 
+  it('creates an API key account that refuses synchronous requests only when unchecked', async () => {
+    for (const refuse of [false, true]) {
+      createAccountMock.mockClear()
+      const wrapper = mountModal()
+      await selectButtonByText(wrapper, 'OpenAI')
+      await selectButtonByText(wrapper, 'API Key')
+      await wrapper.get('form#create-account-form input[type="text"]').setValue('sync upstream')
+      await wrapper.get('form#create-account-form input[type="password"]').setValue('synthetic-key')
+      const allowed = wrapper.get<HTMLInputElement>('[data-testid="create-openai-sync-upstream-allowed"]')
+      expect(allowed.element.checked).toBe(true)
+      if (refuse) await allowed.setValue(false)
+      await wrapper.get('form#create-account-form').trigger('submit.prevent')
+      await flushPromises()
+
+      const extra = createAccountMock.mock.calls[0]?.[0]?.extra ?? {}
+      if (refuse) {
+        expect(extra.openai_sync_upstream_disabled).toBe(true)
+      } else {
+        expect(extra).not.toHaveProperty('openai_sync_upstream_disabled')
+      }
+      wrapper.unmount()
+    }
+  })
+
   it('can create a passthrough account with model filtering enabled', async () => {
     const wrapper = mountModal()
     await selectButtonByText(wrapper, 'OpenAI')

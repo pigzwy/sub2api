@@ -672,6 +672,9 @@ export default {
         oauthPassthrough: 'Auto passthrough (auth only)',
         oauthPassthroughDesc:
           'When enabled, this OpenAI account uses automatic passthrough: the gateway forwards request/response as-is and only swaps auth, while keeping billing/concurrency/audit and necessary safety filtering.',
+        syncUpstreamAllowed: 'Allow synchronous (non-streaming) requests',
+        syncUpstreamAllowedDesc:
+          'Checked by default. Uncheck it when the upstream refuses synchronous requests: non-streaming /v1/responses and /v1/alpha/search requests are no longer routed to this account and go to other accounts in the group instead. Streaming requests, and synchronous /v1/chat/completions and /v1/messages requests that the gateway streams upstream, are unaffected.',
         passthroughModelFilter: 'Filter passthrough accounts by model',
         passthroughModelFilterDesc:
           'Use the account model whitelist and mapping source names to select this account. Mapping targets do not rename passthrough requests. An empty list allows all models. Disabled by default.',

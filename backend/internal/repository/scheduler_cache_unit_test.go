@@ -1305,3 +1305,23 @@ func TestBuildSchedulerMetadataAccount_KeepsRPMFieldsForRPMGate(t *testing.T) {
 			"投影裁掉 rpm_strategy 会让粘性豁免账号退回三区判定")
 	})
 }
+
+// “上游不接受同步请求”开关在候选过滤阶段读的是本投影；裁掉后开关形同未设置，
+// 同步请求会照旧派给该账号并被上游以 400 拒绝。
+func TestBuildSchedulerMetadataAccount_KeepsOpenAISyncUpstreamDisabled(t *testing.T) {
+	account := service.Account{
+		ID:       8751,
+		Platform: service.PlatformOpenAI,
+		Type:     service.AccountTypeAPIKey,
+		Extra:    map[string]any{service.AccountExtraOpenAISyncUpstreamDisabled: true},
+	}
+	require.False(t, account.AllowsOpenAISyncUpstream(), "前置条件：账号声明不接受同步请求")
+
+	payload, err := json.Marshal(buildSchedulerMetadataAccount(account))
+	require.NoError(t, err)
+	var restored service.Account
+	require.NoError(t, json.Unmarshal(payload, &restored))
+
+	require.Equal(t, true, restored.Extra[service.AccountExtraOpenAISyncUpstreamDisabled])
+	require.False(t, restored.AllowsOpenAISyncUpstream())
+}

@@ -456,6 +456,10 @@ func openAICompatibleAccountEligibilityFailureReasonBeforeProfit(ctx context.Con
 	if vetoed, reason := openAIImageSizeVetoReason(ctx, account); vetoed {
 		return reason
 	}
+	// 同步请求不派给声明了“上游不接受同步请求”的账号。
+	if vetoed, reason := openAISyncUpstreamVetoReason(ctx, account); vetoed {
+		return reason
+	}
 	return ""
 }
 

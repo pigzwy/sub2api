@@ -682,6 +682,11 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	// 该判断已排除 Codex 被动 image_gen namespace，避免 CC-only 账号被误过滤（#4476）。
 	needsResponses := nativeV2 || legacyCompact
 	requiredCapability := openAIResponsesRequiredCapabilityForRequest(imageIntent, needsResponses, requestPlatform)
+	if !reqStream {
+		// 非流式的 /v1/responses 会以同步方式转给 API Key 上游；有些上游直接以 400
+		// 拒绝同步请求，选号时跳过声明了不接受同步请求的账号。
+		c.Request = c.Request.WithContext(service.WithOpenAISyncUpstreamRequest(c.Request.Context()))
+	}
 	imageSizeRouted := imageIntent && requestPlatform == service.PlatformOpenAI
 	imageSize := ""
 	if imageSizeRouted {

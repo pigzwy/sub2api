@@ -382,6 +382,54 @@ describe('EditAccountModal', () => {
     wrapper.unmount()
   })
 
+  it('allows synchronous requests by default and stores the refusal only when unchecked', async () => {
+    const account = buildAccount()
+    updateAccountMock.mockReset().mockResolvedValue(account)
+    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
+    const wrapper = mountModal(account)
+
+    const allowed = wrapper.get<HTMLInputElement>('[data-testid="edit-openai-sync-upstream-allowed"]')
+    expect(allowed.element.checked).toBe(true)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+    // 默认状态不往 extra 里写任何东西，存量账号保存后行为不变。
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra).not.toHaveProperty('openai_sync_upstream_disabled')
+
+    updateAccountMock.mockClear()
+    await allowed.setValue(false)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra.openai_sync_upstream_disabled).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('loads a saved synchronous-request refusal and clears it when allowed again', async () => {
+    const account = buildAccount()
+    account.extra = { openai_sync_upstream_disabled: true }
+    updateAccountMock.mockReset().mockResolvedValue(account)
+    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
+    const wrapper = mountModal(account)
+
+    const allowed = wrapper.get<HTMLInputElement>('[data-testid="edit-openai-sync-upstream-allowed"]')
+    expect(allowed.element.checked).toBe(false)
+    await allowed.setValue(true)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra).not.toHaveProperty('openai_sync_upstream_disabled')
+    wrapper.unmount()
+  })
+
+  it('only offers the synchronous-request option on OpenAI API key accounts', () => {
+    // OAuth 账号的上游请求始终是流式的，这个开关对它没有意义。
+    const oauth = mountModal(buildOpenAIOAuthParentAccount())
+    expect(oauth.find('[data-testid="edit-openai-sync-upstream-allowed"]').exists()).toBe(false)
+    oauth.unmount()
+
+    const grok = mountModal(buildGrokAPIKeyAccount())
+    expect(grok.find('[data-testid="edit-openai-sync-upstream-allowed"]').exists()).toBe(false)
+    grok.unmount()
+  })
+
   it('loads the saved model filter and removes it when passthrough is disabled', async () => {
     const account = buildAccount()
     account.extra = { openai_passthrough: true, openai_passthrough_model_filter: true }

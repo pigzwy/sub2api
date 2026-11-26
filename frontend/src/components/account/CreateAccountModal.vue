@@ -3350,6 +3350,27 @@
         </label>
       </div>
 
+      <!-- OpenAI API Key：上游是否接受同步（非流式）请求 -->
+      <div
+        v-if="form.platform === 'openai' && form.type === 'apikey'"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <label class="flex items-start gap-2">
+          <input
+            v-model="openaiSyncUpstreamAllowed"
+            type="checkbox"
+            data-testid="create-openai-sync-upstream-allowed"
+            class="mt-1 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+          <span class="text-sm">
+            {{ t('admin.accounts.openai.syncUpstreamAllowed') }}
+            <span class="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.openai.syncUpstreamAllowedDesc') }}
+            </span>
+          </span>
+        </label>
+      </div>
+
       <!-- OpenAI Codex namespace 工具摊平（兼容开关，仅 OAuth） -->
       <div
         v-if="form.platform === 'openai' && form.type === 'oauth'"
@@ -4776,6 +4797,8 @@ const interceptWarmupRequests = ref(false)
 const autoPauseOnExpired = ref(true)
 const openaiPassthroughEnabled = ref(false)
 const openaiPassthroughModelFilterEnabled = ref(false)
+// 上游是否接受同步（非流式）请求。缺省允许；取消勾选后写入 extra.openai_sync_upstream_disabled。
+const openaiSyncUpstreamAllowed = ref(true)
 // OpenAI Codex namespace 工具摊平兼容开关（仅 OAuth），缺省关闭即原样保留
 const openaiFlattenNamespacesEnabled = ref(false)
 const openAILongContextBillingEnabled = ref(false)
@@ -5295,6 +5318,7 @@ watch(
     if (newPlatform !== 'openai') {
       openaiPassthroughEnabled.value = false
       openaiPassthroughModelFilterEnabled.value = false
+      openaiSyncUpstreamAllowed.value = true
       openaiFlattenNamespacesEnabled.value = false
       openAIEndpointCapabilities.value = ['chat_completions', 'embeddings']
       openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
@@ -5762,6 +5786,7 @@ const resetForm = () => {
   autoPauseOnExpired.value = true
   openaiPassthroughEnabled.value = false
   openaiPassthroughModelFilterEnabled.value = false
+  openaiSyncUpstreamAllowed.value = true
   openaiFlattenNamespacesEnabled.value = false
   openAILongContextBillingEnabled.value = false
   openAILongContextBillingTouched.value = false
@@ -5857,6 +5882,12 @@ const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknow
     extra.openai_passthrough_model_filter = true
   } else {
     delete extra.openai_passthrough_model_filter
+  }
+  // 缺省即允许同步请求；只在取消勾选时写入，避免 extra 里堆积默认项
+  if (form.type === 'apikey' && !openaiSyncUpstreamAllowed.value) {
+    extra.openai_sync_upstream_disabled = true
+  } else {
+    delete extra.openai_sync_upstream_disabled
   }
   // 缺省即保留 namespace，不写空值，避免 extra 里堆积默认项
   if (form.type === 'oauth' && openaiFlattenNamespacesEnabled.value) {

@@ -2079,6 +2079,27 @@
         </label>
       </div>
 
+      <!-- OpenAI API Key：上游是否接受同步（非流式）请求 -->
+      <div
+        v-if="account?.platform === 'openai' && account?.type === 'apikey'"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <label class="flex items-start gap-2">
+          <input
+            v-model="openaiSyncUpstreamAllowed"
+            type="checkbox"
+            data-testid="edit-openai-sync-upstream-allowed"
+            class="mt-1 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+          <span class="text-sm">
+            {{ t('admin.accounts.openai.syncUpstreamAllowed') }}
+            <span class="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.openai.syncUpstreamAllowedDesc') }}
+            </span>
+          </span>
+        </label>
+      </div>
+
       <!-- OpenAI Codex namespace 工具摊平（兼容开关，仅 OAuth） -->
       <div
         v-if="account?.platform === 'openai' && account?.type === 'oauth'"
@@ -4207,6 +4228,8 @@ const customBaseUrl = ref('')
 // OpenAI 自动透传开关（OAuth/API Key）
 const openaiPassthroughEnabled = ref(false)
 const openaiPassthroughModelFilterEnabled = ref(false)
+// 上游是否接受同步（非流式）请求。缺省允许；取消勾选后写入 extra.openai_sync_upstream_disabled。
+const openaiSyncUpstreamAllowed = ref(true)
 // OpenAI Codex namespace 工具摊平兼容开关（仅 OAuth），缺省关闭即原样保留
 const openaiFlattenNamespacesEnabled = ref(false)
 const openAILongContextBillingEnabled = ref(false)
@@ -4739,6 +4762,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   // Load OpenAI passthrough toggle (OpenAI OAuth/SetupToken/API Key)
   openaiPassthroughEnabled.value = false
   openaiPassthroughModelFilterEnabled.value = false
+  openaiSyncUpstreamAllowed.value = true
   openaiFlattenNamespacesEnabled.value = false
   openAILongContextBillingEnabled.value = false
   editPlanType.value = ''
@@ -4758,6 +4782,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   if (newAccount.platform === 'openai' && (newAccount.type === 'oauth' || newAccount.type === 'setup-token' || newAccount.type === 'apikey')) {
     openaiPassthroughEnabled.value = extra?.openai_passthrough === true || extra?.openai_oauth_passthrough === true
     openaiPassthroughModelFilterEnabled.value = extra?.openai_passthrough_model_filter === true
+    openaiSyncUpstreamAllowed.value = extra?.openai_sync_upstream_disabled !== true
     openaiFlattenNamespacesEnabled.value =
       newAccount.type === 'oauth' && extra?.openai_responses_flatten_namespaces === true
     const longContextBillingValue = extra?.openai_long_context_billing_enabled
@@ -6323,6 +6348,12 @@ const handleSubmit = async () => {
         newExtra.openai_passthrough_model_filter = true
       } else {
         delete newExtra.openai_passthrough_model_filter
+      }
+      // 缺省即允许同步请求；只在取消勾选时写入，避免 extra 里堆积默认项
+      if (props.account.type === 'apikey' && !openaiSyncUpstreamAllowed.value) {
+        newExtra.openai_sync_upstream_disabled = true
+      } else {
+        delete newExtra.openai_sync_upstream_disabled
       }
       // 缺省即保留 namespace，不写空值，避免 extra 里堆积默认项
       if (props.account.type === 'oauth' && openaiFlattenNamespacesEnabled.value) {

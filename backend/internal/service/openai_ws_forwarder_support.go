@@ -590,6 +590,11 @@ func (s *OpenAIGatewayService) resolveAccountByPreviousResponseIDForCapability(
 	if vetoed, _ := openAIProfitControlVetoReason(ctx, account); vetoed {
 		return 0, nil, "", nil
 	}
+	// 上游不接受同步请求的账号：本次同步请求不复用它，但保留绑定——
+	// 同一响应链上的流式请求仍应粘连到该账号。
+	if vetoed, _ := openAISyncUpstreamVetoReason(ctx, account); vetoed {
+		return 0, nil, "", nil
+	}
 	if s.schedulerSnapshot != nil && s.accountRepo != nil {
 		latest, latestErr := s.accountRepo.GetByID(ctx, account.ID)
 		if latestErr != nil || latest == nil {
@@ -621,6 +626,10 @@ func (s *OpenAIGatewayService) resolveAccountByPreviousResponseIDForCapability(
 		}
 		// 利润门对最新账号状态复检一次，语义同上：跳过复用、不删绑定。
 		if vetoed, _ := openAIProfitControlVetoReason(ctx, latest); vetoed {
+			return 0, nil, "", nil
+		}
+		// 同步请求开关按最新账号状态复检（管理员可能刚改过）。
+		if vetoed, _ := openAISyncUpstreamVetoReason(ctx, latest); vetoed {
 			return 0, nil, "", nil
 		}
 		if s.isOpenAIAccountRequestRuntimeBlocked(latest, requestedModel) {

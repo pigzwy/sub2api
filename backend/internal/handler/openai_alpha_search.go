@@ -134,7 +134,8 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 	// 分组利润控制：alpha search 文本入口请求级装门并固定 pricingAt
 	//（记录路径经 service.OpenAIPricingAtFromContext 从请求 ctx 回读）。
 	asPricingCtx, _ := h.gatewayService.WithOpenAIRequestPricingContext(c.Request.Context(), apiKey.GroupID)
-	c.Request = c.Request.WithContext(asPricingCtx)
+	// alpha search 没有流式形态，上游收到的一定是同步请求。
+	c.Request = c.Request.WithContext(service.WithOpenAISyncUpstreamRequest(asPricingCtx))
 
 	for {
 		selection, _, err := h.gatewayService.SelectAccountWithSchedulerForCapability(
