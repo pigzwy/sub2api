@@ -27,16 +27,26 @@ export function perMillionUsd(perToken: number | null | undefined): number | nul
   return perToken * 1_000_000
 }
 
-export function groupYuan(perToken: number | null | undefined, rate: number): number | null {
+/** 未取整的分组价。折扣比较和「省多少」用它；展示用 groupYuan。 */
+export function groupYuanExact(perToken: number | null | undefined, rate: number): number | null {
   const usd = perMillionUsd(perToken)
-  if (usd == null) return null
-  return round2(usd * rate)
+  return usd == null ? null : usd * rate
+}
+
+/** 未取整的官方价。折扣比较和「省多少」用它；展示用 officialYuan。 */
+export function officialYuanExact(perToken: number | null | undefined, fx = PLAZA_USD_TO_CNY): number | null {
+  const usd = perMillionUsd(perToken)
+  return usd == null ? null : usd * fx
+}
+
+export function groupYuan(perToken: number | null | undefined, rate: number): number | null {
+  const exact = groupYuanExact(perToken, rate)
+  return exact == null ? null : round2(exact)
 }
 
 export function officialYuan(perToken: number | null | undefined, fx = PLAZA_USD_TO_CNY): number | null {
-  const usd = perMillionUsd(perToken)
-  if (usd == null) return null
-  return round2(usd * fx)
+  const exact = officialYuanExact(perToken, fx)
+  return exact == null ? null : round2(exact)
 }
 
 export function requestGroupYuan(perUnit: number | null | undefined, rate: number): number | null {
@@ -49,9 +59,20 @@ export function requestOfficialYuan(perUnit: number | null | undefined, fx = PLA
   return round2(perUnit * fx)
 }
 
+/**
+ * 分组价是否确实低于官方价。传未取整的价格：不足 1 分的价格取整后只剩 1 位有效数字，
+ * 拿取整值比较会把 8 折算成 5 折，或把更便宜的价格判成相等。容差只用来吸收浮点误差。
+ */
+export function isCheaperPrice(group: number | null, official: number | null): boolean {
+  if (group == null || official == null || official <= 0) return false
+  return group < official * (1 - 1e-9)
+}
+
+/** 相对官方价省了百分之几；传未取整的价格。不足 1% 视为没有折扣，不显示「省 0%」。 */
 export function savingsPercent(group: number | null, official: number | null): number | null {
-  if (group == null || official == null || official <= 0 || group >= official) return null
-  return Math.round((1 - group / official) * 100)
+  if (!isCheaperPrice(group, official)) return null
+  const percent = Math.round((1 - group! / official!) * 100)
+  return percent > 0 ? percent : null
 }
 
 export function formatYuan(amount: number | null): string {

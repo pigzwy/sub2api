@@ -185,7 +185,10 @@ import {
   formatPlazaTimeWindow,
   formatYuan,
   groupYuan,
+  groupYuanExact,
+  isCheaperPrice,
   officialYuan,
+  officialYuanExact,
   plazaTierLabel,
   requestGroupYuan,
   savingsPercent,
@@ -367,16 +370,21 @@ function mediaPrices(m: PlazaModel, rate: number): MediaPrice[] {
   return [{ label: '', amount: formatYuan(requestGroupYuan(m.pricing.per_request_price, rate)) }]
 }
 
-function pair(group: number | null, official: number | null, notes: string[] = []): PricePair {
-  const groupText = formatYuan(group)
-  const officialText = formatYuan(official)
+/** 一格价格：展示用取整后的金额，是否划线用未取整的价格比较。 */
+function pair(
+  groupPerToken: number | null | undefined,
+  officialPerToken: number | null | undefined,
+  rate: number,
+  notes: string[] = [],
+): PricePair {
+  const officialText = formatYuan(officialYuan(officialPerToken))
   if (mode.value === 'official') {
     return { primary: officialText, official: '-', discounted: false, notes }
   }
   return {
-    primary: groupText,
+    primary: formatYuan(groupYuan(groupPerToken, rate)),
     official: officialText,
-    discounted: group != null && official != null && group < official,
+    discounted: isCheaperPrice(groupYuanExact(groupPerToken, rate), officialYuanExact(officialPerToken)),
     notes,
   }
 }
@@ -410,18 +418,15 @@ function tokenPairs(
 ): TokenPairs {
   const peak = (perToken: number | null | undefined) => (withPeak ? peakNotes(perToken, rate) : [])
   return {
-    input: pair(groupYuan(group?.input_price, rate), officialYuan(official?.input_price), peak(group?.input_price)),
-    output: pair(groupYuan(group?.output_price, rate), officialYuan(official?.output_price), peak(group?.output_price)),
+    input: pair(group?.input_price, official?.input_price, rate, peak(group?.input_price)),
+    output: pair(group?.output_price, official?.output_price, rate, peak(group?.output_price)),
     cacheWrite: pair(
-      groupYuan(group?.cache_write_price, rate),
-      officialYuan(official?.cache_write_price),
+      group?.cache_write_price,
+      official?.cache_write_price,
+      rate,
       [...cacheWrite1hNotes(group, official, rate), ...peak(group?.cache_write_price)],
     ),
-    cacheRead: pair(
-      groupYuan(group?.cache_read_price, rate),
-      officialYuan(official?.cache_read_price),
-      peak(group?.cache_read_price),
-    ),
+    cacheRead: pair(group?.cache_read_price, official?.cache_read_price, rate, peak(group?.cache_read_price)),
   }
 }
 
@@ -541,7 +546,10 @@ const rows = computed<SheetRow[]>(() =>
         ...tokenPairs(m.pricing, m.official_pricing, rate, true),
         savings:
           mode.value === 'group'
-            ? savingsPercent(groupYuan(m.pricing?.input_price, rate), officialYuan(m.official_pricing?.input_price))
+            ? savingsPercent(
+                groupYuanExact(m.pricing?.input_price, rate),
+                officialYuanExact(m.official_pricing?.input_price),
+              )
             : null,
         tierCount: tiers.length,
         periodCount: periods.length,

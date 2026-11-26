@@ -6,7 +6,10 @@ import {
   formatYuan,
   formatZhe,
   groupYuan,
+  groupYuanExact,
+  isCheaperPrice,
   officialYuan,
+  officialYuanExact,
   plazaTabLabel,
   plazaTierLabel,
   savingsPercent,
@@ -62,6 +65,22 @@ describe('plazaCatalog', () => {
     expect(groupYuan(5e-6, 0.8)).toBe(4)
     expect(officialYuan(5e-6)).toBe(5)
     expect(savingsPercent(4, 5)).toBe(20)
+  })
+
+  it('compares sub-cent prices before rounding them for display', () => {
+    // 官方 ¥0.0015、分组 8 折 ¥0.0012：展示各取 1 位有效数字，折扣仍按真实价格算。
+    const group = groupYuanExact(1.5e-9, 0.8)
+    const official = officialYuanExact(1.5e-9)
+    expect(savingsPercent(group, official)).toBe(20)
+    expect(isCheaperPrice(group, official)).toBe(true)
+
+    // 官方 ¥0.0014、分组 ¥0.00112：取整后都显示 ¥0.001，但分组价确实更低。
+    expect(formatYuan(groupYuan(1.4e-9, 0.8))).toBe(formatYuan(officialYuan(1.4e-9)))
+    expect(isCheaperPrice(groupYuanExact(1.4e-9, 0.8), officialYuanExact(1.4e-9))).toBe(true)
+
+    // 倍率为 1 时不算折扣，也不显示「省 0%」。
+    expect(isCheaperPrice(groupYuanExact(3e-6, 1), officialYuanExact(3e-6))).toBe(false)
+    expect(savingsPercent(4.999, 5)).toBeNull()
   })
 
   it('maps category tabs to the reference brand labels', () => {
