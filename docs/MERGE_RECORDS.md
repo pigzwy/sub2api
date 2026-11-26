@@ -18,6 +18,133 @@
 上游正式实现 > 上游后续安全修复 > 本地旧二开 > 历史兼容代码
 ```
 
+## 2026-11-26：OpenAI API Key 账号同步请求开关
+
+独立功能提交 `9ffc80e8b`（及测试注解 `628a9cf4d`），不涉及上游合并，无数据库迁移。
+背景、调度规则、关键文件与测试见 [FORK_FEATURES.md](./FORK_FEATURES.md) 第 20 节。
+
+- 触发原因：一个 OpenAI API Key 中转上游自 2026-11-25 起对所有非流式 `/v1/responses` 与
+  `/v1/alpha/search` 返回只含「请求被拒绝」的 HTTP 400，流式请求正常。该 400 与客户端
+  请求本身有误时无法区分，网关按原样返回，不换号。
+- 取舍：不做「按报错内容识别后换号」。已见到的拒绝文案不止一种，且每个同步请求都要先被
+  拒一次；改为账号级显式开关，在选号阶段直接跳过。
+- 范围只含 OpenAI 平台 API Key 账号，且只拦网关会以同步方式转给上游的两类请求。非流式
+  `/v1/chat/completions` 与 `/v1/messages` 由网关以流式请求上游，不在范围内。
+- 验证：`go test -tags=unit ./...`（61 个包）与 `go vet`（unit、integration 标签）通过；
+  前端 `vue-tsc --noEmit`、`check:i18n`、账号弹窗两个测试文件（141 个用例）通过。
+  首次推送的 CI 因测试文件一处 `SA1012`（向函数传 nil Context 的防御性用例）在
+  golangci-lint 失败，`test`、`frontend`、镜像构建与安全扫描通过；`628a9cf4d` 按
+  `http_upstream_profile_test.go` 的既有写法加注解后 CI 全部通过。
+- 发布：2026-11-26 随 `9ffc80e8b` 的镜像部署生产。对受影响账号关闭开关后的约 17 分钟内，
+  同分组 72 次同步 `/v1/responses` 与 40 次搜索请求全部落在其它账号，该账号 0 次；
+  其流式请求照常（1811 次）。同一时段内同步 `/v1/chat/completions` 样本过少，未单独验证。
+
+## 2026-11-25：合并上游 v0.2.25、模型广场版式与 Infini V2 认证
+
+**合并上游 v0.2.25（`906dfb2d7`）**
+
+从 `request-audit` 的 `77cbfe706` 合并 `upstream/main` 的 `0f6671457`，共同祖先为
+`2af3f1e15`。上游新增 77 个非合并提交、266 个变更文件，版本文件为 `0.2.25`，**无新增迁移**。
+在独立 worktree 的临时分支上合并，验证后快进到 `request-audit`。
+
+10 个冲突文件的处理：
+
+| 范围 | 处理 |
+|---|---|
+| `repository/account_repo.go` 的 `lockAndMergeAccountProbeExtra` | 上游 `upstream_billing_group_sync_enabled` 与二开首输出保护两列并存：上游列在前、二开两列在最后，`SELECT` 与 `rows.Scan` 顺序一致 |
+| `account_repo_grok_managed_extra_test.go`、`account_repo_opencode_go_usage_test.go`、`account_repo_upstream_billing_probe_update_test.go` | sqlmock 列清单与行数据按上面的合并顺序补齐二开两列 |
+| `service/openai_gateway_messages.go`（两处） | 二开 `observeFirstOutputPayload` 与上游 `outputSlots.Observe` 都保留 |
+| 中英文 `admin/overview.ts` | 保留二开 `openaiRealtime` 文案块，`ultrafastHint` 采用上游更新后的文案 |
+| 中英文 `dashboard.ts`、`CreateAccountModal.spec.ts` | 两侧新增的键与用例都保留 |
+
+无文本冲突但需要适配的地方：
+
+- 上游给 `Account.ApplyHeaderOverrides` 增加了 `context.Context` 参数（请求头覆写支持身份
+  变量）。二开独有的三处调用补上上下文：`openai_realtime.go`、`account_test_service.go`
+  的 Realtime 连通性测试、`grok_media.go` 的视频转存取源。
+- 上游新增的 `gateway_compat_effort_policy_test.go` 按二开 `NewOpenAIGatewayHandler` 签名补两个
+  `nil`；`gateway_key_billing_test.go` 的二开用例按上游 `newKeyBillingRouteTestRouter` 新签名补
+  `nil`；`account_repo_first_output_integration_test.go` 按上游 `NewAdminService` 新增的
+  `userPlatformQuotaRepo` 参数补 `nil`。
+
+Ent 与 Wire 重新生成后无差异。`go mod tidy` 只会删掉 `github.com/google/subcommands`，
+该依赖是 `cmd/server` 的 wire 生成所需，保留。上游的模型广场改动只有
+`PlazaModelPricingTable.vue` 的复制按钮，与二开对该表的排序、视频单位两处差异共存；
+二开的目录组件未受影响。
+
+**模型广场版式与信息（`bba00218a`、`5a605cb1a`）**
+
+登录后目录的版式、字体、分组计费信息标签及阶梯/分时逐模型展开，内容见
+FORK_FEATURES.md 第 17 节。新增前端依赖 `@fontsource-variable/plus-jakarta-sans`；
+`pnpm-lock.yaml` 只追加该包的三处条目（pnpm 9.15.9 重写锁文件时会去掉既有的 `libc`
+字段，已手工还原，避免无关改动）。仅展示层，未改后端接口与计费。
+
+**Infini V2 认证（`76b35f06e`）**
+
+Infini 通知收单 API 的 HMAC 认证于 2026-11-30 停用。`infini.go` 增加 Ed25519 签名与
+`/v2/acquiring` 路径，按实例是否配置私钥选择；旧版 HMAC 保留为过渡。细节见
+FORK_FEATURES.md 第 18 节「认证」。官方文档对 V2 查询订单的返回字段有两种写法，实测为
+`{code,message,data}` 包裹加 `order_amount` / `order_currency` / `amount_confirmed`。
+
+**验证**
+
+- 后端：`go build ./...`、`go vet`（unit、integration、e2e 标签）、`go test -tags=unit ./...`
+  （61 个包）通过；`infini_test.go` 31 个用例通过。V2 签名另以真实凭据对生产接口做过
+  只读的订单查询。
+- 前端：`vue-tsc --noEmit`、`check:i18n`、`eslint`、`vite build` 通过；`vitest run` 全量
+  3353 个用例中 1 个失败，为上游提交 `a95c9e263` 改动样式类后未同步的
+  `AccountsView.sparkShadow.spec.ts`，该文件与上游一致，不在 CI 白名单。
+- CI：`5a605cb1a` 与 `76b35f06e` 两次推送的 `[FORK] Build & Push Docker Image`、`CI`（含
+  integration 与 golangci-lint）、`Security Scan` 全部通过。
+- 发布：2026-11-26 部署生产。Infini 生产实例同日切换到 V2 凭据，V2 下单、收银台跳转与
+  Webhook 验签经一笔真实订单验证；该笔为少付订单，足额到账后的履约未在 V2 下实测。
+
+## 2026-11-18：合并上游 v0.2.23
+
+合并提交 `77cbfe706`：从 `request-audit` 的 `2e9437877` 合并 `upstream/main` 的 `2af3f1e15`，
+共同祖先为 `530c5e3a4`。上游新增 127 个非合并提交、398 个变更文件，版本文件为 `0.2.23`。
+在独立 worktree 的临时分支上合并，验证后快进到 `request-audit`。
+
+11 个冲突文件的处理：
+
+| 范围 | 处理 |
+|---|---|
+| `backend/Dockerfile`、`deploy/Dockerfile` | 采用上游 `golang:1.27.4-alpine`，与 `go.mod` 一致 |
+| `backend/go.mod`、`go.sum` | 采用上游（`jsonschema-go` 改为直接依赖），保留 wire 生成所需的 `github.com/google/subcommands` |
+| `backend/ent/group.go` | 二开 `allow_realtime` 与上游 `force_openai_ultrafast` 两个字段都保留，随后重新生成 Ent |
+| `repository/scheduler_cache.go` | 两侧都把 `openai_capabilities` 加进调度投影，保留一份 |
+| `service/antigravity_gateway_compat_stream.go` | 二开 `onFirstOutput` 钩子与上游 `preContentKeepaliveSent` 都保留 |
+| `service/openai_gateway_service.go`、`openai_gateway_usage.go` | 采用上游 `OpenAIUsage.billingUsageTokens()`，把二开三个音频 token 字段放进该函数，Realtime 音频计费不变 |
+| 中英文 `admin/overview.ts`、`CreateAccountModal.spec.ts` | 两侧都保留 |
+
+需要特别记录的两点：
+
+- **Ent 生成代码的自动合并不可信。** 两侧各给 `groups` 表加一个字段，Git 自动合并后能编译，
+  但 `ent/runtime/runtime.go` 中 15 个分组字段的描述符下标各错一位（默认值与校验器会套到
+  相邻字段上）。重新 `go generate ./ent` 后修正。
+- 上游新增的 `openai_gateway_messages_pre_content_failover_test.go` 按二开
+  `NewOpenAIGatewayHandler` 签名补两个 `nil`。
+
+上游迁移：`251_group_force_openai_ultrafast.sql`、
+`251_group_usage_rollup_nonblocking_build.sql`、`252_channel_pricing_ultrafast_multiplier.sql`。
+
+**验证**
+
+- 后端：`go build ./...`、`go vet`（unit、integration 标签）、`go test -tags=unit ./...`
+  （61 个包）通过。integration 测试未在本地运行。
+- 前端：`vue-tsc --noEmit`、`check:i18n` 通过；`vitest run` 全量 3266 个用例中 1 个失败，为
+  上游 `2d20707f1` 改动 Ultra Fast 提示文案后未同步的 `groupsOpenAIFast.spec.ts`（上游已在
+  v0.2.25 修正），不在 CI 白名单。
+- 镜像：本仓库的 GitHub Actions 自 2026-11-02 起未再产生任何运行，2026-11-15 的 v0.2.21
+  合并因此没有构建出镜像；手动触发返回 `Actions has been disabled for this repository`。
+  2026-11-18 在 GitHub 网页端确认了一项授权提示后恢复（被停用的具体原因未查明），本次镜像由
+  `workflow_dispatch` 构建。
+  推送包含上游对 workflow 文件的改动，需要带 `workflow` 权限的令牌。
+- 发布：2026-11-19 部署生产。因 v0.2.21 未曾上线，启动时一并应用了 `249`、`250`、
+  `251`（两份）、`252` 五条迁移；`249` 在 usage_logs 上的索引已存在且有效。部署后对比
+  新旧版本 Claude 各主要模型的输入、输出、缓存读取单价一致，未出现有 token 无扣费的记录。Realtime 音频计费在观察窗口内没有
+  样本，未在生产验证。
+
 ## 2026-11-15：合并上游 v0.2.21（最小合并）
 
 从 `request-audit` 的 `82a938f46` 合并 `upstream/main` 的 `530c5e3a4`，共同祖先为

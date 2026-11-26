@@ -8,16 +8,17 @@
 
 | 项 | 值 |
 |---|---|
-| 最近补录日期 | 2026-11-15（合并上游 v0.2.21，仅更新基线与 usage_logs 列布局；其余章节未作全量重审） |
-| 上游基线 | `530c5e3a4`（版本文件 `0.2.21`，含该版本之后的赞助商更新，已合并入本分支） |
-| 与上述上游基线的共同祖先 | `530c5e3a4` |
+| 最近补录日期 | 2026-11-26（合并上游 v0.2.23、v0.2.25；更新第 17、18 节并新增第 20 节；其余章节未作全量重审） |
+| 上游基线 | `0f6671457`（版本文件 `0.2.25`，已合并入本分支） |
+| 与上述上游基线的共同祖先 | `0f6671457` |
 | 差异规模 | 以以下重新核对命令为准 |
 
-2026-11-15 从 `82a938f46` 合并上游至 `530c5e3a4`；`VERSION` 为 `0.2.21`。
+2026-11-25 从 `77cbfe706` 合并上游至 `0f6671457`；`VERSION` 为 `0.2.25`
+（此前 2026-11-18 从 `2e9437877` 合并至 `2af3f1e15`，`VERSION` 为 `0.2.23`）。
 这里记录已合并基线，不表示当前远端上游没有更新。
 
-本文件以 `request-audit` 为记录对象；最近一次功能发布为 `e58fc4116`，
-包含上述上游基线及首输出保护参数配置。仓库没有可访问的 GitHub Wiki remote，
+本文件以 `request-audit` 为记录对象；最近一次功能发布为 `9ffc80e8b`，
+包含上述上游基线、模型广场版式调整、Infini V2 认证及 OpenAI 同步请求开关。仓库没有可访问的 GitHub Wiki remote，
 因此本文件和 [MERGE_RECORDS.md](./MERGE_RECORDS.md) 是当前可发布的二开记录。
 
 重新核对清单：
@@ -43,6 +44,18 @@ v0.2.3 采用上游 `236_group_model_allowlist_repair.sql` 修复旧列残留或
 独有 Realtime 账号测试和 GPT Image 测试兼容逻辑继续保留。
 
 ## 功能一览
+
+2026-11-26 新增 OpenAI API Key 账号的「允许同步（非流式）请求」开关：上游拒绝同步请求的
+账号取消勾选后，非流式 `/v1/responses` 与 `/v1/alpha/search` 不再调度到该账号，流式请求
+不受影响；不增加数据库迁移。见第 20 节。
+
+2026-11-25 合并上游至 `0f6671457`（版本 `0.2.25`），无新增迁移。同日调整登录后模型广场的
+版式与字体，补全分组计费信息、长上下文阶梯与分时价的逐模型展开（第 17 节）；Infini 通道
+支持 V2（Ed25519）认证，旧版 HMAC 作为过渡保留（第 18 节）。
+
+2026-11-18 合并上游至 `2af3f1e15`（版本 `0.2.23`）：上游新增分组强制 Ultra Fast、渠道
+Ultra Fast 倍率及分组日汇总非阻塞重建，带迁移 `251`（两份）与 `252`。二开的 Realtime
+音频 token 计费字段迁入上游新的 `OpenAIUsage.billingUsageTokens()`。见合并记录同日条目。
 
 2026-10-31 合并上游至 `d851a3847`（版本 `0.2.19`），并增加账号首输出异常保护与
 Telegram 通知；随后完成并发恢复加固及三项时间参数可配置。复用已有临时不可调度，
@@ -123,6 +136,7 @@ PR #8 的空通道标识隐藏同步纳入，既有 Stripe 六标及 USDT 网络
 | 模型广场侧栏与分类目录 | ✅ | ✅ | — | — | 复用上游模型广场开关 |
 | Infini USDT / 稳定币托管收银台 | ✅ | ✅ | — | — | 支付类型 `infini` + 服务商实例 |
 | 首输出异常保护与 Telegram 通知 | ✅ | ✅ | — | — | 账号 credentials + `telegram_notification` |
+| OpenAI API Key 账号同步请求开关 | ✅ | ✅ | — | — | 账号 extra `openai_sync_upstream_disabled` |
 
 ---
 
@@ -904,8 +918,8 @@ frontend/src/components/payment/RechargePackageSettingsEditor.vue
 2026-10-21 起，目录展示改为 `$1 = ¥1`：官方价不再乘 7，分组价 = 官方价 × 分组倍率。
 规则条只写 `$1 = ¥1` 和这条公式，不再附「1 美元 = 1 元」括号，也不再写 `÷ 7`。
 0.8 倍显示为 8 折，1 倍显示为 10 折。节省比例按这一对人民币价计算，只用于输入价。
-该页仍是简化的基础展示价，不展开长上下文阶梯和分时时段，也不作为扣费依据；
-页面固定提示实际扣费以后台计费规则为准。后端实际计费及 Studio 售价接口不受影响。
+该页主表是基础档展示价，不作为扣费依据；长上下文阶梯和分时时段不在主表铺开，
+自 2026-11-25 起可逐模型展开查看（见下）。页面固定提示实际扣费以后台计费规则为准。后端实际计费及 Studio 售价接口不受影响。
 图片模型按分组或渠道的 1K/2K/4K 档展示，单位「/ 张」，不再拆进输入/输出列。
 视频模型按分辨率档展示，单位「/ 秒」。按次模型仍用「/ 次」。
 官方价模式里，图片、视频、按次没有同单位官方价时显示 `-`。
@@ -913,6 +927,28 @@ frontend/src/components/payment/RechargePackageSettingsEditor.vue
 
 分类标签：智谱显示为 Zhipu，综合显示为 Image/Video 并固定排在最后，minimax 显示为 Minimax。
 组内模型按 id 中的版本号从新到旧排列，同版本再按名称。渠道定价列表本身的录入顺序不改。
+
+2026-11-25 起登录后目录的版式与信息：
+
+- **版式**：价格列表标题、分组卡片、分组介绍和当前分组价表收在同一张卡片里；分组卡片按
+  内容宽度排成一行，折扣徽章紧跟分组名，窄屏占满整行。价表模型名不换行，表格横向滚动。
+- **字体与配色**：目录范围内的数字、货币符号和拉丁字符使用 Plus Jakarta Sans
+  （`@fontsource-variable/plus-jakarta-sans`，OFL，随模型广场分包按需加载），中文沿用
+  站点系统字体栈；强调色由琥珀改为深橙。站点其它页面的字体不变。
+- **分组计费信息标签**：分组介绍下列出专属分组、订阅、专属倍率（并标默认倍率）、
+  高峰时段与倍率、图片/视频独立倍率（仅当组内有对应计费方式的模型）、未启用长上下文
+  阶梯。分组启用高峰倍率时，每个 token 价格下加一行高峰价；按张、按次价格不叠加高峰
+  因子，与后端计费一致。
+- **逐模型展开**：有两档及以上长上下文阶梯或配置了分时倍率的模型，模型名旁出现
+  「阶梯价 N 档 / 分时价 N 段」按钮，展开后逐档列出输入、输出、缓存创建、缓存读取四列
+  及计价说明。官方价模式下列官方阶梯，不列分时。分组与官方档数不一致时官方参考留空。
+- **其它**：1 小时缓存写入价与默认写入价不同时在缓存创建列单列一行；分组价低于官方价
+  时官方价加删除线；组内没有任何模型低于官方价时隐藏对比列；不足 1 分的非零金额保留
+  首位有效数字（`¥0.004`），不再显示成 `¥0.00`；复制模型名走站点统一的剪贴板提示。
+- 目录形态不再在价表上方重复渲染分组徽章与描述（此前分组无高峰说明时会重复）。
+
+这些都是展示层改动，价格数据仍取自与扣费同源的计价解析结果，后端接口未改。
+未登录的独立页沿用上游 `PlazaModelPricingTable.vue`，本分支只保留排序与视频单位两处差异。
 
 侵入点为 `AppSidebar.vue`、`AppHeader.vue`、`ModelPlazaView.vue`、原模型广场组件与
 `model_plaza_service.go` 的空分组过滤；主要目录及价表放在新增的 `PlazaCatalog.vue`、
@@ -929,8 +965,8 @@ Makefile 的 CI 白名单，覆盖分类切换、保留展示价格、隐藏不�
 
 **接入方式**
 
-- 后台「支付设置」启用 `infini`，再建 Infini 实例：Key ID、Secret Key、Webhook Secret、API Base（生产 `https://openapi.infini.money` / 沙箱 `https://openapi-sandbox.infini.money`）、法币币种（默认 USD）。
-- 下单走 `POST /v1/acquiring/order`，用 HMAC-SHA256 签 `keyId + METHOD path + date`；`client_reference` 是本站 `out_trade_no`。响应兼容官方扁平字段和 `{code,data}` 包一层；只有 `order_id` 时会再调 `/v1/acquiring/token/reissue` 取收银台。HTTP 200 的业务错误（`code/message/detail`）按失败处理，不再报成「missing order_id or checkout_url」。
+- 后台「支付设置」启用 `infini`，再建 Infini 实例：Key ID、私钥（V2）或 Secret Key（旧版 HMAC，二者至少一项）、Webhook Secret、API Base（生产 `https://openapi.infini.money` / 沙箱 `https://openapi-sandbox.infini.money`）、法币币种（默认 USD）。
+- 实例配置了私钥时下单走 `POST /v2/acquiring/order`，按下文「认证」用 Ed25519 签名；只配了 Secret Key 时走旧版 `POST /v1/acquiring/order`，用 HMAC-SHA256 签 `keyId + METHOD path + date`；`client_reference` 是本站 `out_trade_no`。响应兼容官方扁平字段和 `{code,data}` 包一层；只有 `order_id` 时会再调 `/v1/acquiring/token/reissue` 取收银台。HTTP 200 的业务错误（`code/message/detail`）按失败处理，不再报成「missing order_id or checkout_url」。
 - 默认 `pay_methods=1`（链上加密/USDT）。Webhook：`POST /api/v1/payment/webhook/infini`，按 `timestamp.event_id.raw_body` 做 HMAC-SHA256 hex 验签（5 分钟时间窗，原始 body，禁止重序列化）。`event_id` 持久化去重。
 - Infini 官方 `order.late_payment` 的 `status` 仍是 `expired`，以 `amount_confirmed` 为准。足额到账必须履约；不足额/缺金额/币种不符拒绝履约并写审计。`order.expired` 仅在存在 `amount_confirmed` 时作为迟到账候选，禁止用应付 `amount` 冒充已付。
 - 下单写入 schema_version=3 金额快照（套餐/到账/实付/手续费/汇率/币种/通道/实例）。Webhook 按快照 `pay_amount` 做最小货币单位精确比对，配置变更不影响旧单。
@@ -939,6 +975,30 @@ Makefile 的 CI 白名单，覆盖分类切换、保留展示价格、隐藏不�
 - Infini 下单法币只允许 USD。`InfiniSettlementCurrency` 固定返回 USD，不会返回 USDT。实例币种填了 CNY/USDT/空/其它码时，QuoteOrder 和 CreateOrder 走同一套 `resolveOrderSettlementCurrency`，quote/checkout-info/快照/CreatePayment 一律 USD，并仍按套餐 ÷ 汇率换算。Infini 报 `40016 Unsupported order currency` 就是把 CNY 传上去了。
 - Infini 上游下单失败返回 `PAYMENT_PROVIDER_CREATE_FAILED`（检查密钥与环境），不再伪装成「支付方式不可用」。未配置实例返回 `PAYMENT_METHOD_NOT_CONFIGURED`。失败订单写入 `failed_reason`。
 - 前端充值实付金额只展示 `POST /payment/quote` 的后端结果，下单只传套餐 `amount` + `payment_type`。Infini 无商户退款 API。
+
+**认证（2026-11-25 起支持 V2）**
+
+Infini 宣布收单 API 的 HMAC（v1）认证于 2026-11-30 停用，改用商户自持密钥的 Ed25519（V2）。
+Webhook 验签是独立协议，未变。
+
+- 商户本地生成 Ed25519 密钥对（`openssl genpkey -algorithm ED25519`），公钥上传到 Infini
+  商户后台并勾选 `order.create`、`order.query`，得到 32 位 Key ID；私钥（未加密的 PKCS#8
+  PEM）填入实例的「私钥」字段。V1 与 V2 的 Key ID 不通用。
+- 实例有私钥即走 V2：`/v2/acquiring/order`（创建、查询）与
+  `/v2/acquiring/order/token/reissue`。请求头为 `X-API-Key-ID`、`X-API-Timestamp`、
+  `X-API-Nonce`（16 字节随机数的 base64url）、`Digest`（对实际发送的 body 字节取
+  SHA-256，空 body 也要）和 `Authorization: Ed25519 signature="..."`；签名串为七行
+  （`INFINI-OPENAPI-V2`、Key ID、方法、带查询串的路径、时间戳、nonce、Digest），LF 分隔
+  并以 LF 结尾。被签名的路径取自实际请求 URL，保证与线上发出的逐字节一致。
+- 只有 Secret Key 的实例继续走 v1，便于先发版、后切凭据。两种凭据都没有时拒绝保存。
+- 私钥解析容忍表单把换行变成空格或字面 `\n`，也接受不带头尾的 base64；公钥、带口令的
+  私钥、非 Ed25519 密钥会被拒绝，报错不回显密钥内容。
+- V2 查询订单的实际返回是 `{code,message,data}` 包裹，订单金额与币种字段为
+  `order_amount`、`order_currency`，已确认金额仍是 `amount_confirmed`；代码同时兼容
+  官方指南里的扁平 `amount`、`currency`。到账判定仍只认 `amount_confirmed`。
+- `privateKey` 按密钥字段处理（管理端 GET 脱敏、有在途订单时禁止修改）。
+- 订单状态查询与 Webhook 使用进程内的服务商注册表，只在管理端保存支付配置或进程重启时
+  重新加载；绕过管理端直接改库后，需在管理端保存一次该实例。
 
 **关键文件**
 
@@ -952,7 +1012,7 @@ frontend/src/components/payment/RechargeCheckoutDialog.vue
 
 **测试**
 
-- 后端：`infini_test.go` 覆盖签名、late_payment、过期查询、重放/篡改；履约测试覆盖金额精确比对、重复 event_id、并发回调与快照不一致。
+- 后端：`infini_test.go` 覆盖 v1 与 V2 签名（V2 以公钥验签并逐行比对签名串）、私钥解析与拒绝场景、V2 路径与空 body 摘要、两种查询返回形状、late_payment、过期查询、重放/篡改；履约测试覆盖金额精确比对、重复 event_id、并发回调与快照不一致。
 - 前端：确认框展示后端 quote 的实付/到账/汇率；下单仍只传套餐金额。
 
 ## 19. 首输出异常保护与 Telegram 通知（2026-10-31）
@@ -1038,6 +1098,72 @@ A→B→A、默认兼容、非法输入和批量更新。已发布提交的验�
 
 ---
 
+## 20. OpenAI API Key 账号同步请求开关（2026-11-26）
+
+部分中转上游拒绝非流式请求：同一请求改成流式即可成功，同步发出则直接返回 HTTP 400。
+已见到的返回有只含一句「请求被拒绝」的 400，也有错误码 `stream_required`。前者与客户
+真正发错请求时的 400 无法区分，网关不会据此换号，于是落到这类账号上的同步请求全部失败。
+因此不靠报错识别，由管理员在账号上声明。
+
+**入口与存储**
+
+管理后台 OpenAI 平台、API Key 类型账号的新增与编辑弹窗：「允许同步（非流式）请求」，
+默认勾选。取消勾选时写入 `extra.openai_sync_upstream_disabled = true`；勾选时删除该键，
+所以存量账号无需迁移，行为不变。批量编辑弹窗未提供该项。OAuth 账号的上游请求始终是
+流式，不显示该项。
+
+**调度规则**
+
+| 请求 | 开关关闭的账号 |
+|---|---|
+| 所有流式请求 | 照常调度 |
+| 非流式 `/v1/chat/completions`、`/v1/messages` | 照常调度（网关本就以流式请求上游再聚合返回） |
+| 非流式 `/v1/responses` | 跳过，改派同分组其它账号 |
+| `/v1/alpha/search`（没有流式形态） | 跳过，改派同分组其它账号 |
+
+- 判定只针对网关会以同步方式转给上游的请求：handler 在选号前用
+  `WithOpenAISyncUpstreamRequest` 标记请求上下文，选号时由
+  `openAISyncUpstreamVetoReason` 否决不接受同步的账号，否决原因为 `sync_upstream_disabled`。
+- 否决点紧挨已有的生图尺寸否决，共三处：旧调度引擎的统一资格判定
+  （`openai_gateway_scheduling.go`）、高级调度器的候选检查（`openai_account_scheduler.go`）、
+  `previous_response_id` 复用路径（`openai_ws_forwarder_support.go`，跳过复用但保留绑定，
+  同一响应链上的流式请求仍粘连原账号）。
+- 会话已粘在开关关闭的账号上时，同步请求改派到其它账号，会话随之改绑过去，之后该会话的
+  流式与同步请求都落在新账号上。
+- 同分组所有账号都关闭开关时，同步请求返回无可用账号。
+- 该键必须进调度快照投影（`repository/scheduler_cache.go` 的 `filterSchedulerExtra`）：
+  候选过滤读的是投影，裁掉后开关形同未设置。
+- 开关须经管理端保存才会刷新调度缓存；直接改库不会立即生效。
+
+**关键文件**
+
+```text
+backend/internal/service/openai_sync_upstream.go
+backend/internal/service/openai_gateway_scheduling.go
+backend/internal/service/openai_account_scheduler.go
+backend/internal/service/openai_ws_forwarder_support.go
+backend/internal/repository/scheduler_cache.go
+backend/internal/handler/openai_gateway_handler.go
+backend/internal/handler/openai_alpha_search.go
+frontend/src/components/account/CreateAccountModal.vue
+frontend/src/components/account/EditAccountModal.vue
+```
+
+**回归测试**
+
+后端：`service/openai_sync_upstream_test.go` 在高级调度、旧引擎批量负载、旧引擎顺序三种
+模式下覆盖同步请求换号、流式请求不受影响、全部关闭时失败及粘性会话改绑；
+`repository/scheduler_cache_unit_test.go` 覆盖快照投影保留该键。
+前端：`CreateAccountModal.spec.ts`、`EditAccountModal.spec.ts` 覆盖默认不写键、取消勾选
+写入、重新勾选删除，以及仅在 OpenAI API Key 账号显示。
+
+**合并注意**
+
+上游若重构 OpenAI 选号的候选检查或 `previous_response_id` 复用路径，需保留这三处否决；
+上游若新增会以同步方式转给上游的 OpenAI 入口，需在其 handler 选号前补上标记。
+
+---
+
 ## 媒体转存与异步图片对象存储的补充说明
 
 上游 `docs/ASYNC_IMAGE_TASKS.md` 描述的是异步图片任务与 `image_storage`。本分支在其基础上增加了**独立的媒体对象存储**（视频 + TTS 音频），与图片存储互不影响：
@@ -1072,6 +1198,13 @@ A→B→A、默认兼容、非法输入和批量更新。已发布提交的验�
 6. **导航与自定义页面**：`components/layout/AppSidebar.vue`（+65/-22）、`views/user/CustomPageView.vue`（+41）—— 自定义菜单打开方式引入。**这两个是上游高频改动的布局文件，且本地改动是「改写既有结构」而非「追加新块」**，冲突概率高于上面几处按块追加的改动：
    - `AppSidebar.vue`：三处 `router-link` 被改成 `<component :is="item.href ? 'a' : RouterLink">`。上游若重构侧边栏渲染或调整这几处链接属性，会直接冲突。合并时保留「外链项渲染成 `<a>`」这一语义即可，标记类名与 `data-tour` 等属性以上游为准。另注意 `NavItem` 接口新增了 `href`/`newTab` 两个可选字段，以及 `customMenuNavItem` / `navLinkProps` 两个本地函数。
    - `CustomPageView.vue`：新增 `externalUrl` 计算属性与 `followExternalTarget`，以及一个 `watch(externalUrl)`。该文件其余部分（Markdown 渲染、TOC、iframe 嵌入）均为上游实现，合并时应整体采用上游版本后再把这三块搬回。
+
+7. **两侧各加一列/一项的并列结构**（2026-11 两次合并均命中）：
+   - `repository/account_repo.go` 的 `lockAndMergeAccountProbeExtra`：上游与二开（首输出保护）都往同一条 `SELECT` 与 `rows.Scan` 追加列。合并时上游列在前、二开两列（`first_output_recovery_generation` 与配置变更判定）在最后，SQL 列顺序与 Scan 顺序必须一致，三个 sqlmock 仓储测试的列清单同步改。
+   - `ent/` 生成代码：两侧各给同一张表加字段时，Git 能自动合并且能编译，但 `ent/runtime/runtime.go` 的字段下标会错位（v0.2.23 合并时 `groups` 表 15 个字段各错一位）。**凡涉及 `ent/schema` 的合并必须重新 `go generate ./ent` 并检查差异。**
+   - `openai_gateway_usage.go`：上游把计费取数收进 `OpenAIUsage.billingUsageTokens()`，二开的三个音频 token 字段须留在该函数内，否则 Realtime 音频不再按音频单价计费。
+   - `Account.ApplyHeaderOverrides` 等上游改签名的方法：二开独有的调用点（Realtime 代理、Realtime 账号测试、Grok 视频转存）不会出现文本冲突，只会编译失败，需逐处补参数。
+   - `go.mod` 的 `github.com/google/subcommands`：`go mod tidy` 会删掉它，但 `cmd/server` 的 `go generate`（wire）需要它，保留。
 
 **Go 版本升级必查 Dockerfile**：上游 v0.1.177 把 `backend/go.mod` 升到 1.26.6、四处 workflow 断言也同步改了，**但漏了三个 Dockerfile**（根 `Dockerfile`、`deploy/Dockerfile`、`backend/Dockerfile`），它们仍钉在 `golang:1.26.5-alpine`。官方 golang 镜像设了 `GOTOOLCHAIN=local`，容器里的 Go 低于 go.mod 要求时不会自动下载工具链，直接报 `go.mod requires go >= 1.26.6 (running go 1.26.5; GOTOOLCHAIN=local)`，镜像构建在 `go mod download` 一步失败。本分支已在 2026-08-15 修正为 1.26.6。
 注意上游 `DEV_GUIDE.md` 的升级指引只列了 go.mod 与四处 workflow 断言，**没有提 Dockerfile**——这正是它自己翻车的原因。合并任何带 Go 版本变更的上游代码时，务必执行：
