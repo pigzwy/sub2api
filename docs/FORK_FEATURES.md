@@ -45,8 +45,9 @@ v0.2.3 采用上游 `236_group_model_allowlist_repair.sql` 修复旧列残留或
 
 ## 功能一览
 
-2026-11-26 全站的数字、货币符号和拉丁字符改用 Plus Jakarta Sans，中文仍用系统字体；
-表格统一启用等宽数字。纯展示改动，见第 21 节。
+2026-11-26 全站的数字、货币符号和拉丁字符改用 Plus Jakarta Sans，等宽代码与终端改用
+JetBrains Mono，中文仍用系统字体；表格统一启用等宽数字，并补充明暗对比度与首屏字体
+预加载优化。纯展示改动，见第 17、21 节。
 
 2026-11-26 新增 OpenAI API Key 账号的「允许同步（非流式）请求」开关：上游拒绝同步请求的
 账号取消勾选后，非流式 `/v1/responses` 与 `/v1/alpha/search` 不再调度到该账号，流式请求
@@ -941,7 +942,10 @@ frontend/src/components/payment/RechargePackageSettingsEditor.vue
   组件不再单独引入。强调色使用站点主题的 `primary` 色阶（浅阶黄、深阶藏青），与全站的
   按钮、徽章、选中态一致：选中的分组卡片与价格模式切换为藏青，折扣徽章、分组介绍条与
   展开按钮为浅黄底，价格浅色模式下为藏青、深色模式下为黄；节省比例仍用绿色。2026-11-25
-  的版本曾短暂使用橙色系，与站点主题不一致，次日改回主题色。
+  的版本曾短暂使用橙色系，与站点主题不一致，次日改回主题色，并收口了暗黑模式下的半透底/
+  边框分离度（改用 `primary-300`/`400` 透明阶替代偏暗的 `primary-900`/`800`）、平台分类
+  Tab 的明暗 `color-mix` 对比度，以及官方参考价/单位/倍率说明的次级字色（`text-gray-500
+  dark:text-dark-400`）与卡片倍率等宽数字。
 - **分组计费信息标签**：分组介绍下列出专属分组、订阅、专属倍率（并标默认倍率）、
   高峰时段与倍率、图片/视频独立倍率（仅当组内有对应计费方式的模型）、未启用长上下文
   阶梯。分组启用高峰倍率时，每个 token 价格下加一行高峰价；按张、按次价格不叠加高峰
@@ -1171,27 +1175,30 @@ frontend/src/components/account/EditAccountModal.vue
 
 ---
 
-## 21. 全站数字与拉丁字体（2026-11-26）
+## 21. 全站字体与主题对比度收口（2026-11-26）
 
 全站的数字、货币符号和拉丁字符使用 Plus Jakarta Sans（`@fontsource-variable/plus-jakarta-sans`，
-可变字重 200–800，OFL）。该字体不含任何中日韩字符（也不含全角 `￥`），中文由浏览器回落到
-原有的系统字体栈，所以中文观感不变；等宽字体（代码、密钥）不受影响。
+可变字重 200–800，OFL），等宽代码、API Key 与终端使用 JetBrains Mono
+（`@fontsource-variable/jetbrains-mono`，可变字重 100–800，OFL）。两套字体均不含中日韩字符
+（也不含全角 `￥`），中文由浏览器回落到原有的系统字体栈，中文观感不变。
 
-- `frontend/src/main.ts` 在全局样式之前引入字体。字体按 unicode-range 分子集，浏览器只
-  下载用到的子集，常用的 latin 子集约 27 KB；`font-display: swap`，首次访问会先用系统
-  字体显示再切换。字体文件与站点同源，现有 CSP 的 `font-src 'self'` 已覆盖。
-- `frontend/tailwind.config.js` 的 `fontFamily.sans` 把 `Plus Jakarta Sans Variable` 排在
-  系统字体之前。
-- `frontend/src/style.css` 对 `table` 统一设置 `font-variant-numeric: tabular-nums`：该字体
-  的数字默认不等宽（`1` 的字宽约为 `0` 的一半），不处理的话用量、账单等表格里的数字无法
-  纵向对齐。标题和卡片上的数字保持默认字形。表格之外需要对齐数字的地方继续用 Tailwind 的
-  `tabular-nums` 类。
+- `frontend/src/styles/fonts.css` 仅声明两套字体的 `latin` 子集 `@font-face`（分别约 27 KB、
+  40 KB，`font-display: swap`），避免把西里尔/希腊/越南语等无关子集打进 Go 嵌入产物；
+  `frontend/src/main.ts` 在 `style.css` 之前引入。字体与站点同源，现有 CSP `font-src 'self'` 已覆盖。
+- `frontend/vite.config.ts` 新增 `preloadPrimaryFont()` 构建插件，自动向产物 `index.html` 注入
+  带 `crossorigin` 的 `<link rel="preload" as="font" type="font/woff2">` 预加载主字体，降低首访闪烁。
+- `frontend/tailwind.config.js` 的 `fontFamily.sans` / `fontFamily.mono` 分别将两套可变字体置于首位，
+  并将 `primary-400` 由 `#4e78d6` 提亮至 `#6c94ec`（暗黑下徽章、侧栏激活态对比度达 WCAG AA）；
+  `frontend/src/styles/onboarding.css` 改为继承全局字体并在快捷键徽章首位加上 `JetBrains Mono Variable`。
+- `frontend/src/style.css` 对 `table` 统一设置 `font-variant-numeric: tabular-nums`：Plus Jakarta Sans
+  的数字默认不等宽（`1` 的字宽约为 `0` 的一半），不处理的话用量、账单等表格里的数字无法纵向对齐；
+  标题和卡片上的数字保持默认字形，表格之外需要对齐数字的地方继续用 `tabular-nums`。
+- 同步修复三处主题残留：`HomeView.vue` 与 `AuthLayout.vue` 背景网格由上游青绿改为藏青系淡网格，
+  `HomeView.vue` 暗色终端 `.code-url` 改为 `#7aa2f7`，`OpsSwitchRateTrendChart.vue` 暗黑折线切为 `#6c94ec`。
 
-该字体的拉丁字符和数字比系统字体略宽，极窄的按钮或表格列可能多出换行或省略号；全站页面
-未逐页核对，发现后按页面单独调整。回退只需撤掉上述三处。
-
-**合并注意**：三个文件都是上游文件。上游若调整 `fontFamily.sans` 或入口的样式引入顺序，
-保留字体在字体栈首位、且在 `style.css` 之前引入即可。
+**合并注意**：`main.ts`、`tailwind.config.js`、`style.css`、`vite.config.ts` 均为上游文件。上游若调整
+字体栈、构建插件或入口样式顺序，保留 `fonts.css` 在 `style.css` 之前、两套字体位于栈首位以及
+`preloadPrimaryFont()` 插件即可；`pnpm-lock.yaml` 更新时需保持与 Dockerfile `pnpm@9`（含 `libc` 字段）兼容。
 
 ---
 

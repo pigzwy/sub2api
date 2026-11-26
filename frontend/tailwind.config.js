@@ -11,7 +11,7 @@ export default {
           100: '#fff1c2',
           200: '#ffe48a',
           300: '#ffd84a',
-          400: '#4e78d6',
+          400: '#6c94ec',
           500: '#2a5bc4',
           600: '#1e4b99',
           700: '#183c7a',
@@ -63,7 +63,7 @@ export default {
           'Microsoft YaHei',
           'sans-serif'
         ],
-        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace']
+        mono: ['JetBrains Mono Variable', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace']
       },
       boxShadow: {
         glass: '0 8px 32px rgba(0, 0, 0, 0.08)',

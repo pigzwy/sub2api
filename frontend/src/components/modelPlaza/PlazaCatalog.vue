@@ -51,7 +51,7 @@
           <p class="text-xs text-gray-500 dark:text-dark-400">
             {{ t('modelPlaza.catalog.selectGroupHint') }}
           </p>
-          <div class="inline-flex rounded-full bg-gray-100 p-1 text-xs dark:bg-dark-700">
+          <div class="inline-flex rounded-full bg-gray-100 p-1 text-xs dark:bg-dark-900/70">
             <button
               type="button"
               :class="priceModeClass('group')"
@@ -83,7 +83,7 @@
             :class="[
               'w-full rounded-xl border px-4 py-3 text-left transition-colors sm:w-auto sm:min-w-[13rem] sm:max-w-full',
               groupId === g.id
-                ? 'border-primary-500 bg-primary-50 shadow-[0_0_0_1px_rgba(42,91,196,0.35)] dark:border-primary-400 dark:bg-primary-900/30'
+                ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-500/35 dark:border-primary-400 dark:bg-primary-400/15 dark:ring-primary-400/40'
                 : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50/60 dark:border-dark-600 dark:bg-dark-800 dark:hover:border-dark-500 dark:hover:bg-dark-700/40',
             ]"
             @click="emit('update:groupId', g.id)"
@@ -96,7 +96,7 @@
                 {{ g.name }}
               </span>
               <span
-                class="shrink-0 rounded-full bg-primary-100 px-2 py-0.5 text-[11px] font-semibold leading-4 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300"
+                class="shrink-0 rounded-full bg-primary-100 px-2 py-0.5 text-[11px] font-semibold leading-4 tabular-nums text-primary-700 ring-1 ring-inset ring-primary-200 dark:bg-primary-300/15 dark:text-primary-300 dark:ring-primary-300/30"
               >
                 {{ t('modelPlaza.catalog.zheBadge', { zhe: formatCatalogZhe(effectiveRate(g)) }) }}
               </span>
@@ -108,7 +108,7 @@
                 :class="groupId === g.id ? '' : 'invisible'"
               />
             </span>
-            <span class="mt-1.5 block text-xs leading-5 text-gray-400 dark:text-dark-400">
+            <span class="mt-1.5 block text-xs leading-5 tabular-nums text-gray-500 dark:text-dark-400">
               {{ rateCaption(g) }}
             </span>
           </button>
@@ -116,7 +116,7 @@
 
         <p
           v-if="selectedGroup"
-          class="flex flex-wrap items-baseline gap-x-2 rounded-lg border border-primary-200 bg-primary-50 px-4 py-2.5 text-sm leading-6 text-gray-700 dark:border-primary-900/40 dark:bg-primary-900/20 dark:text-dark-200"
+          class="flex flex-wrap items-baseline gap-x-2 rounded-lg border border-primary-200 bg-primary-50 px-4 py-2.5 text-sm leading-6 text-gray-700 dark:border-primary-300/30 dark:bg-primary-300/10 dark:text-dark-200"
           data-testid="plaza-group-intro"
         >
           <span class="shrink-0 font-medium text-primary-700 dark:text-primary-300">{{ t('modelPlaza.catalog.groupIntro') }}：</span>
@@ -281,27 +281,38 @@ function platformTabClass(p: string): string {
   return [
     'inline-flex shrink-0 items-center gap-2.5 rounded-lg border px-4 py-2.5 text-base font-medium leading-6 transition-colors',
     props.platform === p
-      ? ''
+      ? 'plaza-platform-tab-active'
       : 'border-transparent text-gray-500 hover:bg-gray-50 hover:text-gray-700 dark:text-dark-400 dark:hover:bg-dark-700/50 dark:hover:text-dark-200',
   ].join(' ')
 }
 
 function platformTabStyle(p: string): Record<string, string> | undefined {
   if (props.platform !== p) return undefined
-  const accent = platformAccentColor(p)
-  return {
-    borderColor: accent,
-    color: accent,
-    backgroundColor: `color-mix(in srgb, ${accent} 12%, transparent)`,
-  }
+  return { '--tab-accent': platformAccentColor(p) }
 }
 
 function priceModeClass(mode: 'group' | 'official'): string {
   return [
     'rounded-full px-3.5 py-1 font-semibold transition-colors',
     props.priceMode === mode
-      ? 'bg-primary-500 text-white shadow-sm dark:bg-primary-500'
+      ? 'bg-primary-500 text-white shadow-sm'
       : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white',
   ].join(' ')
 }
 </script>
+
+<style scoped>
+/* 分类 Tab 选中态按平台主色派生：浅色混黑保对比度，暗黑混白避免深色平台字发黑 */
+.plaza-platform-tab-active {
+  color: var(--tab-accent);
+  color: color-mix(in srgb, var(--tab-accent) 68%, black);
+  border-color: color-mix(in srgb, var(--tab-accent) 75%, black);
+  background-color: color-mix(in srgb, var(--tab-accent) 10%, transparent);
+}
+
+.dark .plaza-platform-tab-active {
+  color: color-mix(in srgb, var(--tab-accent) 65%, white);
+  border-color: color-mix(in srgb, var(--tab-accent) 70%, white);
+  background-color: color-mix(in srgb, var(--tab-accent) 14%, transparent);
+}
+</style>

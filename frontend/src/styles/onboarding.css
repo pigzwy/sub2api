@@ -37,7 +37,7 @@
   padding: 0 !important;
   max-width: min(440px, 90vw) !important; /* Responsive on small screens */
   color: #1f2937 !important;
-  font-family: ui-sans-serif, system-ui, sans-serif !important;
+  font-family: inherit !important;
   overflow: hidden !important;
 }
 
@@ -160,7 +160,7 @@
 .dark .shortcut-item { color: #94a3b8 !important; }
 
 .shortcut-item kbd {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace !important;
+  font-family: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace !important;
   background-color: #ffffff !important;
   border: 1px solid #e5e7eb !important;
   border-radius: 4px !important;

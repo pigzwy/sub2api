@@ -6,8 +6,8 @@ import i18n, { initI18n } from './i18n'
 import { useAppStore } from '@/stores/app'
 import { updateFavicon } from '@/utils/branding'
 import { isIOSDevice } from '@/utils/device'
-// 全站的数字、货币符号和拉丁字符用 Plus Jakarta Sans；它不含中文，中文回落到系统字体。
-import '@fontsource-variable/plus-jakarta-sans'
+// 全站的数字、货币符号和拉丁字符用 Plus Jakarta Sans（仅打包 latin 子集）；它不含中文，中文回落到系统字体。
+import './styles/fonts.css'
 import './style.css'
 
 const publicSettingsBootstrapTimeoutMs = 2500

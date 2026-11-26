@@ -27,8 +27,20 @@
 - 该字体不含中文，中文仍是系统字体；只改变数字、货币符号和拉丁字符的字形。
 - 同日把模型广场目录的强调色从 2026-11-25 引入的橙色系改为站点主题的 `primary` 色阶
   （`PlazaCatalog.vue`、`PlazaPriceSheet.vue`，仅替换颜色类），与全站按钮、徽章、选中态一致。
-- 验证：`vue-tsc --noEmit`、`vite build` 通过；构建产物的全局样式中 `html` 字体栈以该字体
-  开头并包含表格等宽数字规则；模型广场与布局组件用例（122 个）通过。未逐页做视觉核对。
+- 同日补充全站字体与明暗对比度收口：
+  - 新增自托管 `JetBrains Mono Variable` 作为全站等宽字体（终端、API Key、代码块），与
+    `Plus Jakarta Sans Variable` 统一收拢到 `frontend/src/styles/fonts.css` 并裁剪为仅打包
+    `latin` 子集（27.3 KB + 40.4 KB）；`vite.config.ts` 新增 `preloadPrimaryFont()` 在构建时
+    为 `Plus Jakarta Sans` 自动注入带 `crossorigin` 的 `<link rel="preload">`；`onboarding.css`
+    改为继承全局字体。
+  - 修复模型广场暗黑模式下 `primary-900/*` 与 `primary-800` 相对 `dark-800` 几乎隐形的问题，
+    平台分类 Tab 改为 `--tab-accent` + `color-mix` 明暗自适应，次级文案与官方参考价升至
+    `text-gray-500 dark:text-dark-400`，分组卡片折扣/倍率补齐 `tabular-nums`。
+  - `tailwind.config.js` 提亮 `primary-400` 至 `#6c94ec`；修复 `HomeView.vue` 暗色终端 `.code-url`
+    与 `OpsSwitchRateTrendChart.vue` 暗黑折线偏暗问题；将 `HomeView.vue`、`AuthLayout.vue` 残留
+    上游青绿网格统一为藏青系淡网格。
+- 验证：模型广场单测（5 文件 93 用例）、`check:i18n`（3 用例）、`vue-tsc -b`、`vite build` 与
+  本地 `Dockerfile`（`node:24-alpine` + `pnpm@9 --frozen-lockfile`）多阶段构建全部通过。
 
 ## 2026-11-26：OpenAI API Key 账号同步请求开关
 

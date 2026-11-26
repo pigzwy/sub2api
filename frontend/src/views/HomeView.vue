@@ -98,10 +98,10 @@
     <!-- Background Decorations -->
     <div class="pointer-events-none absolute inset-0 overflow-hidden">
       <div
-        class="absolute -right-40 -top-40 h-96 w-96 rounded-full bg-primary-400/20 blur-3xl"
+        class="absolute -right-40 -top-40 h-96 w-96 rounded-full bg-primary-400/15 blur-3xl"
       ></div>
       <div
-        class="absolute -bottom-40 -left-40 h-96 w-96 rounded-full bg-primary-500/15 blur-3xl"
+        class="absolute -bottom-40 -left-40 h-96 w-96 rounded-full bg-primary-500/10 blur-3xl"
       ></div>
       <div
         class="absolute left-1/3 top-1/4 h-72 w-72 rounded-full bg-primary-300/10 blur-3xl"
@@ -110,7 +110,7 @@
         class="absolute bottom-1/4 right-1/4 h-64 w-64 rounded-full bg-primary-400/10 blur-3xl"
       ></div>
       <div
-        class="absolute inset-0 bg-[linear-gradient(rgba(20,184,166,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(20,184,166,0.03)_1px,transparent_1px)] bg-[size:64px_64px]"
+        class="absolute inset-0 bg-[linear-gradient(rgba(30,75,153,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(30,75,153,0.035)_1px,transparent_1px)] bg-[size:64px_64px] dark:bg-[linear-gradient(rgba(108,148,236,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(108,148,236,0.045)_1px,transparent_1px)]"
       ></div>
     </div>
 
@@ -639,7 +639,7 @@ onMounted(() => {
   flex: 1;
   text-align: center;
   font-size: 12px;
-  font-family: ui-monospace, monospace;
+  font-family: 'JetBrains Mono Variable', ui-monospace, monospace;
   color: #64748b;
   margin-right: 52px;
 }
@@ -647,7 +647,7 @@ onMounted(() => {
 /* Terminal Body */
 .terminal-body {
   padding: 20px 24px;
-  font-family: ui-monospace, 'Fira Code', monospace;
+  font-family: 'JetBrains Mono Variable', ui-monospace, 'Fira Code', monospace;
   font-size: 14px;
   line-height: 2;
 }
@@ -696,7 +696,7 @@ onMounted(() => {
   color: #a78bfa;
 }
 .code-url {
-  color: #1e4b99;
+  color: #7aa2f7;
 }
 .code-comment {
   color: #64748b;

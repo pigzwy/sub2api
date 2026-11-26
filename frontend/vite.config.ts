@@ -77,6 +77,33 @@ function injectPublicSettings(backendUrl: string): Plugin {
   }
 }
 
+/**
+ * 生产构建时为首屏核心字体（Plus Jakarta Sans latin 子集）自动注入 preload，
+ * 让浏览器在解析主 CSS 之前即并行拉取字体，降低首次访问的排版闪烁（FOUT）。
+ */
+function preloadPrimaryFont(): Plugin {
+  let base = '/'
+  return {
+    name: 'preload-primary-font',
+    apply: 'build',
+    configResolved(config) {
+      base = config.base.endsWith('/') ? config.base : `${config.base}/`
+    },
+    transformIndexHtml: {
+      order: 'post',
+      handler(html, ctx) {
+        if (!ctx.bundle) return html
+        const fontFile = Object.keys(ctx.bundle).find((name) =>
+          /plus-jakarta-sans-latin-wght-normal.*\.woff2$/i.test(name),
+        )
+        if (!fontFile) return html
+        const preloadTag = `    <link rel="preload" href="${base}${fontFile}" as="font" type="font/woff2" crossorigin />`
+        return html.replace('</head>', `${preloadTag}\n  </head>`)
+      },
+    },
+  }
+}
+
 export default defineConfig(({ mode }) => {
   // 加载环境变量
   const env = loadEnv(mode, process.cwd(), '')
@@ -89,7 +116,8 @@ export default defineConfig(({ mode }) => {
       checker({
         vueTsc: true
       }),
-      injectPublicSettings(backendUrl)
+      injectPublicSettings(backendUrl),
+      preloadPrimaryFont()
     ],
   resolve: {
     alias: {

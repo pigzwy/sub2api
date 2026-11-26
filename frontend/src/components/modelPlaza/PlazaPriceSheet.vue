@@ -43,7 +43,7 @@
                     <button
                       v-if="row.details.length"
                       type="button"
-                      class="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-primary-200 bg-primary-50 px-2 py-0.5 text-[11px] font-medium leading-4 text-primary-700 transition-colors hover:border-primary-300 hover:bg-primary-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-primary-800 dark:bg-primary-900/30 dark:text-primary-300 dark:hover:bg-primary-900/40"
+                      class="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-primary-200 bg-primary-50 px-2 py-0.5 text-[11px] font-medium leading-4 text-primary-700 transition-colors hover:border-primary-300 hover:bg-primary-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-primary-300/30 dark:bg-primary-300/15 dark:text-primary-300 dark:hover:border-primary-300/50 dark:hover:bg-primary-300/25"
                       :aria-expanded="isExpanded(row.name)"
                       :aria-label="t('modelPlaza.table.detailToggle', { model: row.name })"
                       data-testid="plaza-detail-toggle"
@@ -103,7 +103,7 @@
                   >
                     <span v-if="price.label" class="text-xs text-gray-500 dark:text-dark-400">{{ price.label }}</span>
                     <span class="text-[17px] font-semibold tabular-nums text-primary-700 dark:text-primary-300">{{ price.amount }}</span>
-                    <span class="text-xs text-gray-400 dark:text-dark-500">{{ row.unit }}</span>
+                    <span class="text-xs text-gray-500 dark:text-dark-400">{{ row.unit }}</span>
                   </span>
                 </div>
                 <span v-else class="text-gray-300 dark:text-dark-500">-</span>
@@ -145,7 +145,7 @@
               >
                 <td
                   :colspan="priceColumnCount + 1"
-                  class="pb-3 pl-9 pr-5 pt-0.5 text-xs leading-5 text-gray-400 dark:text-dark-400"
+                  class="pb-3 pl-9 pr-5 pt-0.5 text-xs leading-5 text-gray-500 dark:text-dark-400"
                   data-testid="plaza-detail-hint"
                 >
                   {{ row.detailHint }}
@@ -157,7 +157,7 @@
       </table>
     </div>
     <p
-      class="border-t border-gray-100 px-5 py-3 text-xs leading-5 text-gray-400 dark:border-dark-700 dark:text-dark-400"
+      class="border-t border-gray-100 px-5 py-3 text-xs leading-5 text-gray-500 dark:border-dark-700 dark:text-dark-400"
       data-testid="plaza-price-note"
     >
       {{ t('modelPlaza.catalog.displayPriceNote') }}
@@ -248,7 +248,7 @@ const PriceStack = defineComponent({
           },
           [
             stackProps.primary === '-' ? '-' : `${stackProps.primary} `,
-            h('span', { class: 'text-xs font-normal text-gray-400 dark:text-dark-500' }, stackProps.unit),
+            h('span', { class: 'text-xs font-normal text-gray-500 dark:text-dark-400' }, stackProps.unit),
           ],
         ),
         stackProps.official !== '-'
@@ -256,7 +256,7 @@ const PriceStack = defineComponent({
               'p',
               {
                 class: [
-                  'mt-0.5 whitespace-nowrap text-xs tabular-nums text-gray-400 dark:text-dark-500',
+                  'mt-0.5 whitespace-nowrap text-xs tabular-nums text-gray-500 dark:text-dark-400',
                   stackProps.discounted ? 'line-through' : '',
                 ],
               },
