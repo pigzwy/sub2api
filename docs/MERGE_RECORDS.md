@@ -25,6 +25,8 @@
 `PlazaCatalog.vue` 去掉原先的局部引入与 scoped 字体声明。说明见 FORK_FEATURES.md 第 21 节。
 
 - 该字体不含中文，中文仍是系统字体；只改变数字、货币符号和拉丁字符的字形。
+- 同日把模型广场目录的强调色从 2026-11-25 引入的橙色系改为站点主题的 `primary` 色阶
+  （`PlazaCatalog.vue`、`PlazaPriceSheet.vue`，仅替换颜色类），与全站按钮、徽章、选中态一致。
 - 验证：`vue-tsc --noEmit`、`vite build` 通过；构建产物的全局样式中 `html` 字体栈以该字体
   开头并包含表格等宽数字规则；模型广场与布局组件用例（122 个）通过。未逐页做视觉核对。
 

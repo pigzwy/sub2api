@@ -29,7 +29,7 @@
                     <span class="whitespace-nowrap text-[15px] font-medium text-gray-800 dark:text-gray-100">{{ row.name }}</span>
                     <button
                       type="button"
-                      class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 dark:text-dark-400 dark:hover:bg-dark-700 dark:hover:text-white"
+                      class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-dark-400 dark:hover:bg-dark-700 dark:hover:text-white"
                       :title="t('modelPlaza.table.copyModel')"
                       :aria-label="t('modelPlaza.table.copyModel')"
                       data-testid="plaza-copy-model"
@@ -43,7 +43,7 @@
                     <button
                       v-if="row.details.length"
                       type="button"
-                      class="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-[11px] font-medium leading-4 text-orange-800 transition-colors hover:border-orange-300 hover:bg-orange-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 dark:border-orange-400/30 dark:bg-orange-500/10 dark:text-orange-200 dark:hover:bg-orange-500/20"
+                      class="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-primary-200 bg-primary-50 px-2 py-0.5 text-[11px] font-medium leading-4 text-primary-700 transition-colors hover:border-primary-300 hover:bg-primary-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-primary-800 dark:bg-primary-900/30 dark:text-primary-300 dark:hover:bg-primary-900/40"
                       :aria-expanded="isExpanded(row.name)"
                       :aria-label="t('modelPlaza.table.detailToggle', { model: row.name })"
                       data-testid="plaza-detail-toggle"
@@ -102,7 +102,7 @@
                     class="inline-flex items-baseline gap-1"
                   >
                     <span v-if="price.label" class="text-xs text-gray-500 dark:text-dark-400">{{ price.label }}</span>
-                    <span class="text-[17px] font-semibold tabular-nums text-orange-800 dark:text-orange-300">{{ price.amount }}</span>
+                    <span class="text-[17px] font-semibold tabular-nums text-primary-700 dark:text-primary-300">{{ price.amount }}</span>
                     <span class="text-xs text-gray-400 dark:text-dark-500">{{ row.unit }}</span>
                   </span>
                 </div>
@@ -242,7 +242,7 @@ const PriceStack = defineComponent({
           'p',
           {
             class: [
-              'whitespace-nowrap font-semibold tabular-nums text-orange-800 dark:text-orange-300',
+              'whitespace-nowrap font-semibold tabular-nums text-primary-700 dark:text-primary-300',
               stackProps.compact ? 'text-sm leading-5' : 'text-[17px] leading-6',
             ],
           },

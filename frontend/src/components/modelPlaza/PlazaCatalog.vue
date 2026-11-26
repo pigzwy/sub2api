@@ -27,7 +27,7 @@
     >
       <p class="inline-flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 leading-6 text-gray-600 dark:text-dark-300">
         <span class="inline-flex items-center gap-1.5 font-semibold text-gray-800 dark:text-white">
-          <Icon name="document" size="sm" class="h-4 w-4 text-orange-700 dark:text-orange-300" />
+          <Icon name="document" size="sm" class="h-4 w-4 text-primary-600 dark:text-primary-300" />
           {{ t('modelPlaza.catalog.ruleTitle') }}
         </span>
         <span>{{ t('modelPlaza.catalog.ruleFx') }}</span>
@@ -83,7 +83,7 @@
             :class="[
               'w-full rounded-xl border px-4 py-3 text-left transition-colors sm:w-auto sm:min-w-[13rem] sm:max-w-full',
               groupId === g.id
-                ? 'border-orange-400 bg-orange-50/70 shadow-[0_0_0_1px_rgba(251,146,60,0.45)] dark:border-orange-400/80 dark:bg-orange-500/10'
+                ? 'border-primary-500 bg-primary-50 shadow-[0_0_0_1px_rgba(42,91,196,0.35)] dark:border-primary-400 dark:bg-primary-900/30'
                 : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50/60 dark:border-dark-600 dark:bg-dark-800 dark:hover:border-dark-500 dark:hover:bg-dark-700/40',
             ]"
             @click="emit('update:groupId', g.id)"
@@ -96,7 +96,7 @@
                 {{ g.name }}
               </span>
               <span
-                class="shrink-0 rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-semibold leading-4 text-orange-800 dark:bg-orange-500/15 dark:text-orange-200"
+                class="shrink-0 rounded-full bg-primary-100 px-2 py-0.5 text-[11px] font-semibold leading-4 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300"
               >
                 {{ t('modelPlaza.catalog.zheBadge', { zhe: formatCatalogZhe(effectiveRate(g)) }) }}
               </span>
@@ -104,7 +104,7 @@
               <Icon
                 name="checkCircle"
                 size="sm"
-                class="ml-auto h-4 w-4 shrink-0 text-orange-700 dark:text-orange-300"
+                class="ml-auto h-4 w-4 shrink-0 text-primary-600 dark:text-primary-300"
                 :class="groupId === g.id ? '' : 'invisible'"
               />
             </span>
@@ -116,10 +116,10 @@
 
         <p
           v-if="selectedGroup"
-          class="flex flex-wrap items-baseline gap-x-2 rounded-lg border border-orange-100 bg-orange-50/60 px-4 py-2.5 text-sm leading-6 text-gray-700 dark:border-orange-400/20 dark:bg-orange-500/5 dark:text-dark-200"
+          class="flex flex-wrap items-baseline gap-x-2 rounded-lg border border-primary-200 bg-primary-50 px-4 py-2.5 text-sm leading-6 text-gray-700 dark:border-primary-900/40 dark:bg-primary-900/20 dark:text-dark-200"
           data-testid="plaza-group-intro"
         >
-          <span class="shrink-0 font-medium text-orange-800 dark:text-orange-200">{{ t('modelPlaza.catalog.groupIntro') }}：</span>
+          <span class="shrink-0 font-medium text-primary-700 dark:text-primary-300">{{ t('modelPlaza.catalog.groupIntro') }}：</span>
           <span class="min-w-0">{{ selectedGroup.description?.trim() || selectedGroup.name }}</span>
         </p>
 
@@ -137,7 +137,7 @@
             :data-testid="`plaza-group-fact-${fact.key}`"
             class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium leading-5 text-gray-600 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-200"
           >
-            <Icon :name="fact.icon" size="xs" class="h-3.5 w-3.5 text-orange-700 dark:text-orange-300" aria-hidden="true" />
+            <Icon :name="fact.icon" size="xs" class="h-3.5 w-3.5 text-primary-600 dark:text-primary-300" aria-hidden="true" />
             {{ fact.label }}
           </li>
         </ul>
@@ -300,7 +300,7 @@ function priceModeClass(mode: 'group' | 'official'): string {
   return [
     'rounded-full px-3.5 py-1 font-semibold transition-colors',
     props.priceMode === mode
-      ? 'bg-orange-800 text-white shadow-sm dark:bg-orange-500'
+      ? 'bg-primary-500 text-white shadow-sm dark:bg-primary-500'
       : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white',
   ].join(' ')
 }
