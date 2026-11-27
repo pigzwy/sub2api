@@ -229,10 +229,11 @@ func buildSiteStatusGroup(
 }
 
 // mergeSiteSamples 合并同一分组的多平台监控样本：
-// - 状态取最差项（outage > degraded > normal > no_data），仅看 ErrorRate 与 TTFT，绝不混入缓存命中率；
-// - 可用率按 RequestCount 加权（无请求数时退回有数据样本的均值）；
-// - 首字延迟 P50 取 TTFT 样本数最多那行的值（同样本数时按请求数、较高延迟稳定决胜）；
-// - 合并后状态为 no_data 时，uptime 与 ttft_ms 一律输出 nil。
+//   - 状态取最差项（outage > degraded > normal > no_data），仅看 ErrorRate 与 TTFT，绝不混入缓存命中率；
+//   - 可用率 = 1 − 错误率，按 RequestCount 加权（无请求数时退回有数据样本的均值）。
+//     错误率已剔除监控配置里「忽略的错误类别」，与状态颜色同一口径；见 siteAvailability；
+//   - 首字延迟 P50 取 TTFT 样本数最多那行的值（同样本数时按请求数、较高延迟稳定决胜）；
+//   - 合并后状态为 no_data 时，uptime 与 ttft_ms 一律输出 nil。
 func mergeSiteSamples(samples []siteMetricSample) (string, *float64, *int64) {
 	if len(samples) == 0 {
 		return "no_data", nil, nil
@@ -253,13 +254,15 @@ func mergeSiteSamples(samples []siteMetricSample) (string, *float64, *int64) {
 		if r := siteStatusRank(st); r > worstRank {
 			worstRank = r
 		}
-		if s.metrics.RequestCount > 0 && !math.IsNaN(s.metrics.SuccessRate) && !math.IsInf(s.metrics.SuccessRate, 0) {
-			weightedSuccess += s.metrics.SuccessRate * float64(s.metrics.RequestCount)
-			totalRequests += s.metrics.RequestCount
-		}
-		if st != "no_data" && !math.IsNaN(s.metrics.SuccessRate) && !math.IsInf(s.metrics.SuccessRate, 0) {
-			fallbackRateSum += s.metrics.SuccessRate
-			fallbackRateCount++
+		if avail, ok := siteAvailability(s.metrics); ok {
+			if s.metrics.RequestCount > 0 {
+				weightedSuccess += avail * float64(s.metrics.RequestCount)
+				totalRequests += s.metrics.RequestCount
+			}
+			if st != "no_data" {
+				fallbackRateSum += avail
+				fallbackRateCount++
+			}
 		}
 		if s.metrics.TTFT.P50Ms != nil && *s.metrics.TTFT.P50Ms >= 0 {
 			sc := s.metrics.TTFT.SampleCount
@@ -288,6 +291,23 @@ func mergeSiteSamples(samples []siteMetricSample) (string, *float64, *int64) {
 		uptime = roundSitePercent(fallbackRateSum / float64(fallbackRateCount))
 	}
 	return status, uptime, bestTTFT
+}
+
+// siteAvailability 返回对外展示的可用率（0–1）：1 − 错误率。
+// 不用 SuccessRate：它是 成功数 ÷ 总请求数，分母仍包含监控配置里「忽略的错误类别」
+// （客户端取消、参数错误等）。那些错误不计入 ErrorRate，也不影响状态颜色；
+// 若可用率仍把它们算作失败，就会出现状态“正常”而可用率偏低的矛盾。
+func siteAvailability(m service.ChannelMonitorV2Metric) (float64, bool) {
+	if math.IsNaN(m.ErrorRate) || math.IsInf(m.ErrorRate, 0) {
+		return 0, false
+	}
+	avail := 1 - m.ErrorRate
+	if avail < 0 {
+		avail = 0
+	} else if avail > 1 {
+		avail = 1
+	}
+	return avail, true
 }
 
 // resolveCurrentSiteStatus 取最近 lookback 个已结束桶中最新一个非 no_data 状态；全无数据返回 no_data。

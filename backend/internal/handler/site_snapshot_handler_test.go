@@ -150,8 +150,8 @@ func TestSiteSnapshotHandler_WhitelistSchemaClosed48BucketsLocalizationAndPrivac
 						RPM:          120.5,
 						TPM:          45000.2,
 						CacheRate:    0.01,
-						SuccessRate:  0.9984,
-						TTFT:         service.ChannelMonitorV2Latency{SampleCount: 500, P50Ms: int64Ptr(1800)},
+						SuccessRate:  0.9984, ErrorRate: 0.0016,
+						TTFT: service.ChannelMonitorV2Latency{SampleCount: 500, P50Ms: int64Ptr(1800)},
 					},
 					// Overall 故意设为 critical 且 Cache=critical，验证状态仅由 ErrorRate 与 TTFT 决定。
 					Health: service.ChannelMonitorV2Health{
@@ -165,8 +165,8 @@ func TestSiteSnapshotHandler_WhitelistSchemaClosed48BucketsLocalizationAndPrivac
 							BucketStart: expectedStart,
 							Metrics: service.ChannelMonitorV2Metric{
 								RequestCount: 100,
-								SuccessRate:  1.0,
-								TTFT:         service.ChannelMonitorV2Latency{SampleCount: 80, P50Ms: int64Ptr(1750)},
+								SuccessRate:  1.0, ErrorRate: 0,
+								TTFT: service.ChannelMonitorV2Latency{SampleCount: 80, P50Ms: int64Ptr(1750)},
 							},
 							Health: service.ChannelMonitorV2Health{Overall: "critical", ErrorRate: "healthy", TTFT: "healthy", Cache: "critical"},
 						},
@@ -174,8 +174,8 @@ func TestSiteSnapshotHandler_WhitelistSchemaClosed48BucketsLocalizationAndPrivac
 							BucketStart: expectedStart.Add(30 * time.Minute),
 							Metrics: service.ChannelMonitorV2Metric{
 								RequestCount: 100,
-								SuccessRate:  0.942,
-								TTFT:         service.ChannelMonitorV2Latency{SampleCount: 90, P50Ms: int64Ptr(3600)},
+								SuccessRate:  0.942, ErrorRate: 0.058,
+								TTFT: service.ChannelMonitorV2Latency{SampleCount: 90, P50Ms: int64Ptr(3600)},
 							},
 							Health: service.ChannelMonitorV2Health{Overall: "healthy", ErrorRate: "healthy", TTFT: "warning"},
 						},
@@ -183,8 +183,8 @@ func TestSiteSnapshotHandler_WhitelistSchemaClosed48BucketsLocalizationAndPrivac
 							BucketStart: expectedStart.Add(60 * time.Minute),
 							Metrics: service.ChannelMonitorV2Metric{
 								RequestCount: 100,
-								SuccessRate:  0.72,
-								TTFT:         service.ChannelMonitorV2Latency{SampleCount: 90, P50Ms: int64Ptr(12000)},
+								SuccessRate:  0.72, ErrorRate: 0.28,
+								TTFT: service.ChannelMonitorV2Latency{SampleCount: 90, P50Ms: int64Ptr(12000)},
 							},
 							Health: service.ChannelMonitorV2Health{Overall: "warning", ErrorRate: "critical", TTFT: "warning"},
 						},
@@ -193,8 +193,8 @@ func TestSiteSnapshotHandler_WhitelistSchemaClosed48BucketsLocalizationAndPrivac
 							BucketStart: expectedEnd.Add(-30 * time.Minute),
 							Metrics: service.ChannelMonitorV2Metric{
 								RequestCount: 120,
-								SuccessRate:  1.0,
-								TTFT:         service.ChannelMonitorV2Latency{SampleCount: 100, P50Ms: int64Ptr(1600)},
+								SuccessRate:  1.0, ErrorRate: 0,
+								TTFT: service.ChannelMonitorV2Latency{SampleCount: 100, P50Ms: int64Ptr(1600)},
 							},
 							Health: service.ChannelMonitorV2Health{Overall: "critical", ErrorRate: "healthy", TTFT: "healthy", Cache: "critical"},
 						},
@@ -204,7 +204,7 @@ func TestSiteSnapshotHandler_WhitelistSchemaClosed48BucketsLocalizationAndPrivac
 				{
 					Platform: "anthropic",
 					GroupID:  &gid99,
-					Metrics:  service.ChannelMonitorV2Metric{RequestCount: 100, SuccessRate: 1.0},
+					Metrics:  service.ChannelMonitorV2Metric{RequestCount: 100, SuccessRate: 1.0, ErrorRate: 0},
 					Health:   service.ChannelMonitorV2Health{ErrorRate: "healthy", TTFT: "healthy"},
 				},
 			},
@@ -329,8 +329,8 @@ func TestSiteSnapshotHandler_CompositeGroupMergesMultiPlatformRows(t *testing.T)
 					GroupID:  &gid71,
 					Metrics: service.ChannelMonitorV2Metric{
 						RequestCount: 300,
-						SuccessRate:  1.0,
-						TTFT:         service.ChannelMonitorV2Latency{SampleCount: 280, P50Ms: int64Ptr(1200)},
+						SuccessRate:  1.0, ErrorRate: 0,
+						TTFT: service.ChannelMonitorV2Latency{SampleCount: 280, P50Ms: int64Ptr(1200)},
 					},
 					Health: service.ChannelMonitorV2Health{ErrorRate: "healthy", TTFT: "healthy"},
 					Buckets: []service.ChannelMonitorV2TrendPoint{
@@ -338,8 +338,8 @@ func TestSiteSnapshotHandler_CompositeGroupMergesMultiPlatformRows(t *testing.T)
 							BucketStart: prevBucket,
 							Metrics: service.ChannelMonitorV2Metric{
 								RequestCount: 50,
-								SuccessRate:  0.98,
-								TTFT:         service.ChannelMonitorV2Latency{SampleCount: 45, P50Ms: int64Ptr(1300)},
+								SuccessRate:  0.98, ErrorRate: 0.02,
+								TTFT: service.ChannelMonitorV2Latency{SampleCount: 45, P50Ms: int64Ptr(1300)},
 							},
 							Health: service.ChannelMonitorV2Health{ErrorRate: "healthy", TTFT: "healthy"},
 						},
@@ -347,8 +347,8 @@ func TestSiteSnapshotHandler_CompositeGroupMergesMultiPlatformRows(t *testing.T)
 							BucketStart: lastBucket,
 							Metrics: service.ChannelMonitorV2Metric{
 								RequestCount: 80,
-								SuccessRate:  1.0,
-								TTFT:         service.ChannelMonitorV2Latency{SampleCount: 60, P50Ms: int64Ptr(1100)},
+								SuccessRate:  1.0, ErrorRate: 0,
+								TTFT: service.ChannelMonitorV2Latency{SampleCount: 60, P50Ms: int64Ptr(1100)},
 							},
 							Health: service.ChannelMonitorV2Health{ErrorRate: "healthy", TTFT: "healthy"},
 						},
@@ -359,8 +359,8 @@ func TestSiteSnapshotHandler_CompositeGroupMergesMultiPlatformRows(t *testing.T)
 					GroupID:  &gid71,
 					Metrics: service.ChannelMonitorV2Metric{
 						RequestCount: 100,
-						SuccessRate:  0.80,
-						TTFT:         service.ChannelMonitorV2Latency{SampleCount: 90, P50Ms: int64Ptr(4200)},
+						SuccessRate:  0.80, ErrorRate: 0.2,
+						TTFT: service.ChannelMonitorV2Latency{SampleCount: 90, P50Ms: int64Ptr(4200)},
 					},
 					Health: service.ChannelMonitorV2Health{ErrorRate: "warning", TTFT: "healthy"},
 					Buckets: []service.ChannelMonitorV2TrendPoint{
@@ -368,8 +368,8 @@ func TestSiteSnapshotHandler_CompositeGroupMergesMultiPlatformRows(t *testing.T)
 							BucketStart: lastBucket,
 							Metrics: service.ChannelMonitorV2Metric{
 								RequestCount: 20,
-								SuccessRate:  0.50,
-								TTFT:         service.ChannelMonitorV2Latency{SampleCount: 15, P50Ms: int64Ptr(6000)},
+								SuccessRate:  0.50, ErrorRate: 0.5,
+								TTFT: service.ChannelMonitorV2Latency{SampleCount: 15, P50Ms: int64Ptr(6000)},
 							},
 							Health: service.ChannelMonitorV2Health{ErrorRate: "critical", TTFT: "warning"},
 						},
@@ -460,14 +460,14 @@ func TestSiteSnapshotHandler_CurrentStatusUsesRecentClosedBucketsNot24hAverage(t
 					GroupID:  &gidFreshOutage,
 					Metrics: service.ChannelMonitorV2Metric{
 						RequestCount: 5000,
-						SuccessRate:  0.992,
-						TTFT:         service.ChannelMonitorV2Latency{SampleCount: 4000, P50Ms: int64Ptr(1500)},
+						SuccessRate:  0.992, ErrorRate: 0.008,
+						TTFT: service.ChannelMonitorV2Latency{SampleCount: 4000, P50Ms: int64Ptr(1500)},
 					},
 					Health: service.ChannelMonitorV2Health{ErrorRate: "healthy", TTFT: "healthy"},
 					Buckets: []service.ChannelMonitorV2TrendPoint{
 						{
 							BucketStart: windowEnd.Add(-30 * time.Minute),
-							Metrics:     service.ChannelMonitorV2Metric{RequestCount: 50, SuccessRate: 0.4, TTFT: service.ChannelMonitorV2Latency{SampleCount: 50, P50Ms: int64Ptr(9000)}},
+							Metrics:     service.ChannelMonitorV2Metric{RequestCount: 50, SuccessRate: 0.4, ErrorRate: 0.6, TTFT: service.ChannelMonitorV2Latency{SampleCount: 50, P50Ms: int64Ptr(9000)}},
 							Health:      service.ChannelMonitorV2Health{ErrorRate: "critical", TTFT: "critical"},
 						},
 					},
@@ -478,19 +478,19 @@ func TestSiteSnapshotHandler_CurrentStatusUsesRecentClosedBucketsNot24hAverage(t
 					GroupID:  &gidRecovered,
 					Metrics: service.ChannelMonitorV2Metric{
 						RequestCount: 2000,
-						SuccessRate:  0.965,
-						TTFT:         service.ChannelMonitorV2Latency{SampleCount: 1800, P50Ms: int64Ptr(1700)},
+						SuccessRate:  0.965, ErrorRate: 0.035,
+						TTFT: service.ChannelMonitorV2Latency{SampleCount: 1800, P50Ms: int64Ptr(1700)},
 					},
 					Health: service.ChannelMonitorV2Health{ErrorRate: "warning", TTFT: "healthy"},
 					Buckets: []service.ChannelMonitorV2TrendPoint{
 						{
 							BucketStart: windowStart.Add(12 * time.Hour),
-							Metrics:     service.ChannelMonitorV2Metric{RequestCount: 200, SuccessRate: 0.70},
+							Metrics:     service.ChannelMonitorV2Metric{RequestCount: 200, SuccessRate: 0.70, ErrorRate: 0.3},
 							Health:      service.ChannelMonitorV2Health{ErrorRate: "critical", TTFT: "healthy"},
 						},
 						{
 							BucketStart: windowEnd.Add(-30 * time.Minute),
-							Metrics:     service.ChannelMonitorV2Metric{RequestCount: 100, SuccessRate: 1.0, TTFT: service.ChannelMonitorV2Latency{SampleCount: 90, P50Ms: int64Ptr(1100)}},
+							Metrics:     service.ChannelMonitorV2Metric{RequestCount: 100, SuccessRate: 1.0, ErrorRate: 0, TTFT: service.ChannelMonitorV2Latency{SampleCount: 90, P50Ms: int64Ptr(1100)}},
 							Health:      service.ChannelMonitorV2Health{ErrorRate: "healthy", TTFT: "healthy"},
 						},
 					},
@@ -501,14 +501,14 @@ func TestSiteSnapshotHandler_CurrentStatusUsesRecentClosedBucketsNot24hAverage(t
 					GroupID:  &gidRecentSkipNoData,
 					Metrics: service.ChannelMonitorV2Metric{
 						RequestCount: 300,
-						SuccessRate:  0.98,
-						TTFT:         service.ChannelMonitorV2Latency{SampleCount: 250, P50Ms: int64Ptr(2100)},
+						SuccessRate:  0.98, ErrorRate: 0.02,
+						TTFT: service.ChannelMonitorV2Latency{SampleCount: 250, P50Ms: int64Ptr(2100)},
 					},
 					Health: service.ChannelMonitorV2Health{ErrorRate: "healthy", TTFT: "healthy"},
 					Buckets: []service.ChannelMonitorV2TrendPoint{
 						{
 							BucketStart: windowEnd.Add(-90 * time.Minute), // index 45
-							Metrics:     service.ChannelMonitorV2Metric{RequestCount: 40, SuccessRate: 0.92},
+							Metrics:     service.ChannelMonitorV2Metric{RequestCount: 40, SuccessRate: 0.92, ErrorRate: 0.08},
 							Health:      service.ChannelMonitorV2Health{ErrorRate: "warning", TTFT: "healthy"},
 						},
 					},
@@ -519,14 +519,14 @@ func TestSiteSnapshotHandler_CurrentStatusUsesRecentClosedBucketsNot24hAverage(t
 					GroupID:  &gidIdleNow,
 					Metrics: service.ChannelMonitorV2Metric{
 						RequestCount: 400,
-						SuccessRate:  0.995,
-						TTFT:         service.ChannelMonitorV2Latency{SampleCount: 380, P50Ms: int64Ptr(950)},
+						SuccessRate:  0.995, ErrorRate: 0.005,
+						TTFT: service.ChannelMonitorV2Latency{SampleCount: 380, P50Ms: int64Ptr(950)},
 					},
 					Health: service.ChannelMonitorV2Health{ErrorRate: "healthy", TTFT: "healthy"},
 					Buckets: []service.ChannelMonitorV2TrendPoint{
 						{
 							BucketStart: windowEnd.Add(-120 * time.Minute), // index 44
-							Metrics:     service.ChannelMonitorV2Metric{RequestCount: 100, SuccessRate: 1.0},
+							Metrics:     service.ChannelMonitorV2Metric{RequestCount: 100, SuccessRate: 1.0, ErrorRate: 0},
 							Health:      service.ChannelMonitorV2Health{ErrorRate: "healthy", TTFT: "healthy"},
 						},
 					},
@@ -582,4 +582,52 @@ func TestMapSiteHealthStatus_AllFourStates(t *testing.T) {
 	require.Equal(t, "outage", mapSiteHealthStatus("critical", "healthy"))
 	require.Equal(t, "no_data", mapSiteHealthStatus("unknown", "unknown"))
 	require.Equal(t, "no_data", mapSiteHealthStatus("", ""))
+}
+
+// 被忽略的错误类别（客户端取消、参数错误等）不计入 ErrorRate，但仍在 SuccessRate 的分母里。
+// 对外可用率必须跟随 ErrorRate，与状态颜色同一口径，不能把这些请求算作服务失败。
+func TestSiteSnapshotHandler_UptimeFollowsErrorRateNotSuccessRate(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	now := time.Date(2026, 11, 27, 5, 5, 0, 0, time.UTC)
+	windowEnd := now.Truncate(30 * time.Minute)
+	lastBucket := windowEnd.Add(-30 * time.Minute)
+	groupID := int64(43)
+
+	// 1000 个请求：920 成功、70 个被忽略的客户端错误、10 个计入的错误。
+	metric := service.ChannelMonitorV2Metric{
+		RequestCount: 1000, SuccessRequests: 920, ErrorRequests: 80,
+		SuccessRate: 0.92, ErrorRate: 0.01,
+	}
+	health := service.ChannelMonitorV2Health{ErrorRate: "healthy", TTFT: "healthy"}
+
+	h := &SiteSnapshotHandler{
+		plazaService: &stubSitePlazaLister{groups: []service.PlazaGroup{{ID: groupID, Name: "CC-MAX", Platform: "anthropic"}}},
+		monitorV2Service: &stubSiteMatrixQuerier{matrix: &service.ChannelMonitorV2Matrix{
+			Items: []service.ChannelMonitorV2MatrixRow{{
+				Platform: "anthropic", GroupID: &groupID, Metrics: metric, Health: health,
+				Buckets: []service.ChannelMonitorV2TrendPoint{{BucketStart: lastBucket, Metrics: metric, Health: health}},
+			}},
+		}},
+		settingService: &stubSiteMonitorSettings{rt: service.ChannelMonitorRuntime{Enabled: true, Mode: service.ChannelMonitorModeV2}},
+		now:            func() time.Time { return now },
+	}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/internal/site/status", nil)
+	h.GetStatus(c)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var resp siteStatusResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	require.Len(t, resp.Groups, 1)
+	g := resp.Groups[0]
+	require.Equal(t, "normal", g.Status)
+	require.NotNil(t, g.Uptime24h)
+	require.InDelta(t, 99.0, *g.Uptime24h, 0.001, "24h 可用率应为 1−错误率，而不是成功数÷总请求数的 92%")
+	last := g.Buckets[len(g.Buckets)-1]
+	require.Equal(t, "normal", last.Status)
+	require.NotNil(t, last.Uptime)
+	require.InDelta(t, 99.0, *last.Uptime, 0.001)
 }
