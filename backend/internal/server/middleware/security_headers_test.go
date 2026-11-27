@@ -494,6 +494,49 @@ func TestAddToDirective(t *testing.T) {
 	})
 }
 
+func TestSecurityHeaders_PigcodePricingEmbedFrameSrc(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("injects_pricing_embed_origin_for_legacy_policy", func(t *testing.T) {
+		cfg := config.CSPConfig{
+			Enabled: true,
+			Policy:  "default-src 'self'; script-src 'self' __CSP_NONCE__; frame-src 'self'",
+		}
+		r := gin.New()
+		r.Use(SecurityHeaders(cfg, nil))
+		r.GET("/model-plaza", func(c *gin.Context) {
+			c.Status(http.StatusOK)
+		})
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/model-plaza", nil))
+
+		csp := w.Header().Get("Content-Security-Policy")
+		assert.Equal(t, 1, countDirectiveValue(csp, "frame-src", PigcodePricingEmbedOrigin))
+	})
+
+	t.Run("deduplicates_when_dynamic_origin_also_contains_pricing_embed", func(t *testing.T) {
+		cfg := config.CSPConfig{
+			Enabled: true,
+			Policy:  config.DefaultCSPPolicy,
+		}
+		r := gin.New()
+		r.Use(SecurityHeaders(cfg, func() []string {
+			return []string{PigcodePricingEmbedOrigin, "https://chat.pigcode.ai"}
+		}))
+		r.GET("/model-plaza", func(c *gin.Context) {
+			c.Status(http.StatusOK)
+		})
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/model-plaza", nil))
+
+		csp := w.Header().Get("Content-Security-Policy")
+		assert.Equal(t, 1, countDirectiveValue(csp, "frame-src", PigcodePricingEmbedOrigin))
+		assert.Equal(t, 1, countDirectiveValue(csp, "frame-src", "https://chat.pigcode.ai"))
+	})
+}
+
 // Benchmark tests
 func BenchmarkGenerateNonce(b *testing.B) {
 	for i := 0; i < b.N; i++ {

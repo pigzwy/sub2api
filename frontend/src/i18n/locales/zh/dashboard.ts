@@ -664,6 +664,12 @@ export default {
     loadFailed: '加载模型广场失败',
     noSearchResult: '没有匹配的模型',
     anonymousHint: '登录后可查看你的专属分组与专属倍率',
+    embed: {
+      fallbackHint: '若下方价格页未正常显示或无法自适应高度，可点击重试或直接在新窗口打开。',
+      loadTimeout: '模型价格页加载超时或被浏览器拦截，请重试或在新窗口打开查看。',
+      retry: '重新加载',
+      openExternal: '新窗口打开价格页'
+    },
     catalog: {
       category: '分类',
       products: '产品',

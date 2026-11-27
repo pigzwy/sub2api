@@ -659,6 +659,12 @@ export default {
     loadFailed: 'Failed to load model plaza',
     noSearchResult: 'No matching models',
     anonymousHint: 'Sign in to see your exclusive groups and personal rates',
+    embed: {
+      fallbackHint: 'If the pricing table below does not display properly, retry or open it in a new tab.',
+      loadTimeout: 'The pricing page timed out or was blocked by the browser. Please retry or open it in a new tab.',
+      retry: 'Retry',
+      openExternal: 'Open pricing page'
+    },
     catalog: {
       category: 'Category',
       products: 'Products',

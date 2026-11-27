@@ -47,6 +47,8 @@ const (
 	AirwallexDemoStaticDomain = "https://static-demo.airwallex.com"
 	// AirwallexDemoCheckoutDomain 是 Airwallex 沙箱环境收银台元素和 iframe 域名。
 	AirwallexDemoCheckoutDomain = "https://checkout-demo.airwallex.com"
+	// PigcodePricingEmbedOrigin 是模型广场单源内嵌的官网实时价格页来源。
+	PigcodePricingEmbedOrigin = "https://www.pigcode.ai"
 )
 
 var requiredCSPDirectiveValues = []struct {
@@ -83,6 +85,7 @@ var requiredCSPDirectiveValues = []struct {
 	{"style-src", AirwallexDemoStaticDomain},
 	{"style-src", AirwallexDemoCheckoutDomain},
 	{"frame-src", AirwallexDemoCheckoutDomain},
+	{"frame-src", PigcodePricingEmbedOrigin},
 }
 
 // GenerateNonce generates a cryptographically secure random nonce.
@@ -121,7 +124,7 @@ func SecurityHeaders(cfg config.CSPConfig, getFrameSrcOrigins func() []string) g
 		finalPolicy := policy
 		if getFrameSrcOrigins != nil {
 			for _, origin := range getFrameSrcOrigins() {
-				if origin != "" {
+				if origin != "" && !directiveHasValue(finalPolicy, "frame-src", origin) {
 					finalPolicy = addToDirective(finalPolicy, "frame-src", origin)
 				}
 			}
