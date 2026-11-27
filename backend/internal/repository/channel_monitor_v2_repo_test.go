@@ -483,3 +483,77 @@ func TestChannelMonitorV2CatalogFilterClearsMultiSelectDimensions(t *testing.T) 
 	require.Equal(t, []int64{3, 4}, configuredChannelMonitorV2GroupIDs(catalog, cfg))
 	require.Equal(t, []int64{3}, configuredChannelMonitorV2GroupIDs(filter, cfg))
 }
+
+func TestChannelMonitorV2GetMatrix30MinuteBucketsUses1mTables(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	repo := &channelMonitorV2Repository{db: db}
+
+	end := time.Date(2026, 11, 27, 5, 0, 0, 0, time.UTC)
+	start := end.Add(-24 * time.Hour)
+	bucketStart := start.Add(30 * time.Minute)
+	filter := service.ChannelMonitorV2Filter{
+		Range:           "24h",
+		Start:           start,
+		End:             end,
+		Bucket:          30 * time.Minute,
+		RestrictGroups:  true,
+		AllowedGroupIDs: []int64{43},
+	}
+	cfg := service.ChannelMonitorV2Config{
+		Enabled:                true,
+		Platforms:              []service.ChannelMonitorV2PlatformConfig{{Platform: "anthropic", Enabled: true}},
+		IgnoredErrorCategories: []string{"client_cancelled"},
+		HealthThresholds:       service.DefaultChannelMonitorV2HealthThresholds(),
+	}
+
+	// 1. watermark
+	mock.ExpectQuery(`FROM channel_monitor_v2_watermarks`).
+		WillReturnRows(sqlmock.NewRows([]string{"usage_coverage_start", "error_coverage_start", "data_through", "last_successful_at", "backfill_cursor"}).
+			AddRow(start, start, end, end, start))
+
+	// 2. loadFacts -> 1m table with date_bin('1800 seconds', ...)
+	mock.ExpectQuery(`FROM channel_monitor_v2_metrics_1m m`).
+		WithArgs("1800 seconds", start, end, pq.Array([]string{"anthropic"}), pq.Array([]int64{43})).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"bucket", "platform", "group_id", "name", "model",
+			"success", "errors", "upstream_affected", "upstream_attempts",
+			"input", "output", "cache_creation", "cache_read",
+			"ttft_sum", "ttft_count", "duration_sum", "duration_count",
+		}).AddRow(bucketStart, "anthropic", int64(43), "CC-MAX", "claude-sonnet-5-5",
+			int64(98), int64(2), int64(0), int64(0),
+			int64(1000), int64(500), int64(0), int64(0),
+			int64(180000), int64(100), int64(300000), int64(100)))
+
+	// 3. loadHistograms -> 1m table with date_bin('1800 seconds', ...)
+	mock.ExpectQuery(`FROM channel_monitor_v2_latency_histograms_1m h`).
+		WithArgs("1800 seconds", start, end, pq.Array([]string{"anthropic"}), pq.Array([]int64{43}), int64(0)).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"bucket", "platform", "group_id", "model", "user_id", "metric", "upper_bound_ms", "sample_count",
+		}).AddRow(bucketStart, "anthropic", int64(43), "claude-sonnet-5-5", int64(0), "ttft", int64(1800), int64(100)))
+
+	// 4. loadChannelMonitorV2GroupInfo
+	mock.ExpectQuery(`FROM groups WHERE id = ANY`).
+		WithArgs(pq.Array([]int64{43})).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "platform"}).
+			AddRow(int64(43), "CC-MAX", "anthropic"))
+
+	// 5. loadIgnoredErrorCountsByMatrixKey -> 1m error table with date_bin('1800 seconds', ...)
+	mock.ExpectQuery(`FROM channel_monitor_v2_error_metrics_1m e`).
+		WithArgs("1800 seconds", start, end, pq.Array([]string{"anthropic"}), pq.Array([]int64{43}), pq.Array([]string{"client_cancelled"}), service.ChannelMonitorV2TaxonomyVersion).
+		WillReturnRows(sqlmock.NewRows([]string{"bucket", "platform", "group_id", "model", "error_requests"}).
+			AddRow(bucketStart, "anthropic", int64(43), "claude-sonnet-5-5", int64(1)))
+
+	matrix, err := repo.GetMatrix(context.Background(), filter, cfg, service.ChannelMonitorV2GroupByPlatformGroup, false)
+	require.NoError(t, err)
+	require.Equal(t, 1800, matrix.Coverage.BucketSeconds)
+	require.Len(t, matrix.Items, 1)
+	require.Equal(t, int64(43), *matrix.Items[0].GroupID)
+	require.Len(t, matrix.Items[0].Buckets, 1)
+	require.Equal(t, bucketStart, matrix.Items[0].Buckets[0].BucketStart)
+	require.NotNil(t, matrix.Items[0].Buckets[0].Metrics.TTFT.P50Ms)
+	require.Equal(t, int64(1800), *matrix.Items[0].Buckets[0].Metrics.TTFT.P50Ms)
+	require.Equal(t, "healthy", matrix.Items[0].Buckets[0].Health.ErrorRate)
+	require.NoError(t, mock.ExpectationsWereMet())
+}

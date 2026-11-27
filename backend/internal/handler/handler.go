@@ -68,6 +68,7 @@ type Handlers struct {
 	PaymentWebhook   *PaymentWebhookHandler
 	AvailableChannel *AvailableChannelHandler
 	ModelPlaza       *ModelPlazaHandler
+	SiteSnapshot     *SiteSnapshotHandler
 	AsyncImage       *AsyncImageHandler
 	BatchImage       *BatchImageHandler
 	Checkin          *CheckinHandler
