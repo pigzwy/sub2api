@@ -114,6 +114,12 @@ export const FeatureFlags = {
     mode: 'opt-in',
     label: 'Model Plaza',
   }),
+  // [FORK] 分组状态：内嵌官网状态页。与 channelMonitor 相互独立，可以只开其中一个。
+  groupStatus: defineFlag({
+    key: 'group_status_enabled',
+    mode: 'opt-in',
+    label: 'Group Status',
+  }),
   pluginManagement: defineFlag({
     key: 'plugin_management_enabled',
     mode: 'opt-in',

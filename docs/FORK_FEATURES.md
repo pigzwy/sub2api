@@ -142,6 +142,7 @@ PR #8 的空通道标识隐藏同步纳入，既有 Stripe 六标及 USDT 网络
 | 首输出异常保护与 Telegram 通知 | ✅ | ✅ | — | — | 账号 credentials + `telegram_notification` |
 | OpenAI API Key 账号同步请求开关 | ✅ | ✅ | — | — | 账号 extra `openai_sync_upstream_disabled` |
 | 全站数字与拉丁字体 | — | ✅ | — | — | — |
+| 官网价格与状态对接（模型广场内嵌、状态接口、分组状态页） | ✅ | ✅ | — | — | `group_status_enabled` 1 项 + 环境变量 `SITE_STATUS_ENABLED` |
 
 ---
 
@@ -1201,6 +1202,48 @@ frontend/src/components/account/EditAccountModal.vue
 `preloadPrimaryFont()` 插件即可；`pnpm-lock.yaml` 更新时需保持与 Dockerfile `pnpm@9`（含 `libc` 字段）兼容。
 
 ---
+
+## 22. 官网价格与状态对接（2026-11-27）
+
+官网（`www.pigcode.ai`，独立的静态站仓库）和本站各展示一份价格与状态会出现两套口径，所以统一为
+**官网维护一份页面，本站内嵌**，数据仍由本站提供。三个部分互相独立：
+
+**1. 模型广场内嵌官网价格页。** `ModelPlazaView.vue` 不再自己取数渲染，而是 iframe 内嵌
+`https://www.pigcode.ai/pricing.html?embed=1`。官网价格页的数据来自本站匿名的
+`GET /api/v1/model-plaza`（由官网的反向代理转发）。代价：登录用户在广场里看不到自己的专属分组与
+专属倍率，只有公开价格。CSP 的 `frame-src` 强制包含官网域名（`security_headers.go` 的
+`requiredCSPDirectiveValues`），后台自定义 CSP 也不会把它挤掉。
+
+**2. 官网状态页的数据接口。** `GET /api/v1/internal/site/status`
+（`handler/site_snapshot_handler.go`、`repository/site_status_repo.go`、`routes/site_snapshot.go`）。
+
+- 直接统计 `usage_logs` 与 `ops_error_logs`，**不使用渠道监控**（v1 主动探测、v2 被动聚合都不用），
+  后台切换或调整渠道监控不影响它。错误日志由运维监控写入，关掉那边的错误记录这里就看不到失败。
+- 返回最近 24 小时、48 个已结束的半小时桶，只含非专属分组（与匿名模型广场同一套可见规则），
+  只输出状态、可用率、首字延迟中位数，不输出任何请求数量。
+- 判定阈值是 handler 顶部的常量：桶内请求 ≥ 20 时失败率 ≥ 20% 为故障、≥ 5% 为波动；5–19 个请求时
+  最多报波动；少于 5 个按正常。失败只算服务侧的（`error_owner` 为 provider/platform、非业务限制、
+  最终状态码 ≥ 500 或 429）。首字延迟只展示，不参与判定。
+- 分组当前状态取最近 3 个桶里最新一个有真实流量的桶；都安静时回落到 24 小时合计，
+  避免“请求很少但几乎全失败”的分组显示正常。
+- 自带进程内缓存：一个半小时窗口内最多计算两次，并发请求共用一次计算，计算失败继续返回上一份。
+  生产数据上一次计算约 1.5 秒。
+- 两道开关：环境变量 `SITE_STATUS_ENABLED=true`（默认关闭，返回 404），且 TCP 对端必须是回环或私网地址
+  （即只接受本机反向代理转来的请求）。不挂 JWT、不进审计。
+
+**3. 「分组状态」页。** 用户侧边栏的独立菜单（`/group-status`，`views/user/GroupStatusView.vue`），
+iframe 内嵌 `https://www.pigcode.ai/status.html?embed=1`，后台与官网看到同一份状态。
+
+- 由后台设置「分组状态」开关控制（`group_status_enabled`，默认关闭），与上游的「渠道监控」开关
+  **相互独立**：可以只开其中一个，随时切换。想恢复上游自带的渠道状态页，关掉这一项、打开渠道监控即可。
+- 内嵌逻辑在 `components/common/SiteEmbedFrame.vue`：只向官网传 `theme` 和 `lang`，
+  **不传用户 ID 和登录令牌**。这也是没有用后台「自定义菜单」来做的原因——自定义菜单的三种打开方式
+  都会把 `user_id` 和 `token` 拼进目标地址，那是给 Studio 免登录用的，不适合公开页面。
+- 官网页面通过 `postMessage` 上报内容高度（`pigcode-status-height`），本页据此调整 iframe 高度，
+  并把主题、语言切换同步过去（`pigcode-embed-sync`）。8 秒内没有握手则显示重试与新窗口打开。
+- 这个开关只管本站的菜单，不影响官网状态页（那边由第 2 点的环境变量控制）。
+
+模型广场的内嵌暂时没有改用 `SiteEmbedFrame`，逻辑是同一套，后续可以合并。
 
 ## 媒体转存与异步图片对象存储的补充说明
 

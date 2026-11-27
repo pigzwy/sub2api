@@ -731,6 +731,23 @@ const SignalIcon = {
     )
 }
 
+// [FORK] 分组状态：圆角方框里一条脉搏线
+const GroupStatusIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
+      [
+        h('rect', { x: '3.75', y: '3.75', width: '16.5', height: '16.5', rx: '3' }),
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M7 12.25h2.2l1.55-3.5 2.5 6.5 1.55-3h2.2'
+        })
+      ]
+    )
+}
+
 const ShieldIcon = {
   render: () =>
     h(
@@ -788,6 +805,7 @@ const flagChannelMonitor = makeSidebarFlag(FeatureFlags.channelMonitor)
 const flagPayment = makeSidebarFlag(FeatureFlags.payment)
 const flagAvailableChannels = makeSidebarFlag(FeatureFlags.availableChannels)
 const flagModelPlaza = makeSidebarFlag(FeatureFlags.modelPlaza)
+const flagGroupStatus = makeSidebarFlag(FeatureFlags.groupStatus)
 const flagSubscription = makeSidebarFlag(FeatureFlags.subscription)
 
 // 购买入口文案随站点计费模式切换：仅充值 → 「充值」，仅订阅 → 「订阅」，否则「充值/订阅」。
@@ -826,6 +844,7 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
     { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
     { path: '/model-plaza', label: t('nav.modelPlaza'), icon: PriceTagIcon, hideInSimpleMode: true, featureFlag: flagModelPlaza },
     { path: '/monitor', label: t('nav.channelStatus'), icon: SignalIcon, featureFlag: flagChannelMonitor },
+    { path: '/group-status', label: t('nav.groupStatus'), icon: GroupStatusIcon, featureFlag: flagGroupStatus },
     { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true, featureFlag: flagSubscription },
     { path: '/purchase', label: purchaseNavLabel.value, icon: RechargeSubscriptionIcon, hideInSimpleMode: true, featureFlag: flagPayment },
     { path: '/orders', label: t('nav.myOrders'), icon: OrderListIcon, hideInSimpleMode: true, featureFlag: flagPayment },
@@ -882,6 +901,7 @@ function accountNavSections(): NavSection[] {
     { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
     { path: '/model-plaza', label: t('nav.modelPlaza'), icon: PriceTagIcon, hideInSimpleMode: true, featureFlag: flagModelPlaza },
     { path: '/monitor', label: t('nav.channelStatus'), icon: SignalIcon, featureFlag: flagChannelMonitor },
+    { path: '/group-status', label: t('nav.groupStatus'), icon: GroupStatusIcon, featureFlag: flagGroupStatus },
     ...(docNavHref.value
       ? [{ path: docNavHref.value, label: t('nav.tutorialDocs'), icon: BookIcon, href: docNavHref.value, newTab: true }]
       : []),

@@ -656,6 +656,14 @@ export default {
   },
 
   // Model Plaza (public group/model pricing showcase)
+  groupStatus: {
+    embed: {
+      fallbackHint: '若下方状态页未正常显示或无法自适应高度，可点击重试或直接在新窗口打开。',
+      loadTimeout: '分组状态页加载超时或被浏览器拦截，请重试或在新窗口打开查看。',
+      retry: '重新加载',
+      openExternal: '新窗口打开状态页'
+    }
+  },
   modelPlaza: {
     title: '模型广场',
     description: '按分类和分组倍率查看模型价格',

@@ -74,6 +74,12 @@ export default {
             subscriptionOnly: 'The purchase page only offers subscription plans and the sidebar entry reads "Subscription"; balance top-up orders are rejected. Redeem codes, affiliate payouts and other balance credits are unaffected.',
           },
         },
+        groupStatus: {
+          title: 'Group Status',
+          description: 'Shows a "Group Status" entry in the user sidebar that embeds the website status page, so the dashboard and the website show the same status. Off by default.',
+          enabled: 'Enable group status',
+          enabledHint: 'Independent of Channel Monitor above: turn on only this one and users see the same status as the website; to go back to the built-in channel status, turn this off and turn Channel Monitor on.',
+        },
         modelPlaza: {
           title: 'Model Plaza',
           description: 'A public page showcasing available models and pricing by group. Disabled by default.',

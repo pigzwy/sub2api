@@ -525,6 +525,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    // [FORK] 分组状态：内嵌官网状态页，由 group_status_enabled 开关控制（见下方路由守卫）
+    path: '/group-status',
+    name: 'GroupStatus',
+    component: () => import('@/views/user/GroupStatusView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Group Status',
+      titleKey: 'nav.groupStatus'
+    }
+  },
+  {
     path: '/monitor',
     name: 'ChannelStatus',
     component: () => import('@/views/user/ChannelStatusView.vue'),
@@ -863,6 +875,23 @@ router.beforeEach(async (to, _from, next) => {
       // Admin users go to admin dashboard, regular users go to user dashboard
       next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
       return
+    }
+    // [FORK] 分组状态:开关关闭时不可达。仅在设置已加载且明确为 false 时拦截,瞬时加载失败按未知放行
+    if (to.path === '/group-status') {
+      if (!appStore.publicSettingsLoaded) {
+        try {
+          await appStore.fetchPublicSettings()
+        } catch (error) {
+          console.warn('Failed to load public settings in route guard', error)
+        }
+      }
+      if (
+        appStore.publicSettingsLoaded &&
+        appStore.cachedPublicSettings?.group_status_enabled === false
+      ) {
+        next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
+        return
+      }
     }
     // Model Plaza:公开路由但受「启用开关 + 可选强制登录」双重控制(后端同口径 fail-closed)
     if (to.path === '/model-plaza') {

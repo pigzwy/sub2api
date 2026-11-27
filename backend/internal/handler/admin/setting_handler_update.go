@@ -357,6 +357,8 @@ type UpdateSettingsRequest struct {
 	ModelPlazaEnabled     *bool   `json:"model_plaza_enabled"`
 	ModelPlazaRequireAuth *bool   `json:"model_plaza_require_auth"`
 	ModelPlazaDescription *string `json:"model_plaza_description"`
+	// Group Status page switch [FORK]
+	GroupStatusEnabled *bool `json:"group_status_enabled"`
 
 	// Plugin management menu visibility switch; plugin runtime is unaffected.
 	PluginManagementEnabled *bool `json:"plugin_management_enabled"`
@@ -2047,6 +2049,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.ModelPlazaEnabled
 		}(),
+		GroupStatusEnabled: func() bool {
+			if req.GroupStatusEnabled != nil {
+				return *req.GroupStatusEnabled
+			}
+			return previousSettings.GroupStatusEnabled
+		}(),
 		ModelPlazaRequireAuth: func() bool {
 			if req.ModelPlazaRequireAuth != nil {
 				return *req.ModelPlazaRequireAuth
@@ -2593,6 +2601,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		ModelPlazaEnabled:       updatedSettings.ModelPlazaEnabled,
 		ModelPlazaRequireAuth:   updatedSettings.ModelPlazaRequireAuth,
 		ModelPlazaDescription:   updatedSettings.ModelPlazaDescription,
+		GroupStatusEnabled:      updatedSettings.GroupStatusEnabled,
 		PluginManagementEnabled: updatedSettings.PluginManagementEnabled,
 
 		AffiliateEnabled: updatedSettings.AffiliateEnabled,

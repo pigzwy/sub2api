@@ -651,6 +651,14 @@ export default {
   },
 
   // Model Plaza (public group/model pricing showcase)
+  groupStatus: {
+    embed: {
+      fallbackHint: 'If the status page below does not show or does not resize, retry or open it in a new window.',
+      loadTimeout: 'The group status page timed out or was blocked by the browser. Retry or open it in a new window.',
+      retry: 'Reload',
+      openExternal: 'Open status page in a new window'
+    }
+  },
   modelPlaza: {
     title: 'Model Plaza',
     description: 'Browse model prices by category and group rate',

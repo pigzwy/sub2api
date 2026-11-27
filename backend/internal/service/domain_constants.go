@@ -585,6 +585,12 @@ const (
 	// the Model Plaza page (global pricing notes, exchange rate, promotions, ...).
 	SettingKeyModelPlazaDescription = "model_plaza_description"
 
+	// SettingKeyGroupStatusEnabled is a DB-backed soft switch for the user-facing "Group Status"
+	// page [FORK]. That page embeds the public website's status page so the dashboard and the
+	// website show one and the same status. It is independent of channel_monitor_enabled: either
+	// page can be on without the other. Default false.
+	SettingKeyGroupStatusEnabled = "group_status_enabled"
+
 	// SettingKeyPluginManagementEnabled controls sidebar visibility only; it does
 	// not stop or otherwise change already loaded plugin runtimes.
 	SettingKeyPluginManagementEnabled = "plugin_management_enabled"

@@ -132,6 +132,7 @@ func (h *SettingHandler) writePublicSettings(c *gin.Context, settings *service.P
 
 		ModelPlazaEnabled:       settings.ModelPlazaEnabled,
 		ModelPlazaRequireAuth:   settings.ModelPlazaRequireAuth,
+		GroupStatusEnabled:      settings.GroupStatusEnabled,
 		PluginManagementEnabled: settings.PluginManagementEnabled,
 
 		AffiliateEnabled: settings.AffiliateEnabled,
