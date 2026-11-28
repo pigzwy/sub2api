@@ -197,9 +197,18 @@ func TestSiteSnapshotHandler_WhitelistSchemaWindowLocalizationAndPrivacy(t *test
 	var generic map[string]any
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &generic))
 	require.ElementsMatch(t, []string{"ok", "updated_at", "bucket_minutes", "groups"}, keysOf(generic))
-	group0 := generic["groups"].([]any)[0].(map[string]any)
+	rawGroups, ok := generic["groups"].([]any)
+	require.True(t, ok, "groups must be an array")
+	require.NotEmpty(t, rawGroups)
+	group0, ok := rawGroups[0].(map[string]any)
+	require.True(t, ok, "group must be an object")
 	require.ElementsMatch(t, []string{"id", "platform", "name", "status", "uptime_24h", "ttft_ms", "buckets"}, keysOf(group0))
-	require.ElementsMatch(t, []string{"start", "end", "status", "uptime", "ttft_ms"}, keysOf(group0["buckets"].([]any)[0].(map[string]any)))
+	rawBuckets, ok := group0["buckets"].([]any)
+	require.True(t, ok, "buckets must be an array")
+	require.NotEmpty(t, rawBuckets)
+	bucket0, ok := rawBuckets[0].(map[string]any)
+	require.True(t, ok, "bucket must be an object")
+	require.ElementsMatch(t, []string{"start", "end", "status", "uptime", "ttft_ms"}, keysOf(bucket0))
 
 	// 英文：分组名换成译文，数据来自同一次计算
 	_, en := siteTestGet(t, h, siteTestPath, map[string]string{"Accept-Language": "en-US,en;q=0.9"})
