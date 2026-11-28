@@ -580,8 +580,8 @@ function formatBucketRange(value: string) {
   white-space: nowrap;
 }
 :global(.dark) .pulse-tooltip {
-  border-color: rgb(55 65 81);
-  background: rgb(17 24 39);
+  border-color: #1f2b40;
+  background: #101724;
   color: rgb(229 231 235);
 }
 .pulse-tooltip-line {
@@ -627,8 +627,8 @@ function formatBucketRange(value: string) {
   white-space: nowrap;
 }
 :global(.dark) .matrix-floating-tooltip {
-  border-color: rgb(55 65 81);
-  background: rgb(17 24 39);
+  border-color: #1f2b40;
+  background: #101724;
   color: rgb(229 231 235);
 }
 .matrix-floating-tooltip-line {

@@ -14034,7 +14034,7 @@ watch(
   height: 2px;
   border-radius: 9999px;
   content: "";
-  background: linear-gradient(90deg, #1e4b99, #ffd84a);
+  background: #e8a825;
 }
 
 .settings-tab-icon {
@@ -14068,15 +14068,15 @@ watch(
    because Vue's scoped-CSS compiler was dropping the `:global(.dark) ...`
    rules in the production build, leaving inactive tabs unreadable on dark. */
 .dark .settings-tabs-shell {
-  border-color: rgb(51 65 85 / 0.65);
-  background: rgb(15 23 42 / 0.86);
+  border-color: #1f2b40;
+  background: rgb(16 23 36 / 0.92);
   box-shadow:
     0 16px 36px rgb(0 0 0 / 0.28),
     0 1px 0 rgb(255 255 255 / 0.06) inset;
 }
 
 .dark .settings-tab::before {
-  background: linear-gradient(135deg, rgb(30 41 59 / 0.9), rgb(51 65 85 / 0.62));
+  background: linear-gradient(135deg, rgb(28 38 56 / 0.92), rgb(31 43 64 / 0.72));
 }
 
 .dark .settings-tab-active {
@@ -14086,8 +14086,8 @@ watch(
 }
 
 .dark .settings-save-dock {
-  border-color: rgb(51 65 85 / 0.65);
-  background: rgb(15 23 42 / 0.86);
+  border-color: #1f2b40;
+  background: rgb(16 23 36 / 0.92);
   box-shadow:
     0 14px 32px rgb(0 0 0 / 0.34),
     0 1px 0 rgb(255 255 255 / 0.06) inset;

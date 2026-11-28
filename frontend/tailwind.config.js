@@ -5,35 +5,52 @@ export default {
   theme: {
     extend: {
       colors: {
-        // 主色调跟 Logo：浅阶是脸的黄，深阶是描边的藏青，按钮用藏青才看得清字
+        // 品牌主色阶对齐官网「纸·墨·金」方案 B+：
+        // - 50/100/200 与 900/950 采用暖石/深海中性面，避免 100+ 处 bg-primary-50/100 提示块与 amber 告警黄混淆
+        // - 300/400/500/600 保留克制琥珀金与铜金（焦点环、链接与细锚点），700 为暖炭墨确保浅底高对比
         primary: {
-          50: '#fff9e6',
-          100: '#fff1c2',
-          200: '#ffe48a',
-          300: '#ffd84a',
-          400: '#6c94ec',
-          500: '#2a5bc4',
-          600: '#1e4b99',
-          700: '#183c7a',
-          800: '#122e5e',
-          900: '#0d2248',
-          950: '#08152e'
+          50: '#f5f4f0',
+          100: '#eceae4',
+          200: '#dddad2',
+          300: '#f5ca64',
+          400: '#e8a825',
+          500: '#d49217',
+          600: '#8a5f0a',
+          700: '#201f1a',
+          800: '#2c3b55',
+          900: '#1c2638',
+          950: '#151e2f'
         },
-        // 辅助色 - 深蓝灰
+        // 辅助色 - 暖灰/深海灰
         accent: {
-          50: '#f8fafc',
-          100: '#f1f5f9',
-          200: '#e2e8f0',
-          300: '#cbd5e1',
+          50: '#fafaf8',
+          100: '#f3f2ee',
+          200: '#e7e5e0',
+          300: '#d8d5cf',
           400: '#94a3b8',
-          500: '#64748b',
-          600: '#475569',
-          700: '#334155',
-          800: '#1e293b',
-          900: '#0f172a',
-          950: '#020617'
+          500: '#6e6b62',
+          600: '#454339',
+          700: '#2c3b55',
+          800: '#101724',
+          900: '#070b14',
+          950: '#0a0f1a'
         },
-        // 深色模式背景
+        // 仅暖化 50–300（浅色纸底与发丝边）；400–950 保持 Tailwind 默认冷灰，
+        // 避免上游 27 个文件 129 处 dark:bg-gray-700/800/900 在黑曜蓝底上发褐
+        gray: {
+          50: '#fafaf8',
+          100: '#f3f2ee',
+          200: '#e7e5e0',
+          300: '#d8d5cf',
+          400: '#9ca3af',
+          500: '#6b7280',
+          600: '#4b5563',
+          700: '#374151',
+          800: '#1f2937',
+          900: '#111827',
+          950: '#030712'
+        },
+        // 深色模式背景：黑曜午夜蓝画布（#0a0f1a）+ 深海蓝卡片（#101724）+ 暗色侧栏（#070b14），与官网及 Studio 同源
         dark: {
           50: '#f8fafc',
           100: '#f1f5f9',
@@ -41,11 +58,11 @@ export default {
           300: '#cbd5e1',
           400: '#94a3b8',
           500: '#64748b',
-          600: '#475569',
-          700: '#334155',
-          800: '#1e293b',
-          900: '#0f172a',
-          950: '#020617'
+          600: '#2c3b55',
+          700: '#1f2b40',
+          800: '#101724',
+          900: '#070b14',
+          950: '#0a0f1a'
         }
       },
       fontFamily: {
@@ -66,22 +83,21 @@ export default {
         mono: ['JetBrains Mono Variable', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace']
       },
       boxShadow: {
-        glass: '0 8px 32px rgba(0, 0, 0, 0.08)',
-        'glass-sm': '0 4px 16px rgba(0, 0, 0, 0.06)',
-        glow: '0 0 20px rgba(255, 204, 0, 0.32)',
-        'glow-lg': '0 0 40px rgba(255, 204, 0, 0.4)',
-        card: '0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06)',
-        'card-hover': '0 10px 40px rgba(0, 0, 0, 0.08)',
-        'inner-glow': 'inset 0 1px 0 rgba(255, 255, 255, 0.1)'
+        glass: '0 8px 32px rgba(32, 31, 26, 0.08)',
+        'glass-sm': '0 4px 16px rgba(32, 31, 26, 0.06)',
+        glow: '0 2px 10px rgba(32, 31, 26, 0.08)',
+        'glow-lg': '0 4px 16px rgba(32, 31, 26, 0.12)',
+        card: '0 1px 2px rgba(32, 31, 26, 0.04)',
+        'card-hover': '0 8px 24px rgba(32, 31, 26, 0.07)',
+        'inner-glow': 'inset 0 1px 0 rgba(255, 255, 255, 0.08)'
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'gradient-primary': 'linear-gradient(135deg, #2a5bc4 0%, #1e4b99 100%)',
-        'gradient-dark': 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+        'gradient-primary': 'linear-gradient(135deg, #201f1a 0%, #33312a 100%)',
+        'gradient-dark': 'linear-gradient(135deg, #101724 0%, #0a0f1a 100%)',
         'gradient-glass':
           'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
-        'mesh-gradient':
-          'radial-gradient(at 40% 20%, rgba(255, 204, 0, 0.16) 0px, transparent 50%), radial-gradient(at 80% 0%, rgba(190, 220, 70, 0.12) 0px, transparent 50%), radial-gradient(at 0% 50%, rgba(30, 75, 153, 0.06) 0px, transparent 50%)'
+        'mesh-gradient': 'none'
       },
       animation: {
         'fade-in': 'fadeIn 0.3s ease-out',
@@ -119,8 +135,8 @@ export default {
           '100%': { backgroundPosition: '200% 0' }
         },
         glow: {
-          '0%': { boxShadow: '0 0 20px rgba(255, 204, 0, 0.32)' },
-          '100%': { boxShadow: '0 0 30px rgba(255, 204, 0, 0.45)' }
+          '0%': { boxShadow: '0 2px 10px rgba(32, 31, 26, 0.08)' },
+          '100%': { boxShadow: '0 4px 16px rgba(32, 31, 26, 0.12)' }
         }
       },
       backdropBlur: {

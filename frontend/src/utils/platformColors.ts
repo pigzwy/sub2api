@@ -117,7 +117,7 @@ const ACCENT: Record<Platform, string> = {
   cline: '#8b5cf6', // violet-500（Cline 品牌紫 #9F58FA）
   composite: '#06b6d4', // cyan-500
 }
-const ACCENT_DEFAULT = '#1e4b99' // primary-600，Logo 描边藏青
+const ACCENT_DEFAULT = '#e8a825' // 品牌琥珀金（对齐官网与 Studio「纸·墨·金」）
 
 // ── Accent bar (gradient) ───────────────────────────────────────────
 const ACCENT_BAR: Record<Platform, string> = {

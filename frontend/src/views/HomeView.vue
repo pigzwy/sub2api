@@ -110,7 +110,7 @@
         class="absolute bottom-1/4 right-1/4 h-64 w-64 rounded-full bg-primary-400/10 blur-3xl"
       ></div>
       <div
-        class="absolute inset-0 bg-[linear-gradient(rgba(30,75,153,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(30,75,153,0.035)_1px,transparent_1px)] bg-[size:64px_64px] dark:bg-[linear-gradient(rgba(108,148,236,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(108,148,236,0.045)_1px,transparent_1px)]"
+        class="absolute inset-0 bg-[linear-gradient(rgba(32,31,26,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(32,31,26,0.035)_1px,transparent_1px)] bg-[size:64px_64px] dark:bg-[linear-gradient(rgba(232,168,37,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(232,168,37,0.04)_1px,transparent_1px)]"
       ></div>
     </div>
 
@@ -696,7 +696,7 @@ onMounted(() => {
   color: #a78bfa;
 }
 .code-url {
-  color: #7aa2f7;
+  color: #f5ca64;
 }
 .code-comment {
   color: #64748b;
@@ -737,8 +737,8 @@ onMounted(() => {
 :deep(.dark) .terminal-window {
   box-shadow:
     0 25px 50px -12px rgba(0, 0, 0, 0.6),
-    0 0 0 1px rgba(30, 75, 153, 0.2),
-    0 0 40px rgba(255, 204, 0, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 0 36px rgba(232, 168, 37, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 </style>

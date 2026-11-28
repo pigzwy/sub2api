@@ -20,7 +20,7 @@
 
       <!-- Grid Pattern -->
       <div
-        class="absolute inset-0 bg-[linear-gradient(rgba(30,75,153,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(30,75,153,0.035)_1px,transparent_1px)] bg-[size:64px_64px] dark:bg-[linear-gradient(rgba(108,148,236,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(108,148,236,0.045)_1px,transparent_1px)]"
+        class="absolute inset-0 bg-[linear-gradient(rgba(32,31,26,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(32,31,26,0.035)_1px,transparent_1px)] bg-[size:64px_64px] dark:bg-[linear-gradient(rgba(232,168,37,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(232,168,37,0.04)_1px,transparent_1px)]"
       ></div>
     </div>
 
@@ -31,7 +31,7 @@
         <!-- Custom Logo or Default Logo -->
         <template v-if="settingsLoaded">
           <div
-            class="mb-4 inline-flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl shadow-lg shadow-primary-500/30"
+            class="mb-4 inline-flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl shadow-md"
           >
             <img :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
           </div>
@@ -83,6 +83,6 @@ onMounted(() => {
 
 <style scoped>
 .text-gradient {
-  @apply bg-gradient-to-r from-primary-600 to-primary-500 bg-clip-text text-transparent;
+  @apply text-[#201f1a] dark:text-slate-50;
 }
 </style>

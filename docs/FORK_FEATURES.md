@@ -45,6 +45,8 @@ v0.2.3 采用上游 `236_group_model_allowlist_repair.sql` 修复旧列残留或
 
 ## 功能一览
 
+2026-11-28 全站界面主题统一为与官网（`web-pigcoder`）及 Studio（`pig-studio`）同源的极简「纸·墨·金」方案 B+：移除全局黄绿 `bg-mesh-gradient` 雾底、明黄 `shadow-glow` 与双色渐变按钮；画布与卡片对齐浅色暖纸（`#fafaf8` / 侧栏 `#f3f2ee` / 暖边 `#e7e5e0`）与深色黑曜午夜蓝（`#0a0f1a` / 侧栏 `#070b14` / 卡片 `#101724` / 边框 `#1f2b40`）；`gray` 仅暖化 `50–300` 保留 `400–950` 原冷灰；`primary` 浅/深底（`50/100/200/700/900/950`）改为暖石与深海中性以与 `amber` 告警语义完全分离，主按钮与 `role="switch"` 通用开关采用浅色暖炭墨（`#201f1a`）/ 深色纯白反色（`#f8fafc` + `#0a0f1a`，含暗色按钮内 `.text-white` / `.border-white` 加载转圈自动反色），侧栏激活态保留左侧 `3px` 琥珀金锚点；同步修复 `DataTable.vue`、`SettingsView.vue`、`RelayPulseMatrix.vue`、`AliyunCaptchaWidget.vue` 中写死的暗灰 RGB 色差。字体保持 `Plus Jakarta Sans Variable` + `JetBrains Mono Variable`，并在 `style.css` 补齐 `.stat-value` 等全局 `tabular-nums` 与等宽关闭连字（`font-variant-ligatures: none`）。主要改动集中在 `frontend/tailwind.config.js`、`frontend/src/style.css`、`frontend/src/styles/onboarding.css`、`frontend/src/components/common/DataTable.vue` 及少量视图硬编码，合并上游时注意保留 `style.css` 末尾的按钮/开关/转圈覆盖规则与 `DataTable.vue` 的 sticky 列背景色值。
+
 2026-11-26 全站的数字、货币符号和拉丁字符改用 Plus Jakarta Sans，等宽代码与终端改用
 JetBrains Mono，中文仍用系统字体；表格统一启用等宽数字，并补充明暗对比度与首屏字体
 预加载优化。纯展示改动，见第 17、21 节。

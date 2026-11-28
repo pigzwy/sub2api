@@ -33,10 +33,10 @@ const { t } = useI18n()
 
 const isDarkMode = computed(() => document.documentElement.classList.contains('dark'))
 const colors = computed(() => ({
-  teal: isDarkMode.value ? '#6c94ec' : '#1e4b99',
-  tealAlpha: isDarkMode.value ? '#6c94ec26' : '#1e4b9920',
-  grid: isDarkMode.value ? '#374151' : '#f3f4f6',
-  text: isDarkMode.value ? '#9ca3af' : '#6b7280'
+  teal: isDarkMode.value ? '#e8a825' : '#8a5f0a',
+  tealAlpha: isDarkMode.value ? '#e8a82526' : '#8a5f0a20',
+  grid: isDarkMode.value ? '#1f2b40' : '#efede8',
+  text: isDarkMode.value ? '#94a3b8' : '#6e6b62'
 }))
 
 const totalRequests = computed(() => sumNumbers(props.points.map((p) => p.request_count)))
